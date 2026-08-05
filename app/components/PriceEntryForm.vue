@@ -19,7 +19,9 @@ const savedMessage = ref('')
 const itemSuggestions = ref<Suggestion[]>([])
 const locationSuggestions = ref<Suggestion[]>([])
 const selectedHistory = ref<Suggestion | null>(null)
+const itemSearchTerm = ref('')
 let suggestionTimer: ReturnType<typeof setTimeout> | undefined
+let suggestionRequest = 0
 
 function localDate() {
   const now = new Date()
@@ -49,6 +51,7 @@ const normalizedUnit = computed(() => normalizeUnit(form.unit))
 const itemOptions = computed(() => itemSuggestions.value.map(suggestion => ({
   label: suggestion.value,
   value: suggestion.value,
+  onSelect: () => chooseItem(suggestion),
   description: [
     suggestion.location,
     suggestion.size ? `${Number(suggestion.size).toLocaleString()} ${suggestion.unit || ''}`.trim() : suggestion.unit,
@@ -69,34 +72,31 @@ onMounted(() => {
 })
 
 function searchItems(term: string) {
-  form.item = term
-  selectedHistory.value = null
   clearTimeout(suggestionTimer)
-  if (!form.item.trim()) {
+  const search = term.trim()
+  const request = ++suggestionRequest
+  if (!search) {
     itemSuggestions.value = []
     return
   }
   suggestionTimer = setTimeout(async () => {
     try {
-      itemSuggestions.value = await $fetch(apiUrl('/suggestions'), { query: { field: 'item', q: form.item, limit: 8 } })
+      const suggestions = await $fetch<Suggestion[]>(apiUrl('/suggestions'), { query: { field: 'item', q: search, limit: 8 } })
+      if (request === suggestionRequest) itemSuggestions.value = suggestions
     } catch {
-      itemSuggestions.value = []
+      if (request === suggestionRequest) itemSuggestions.value = []
     }
   }, 160)
 }
 
 function chooseItem(suggestion: Suggestion) {
   form.item = suggestion.value
-  form.location = suggestion.location || form.location
-  form.size = suggestion.size || ''
-  form.unit = suggestion.unit || form.unit
+  form.location = suggestion.location ?? ''
+  form.size = suggestion.size ?? ''
+  form.unit = suggestion.unit ?? ''
+  form.price = suggestion.price ?? ''
   selectedHistory.value = suggestion
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>('#price')?.focus())
-}
-
-function selectItem(value: string) {
-  const suggestion = itemSuggestions.value.find(item => item.value === value)
-  if (suggestion) chooseItem(suggestion)
 }
 
 function createItem(value: string | { value: string }) {
@@ -158,6 +158,7 @@ async function save() {
         id="item"
         data-item-input
         v-model="form.item"
+        v-model:search-term="itemSearchTerm"
         :items="itemOptions"
         value-key="value"
         create-item
@@ -168,7 +169,6 @@ async function save() {
         placeholder="Start typing an item…"
         required
         @update:search-term="searchItems"
-        @update:model-value="selectItem"
         @create="createItem"
       />
     </UFormField>

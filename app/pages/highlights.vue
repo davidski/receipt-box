@@ -33,6 +33,7 @@ const periodQuery = computed(() => ({ period: selectedPeriod.value }))
 const { data, pending, error, refresh } = await useFetch<Highlights>(apiUrl('/highlights'), { query: periodQuery })
 const periodOptions = computed(() => [
   { label: 'All time', value: 'all' },
+  { label: 'Current month', value: 'current-month' },
   { label: 'Past 12 months', value: '12m' },
   ...(data.value?.availableYears || []).map(year => ({ label: String(year), value: String(year) }))
 ])

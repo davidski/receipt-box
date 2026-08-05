@@ -31,11 +31,23 @@ export default defineEventHandler(async (event) => {
   }
 
   return sql`
-    SELECT DISTINCT ON (lower(item))
-      item AS value, location, size, unit, price, cost_per_unit, purchased_on AS last_used
-    FROM grocery_entries
-    WHERE (${search} = '' OR item ILIKE ${`%${search}%`})
-    ORDER BY lower(item), purchased_on DESC, id DESC
+    WITH latest_items AS (
+      SELECT DISTINCT ON (lower(item))
+        item AS value, location, size, unit, price, cost_per_unit, purchased_on AS last_used
+      FROM grocery_entries
+      WHERE (${search} = '' OR item ILIKE ${`%${search}%`})
+      ORDER BY lower(item), purchased_on DESC, id DESC
+    )
+    SELECT value, location, size, unit, price, cost_per_unit, last_used
+    FROM latest_items
+    ORDER BY
+      CASE
+        WHEN lower(value) = lower(${search}) THEN 0
+        WHEN value ILIKE ${`${search}%`} THEN 1
+        ELSE 2
+      END,
+      last_used DESC,
+      lower(value)
     LIMIT ${limit}
   `
 })

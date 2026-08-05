@@ -5,6 +5,7 @@ if (!appBaseURL.startsWith('/') || !appBaseURL.endsWith('/')) {
 const defaultApiBase = `${appBaseURL === '/' ? '' : appBaseURL.replace(/\/$/, '')}/api`
 const apiBase = process.env.NUXT_PUBLIC_API_BASE || defaultApiBase
 const manifestURL = `${appBaseURL.replace(/\/$/, '')}/manifest.webmanifest`
+const faviconURL = `${appBaseURL.replace(/\/$/, '')}/favicon.svg`
 const assetRoute = `${appBaseURL === '/' ? '' : appBaseURL.replace(/\/$/, '')}/_nuxt/**`
 
 export default defineNuxtConfig({
@@ -30,6 +31,7 @@ export default defineNuxtConfig({
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' }
       ],
       link: [
+        { rel: 'icon', type: 'image/svg+xml', href: faviconURL },
         { rel: 'manifest', href: manifestURL },
         { rel: 'preconnect', href: 'https://fonts.bunny.net' },
         {

@@ -12,10 +12,18 @@ export default defineEventHandler(async (event) => {
   let startDate: string | null = null
   let endDate: string | null = null
 
-  if (period === '12m') {
+  if (period === 'current-month' || period === '12m') {
     const today = new Date()
-    const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 11, 1))
-    const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1))
+    const currentMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+    const start = new Date(currentMonth)
+    const end = new Date(currentMonth)
+
+    if (period === 'current-month') {
+      end.setUTCMonth(end.getUTCMonth() + 1)
+    } else {
+      start.setUTCMonth(start.getUTCMonth() - 12)
+    }
+
     startDate = start.toISOString().slice(0, 10)
     endDate = end.toISOString().slice(0, 10)
   } else if (/^\d{4}$/.test(period)) {

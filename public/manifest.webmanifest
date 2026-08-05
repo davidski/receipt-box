@@ -2,9 +2,18 @@
   "name": "Pantry Pricebook",
   "short_name": "Pricebook",
   "description": "A quick, private grocery price tracker.",
-  "start_url": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#f4f0e6",
   "theme_color": "#295c3b",
-  "orientation": "any"
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }
