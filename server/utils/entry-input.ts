@@ -1,4 +1,5 @@
 import { normalizeUnit } from '../../shared/utils/units'
+import { normalizeStoreName } from '../../shared/utils/store-name'
 
 export type EntryInput = {
   purchasedOn: string
@@ -30,7 +31,7 @@ export function normalizeEntry(input: Record<string, unknown>): EntryInput {
     ? rawDate.toISOString().slice(0, 10)
     : String(rawDate).slice(0, 10)
   const item = String(input.item ?? input.Item ?? '').trim()
-  const location = String(input.location ?? input.Location ?? '').trim()
+  const location = normalizeStoreName(input.location ?? input.Location)
   const price = Number(input.price ?? input.Price)
   const size = optionalNumber(input.size ?? input.Size)
   const unit = normalizeUnit(input.unit ?? input.Unit)

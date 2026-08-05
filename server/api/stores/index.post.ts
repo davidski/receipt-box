@@ -1,8 +1,9 @@
 import { db } from '../../utils/db'
+import { normalizeStoreName } from '../../../shared/utils/store-name'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ name?: unknown }>(event)
-  const name = String(body.name ?? '').trim()
+  const name = normalizeStoreName(body.name)
   if (!name) throw createError({ statusCode: 400, statusMessage: 'Store name is required' })
   if (name.length > 120) throw createError({ statusCode: 400, statusMessage: 'Store name is too long' })
 

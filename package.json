@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "start": "node .output/server/index.mjs",
+    "test": "node --test",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {

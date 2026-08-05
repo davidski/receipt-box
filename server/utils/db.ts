@@ -1,5 +1,6 @@
 import postgres from 'postgres'
 import { normalizeUnit } from '../../shared/utils/units'
+import { normalizeStoreName, storeNameKey } from '../../shared/utils/store-name'
 
 let client: ReturnType<typeof postgres> | undefined
 
@@ -25,55 +26,164 @@ export function db() {
 
 export async function migrate() {
   const sql = db()
-  await sql`
-    CREATE TABLE IF NOT EXISTS grocery_entries (
-      id BIGSERIAL PRIMARY KEY,
-      purchased_on DATE NOT NULL,
-      item TEXT NOT NULL CHECK (length(trim(item)) > 0),
-      location TEXT NOT NULL CHECK (length(trim(location)) > 0),
-      size NUMERIC(12, 3),
-      unit TEXT,
-      price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
-      cost_per_unit NUMERIC(12, 4),
-      sale_item BOOLEAN NOT NULL DEFAULT FALSE,
-      non_grocery BOOLEAN NOT NULL DEFAULT FALSE,
-      notes TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `
-  await sql`CREATE INDEX IF NOT EXISTS grocery_entries_item_idx ON grocery_entries (lower(item))`
-  await sql`CREATE INDEX IF NOT EXISTS grocery_entries_location_idx ON grocery_entries (lower(location))`
-  await sql`CREATE INDEX IF NOT EXISTS grocery_entries_date_idx ON grocery_entries (purchased_on DESC, id DESC)`
-  await sql`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
-  const existingUnits = await sql<{ unit: string }[]>`
-    SELECT DISTINCT unit FROM grocery_entries WHERE unit IS NOT NULL AND length(trim(unit)) > 0
-  `
-  for (const { unit } of existingUnits) {
-    const normalized = normalizeUnit(unit)
-    if (normalized && normalized !== unit) {
-      await sql`UPDATE grocery_entries SET unit = ${normalized}, updated_at = now() WHERE unit = ${unit}`
+  await sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtext('pantry-pricebook:migrate'))`
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_entries (
+        id BIGSERIAL PRIMARY KEY,
+        purchased_on DATE NOT NULL,
+        item TEXT NOT NULL CHECK (length(trim(item)) > 0),
+        location TEXT NOT NULL CHECK (length(trim(location)) > 0),
+        size NUMERIC(12, 3),
+        unit TEXT,
+        price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
+        cost_per_unit NUMERIC(12, 4),
+        sale_item BOOLEAN NOT NULL DEFAULT FALSE,
+        non_grocery BOOLEAN NOT NULL DEFAULT FALSE,
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `
+    await tx`CREATE INDEX IF NOT EXISTS grocery_entries_item_idx ON grocery_entries (lower(item))`
+    await tx`CREATE INDEX IF NOT EXISTS grocery_entries_location_idx ON grocery_entries (lower(location))`
+    await tx`CREATE INDEX IF NOT EXISTS grocery_entries_date_idx ON grocery_entries (purchased_on DESC, id DESC)`
+    await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
+    const existingUnits = await tx<{ unit: string }[]>`
+      SELECT DISTINCT unit FROM grocery_entries WHERE unit IS NOT NULL AND length(trim(unit)) > 0
+    `
+    for (const { unit } of existingUnits) {
+      const normalized = normalizeUnit(unit)
+      if (normalized && normalized !== unit) {
+        await tx`UPDATE grocery_entries SET unit = ${normalized}, updated_at = now() WHERE unit = ${unit}`
+      }
     }
-  }
-  await sql`
-    CREATE TABLE IF NOT EXISTS grocery_stores (
-      id BIGSERIAL PRIMARY KEY,
-      name TEXT NOT NULL CHECK (length(trim(name)) > 0)
-    )
-  `
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS grocery_stores_name_idx ON grocery_stores (lower(name))`
-  await sql`
-    INSERT INTO grocery_stores (name)
-    SELECT DISTINCT ON (lower(location)) location
-    FROM grocery_entries
-    WHERE length(trim(location)) > 0
-    ORDER BY lower(location), location
-    ON CONFLICT DO NOTHING
-  `
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_stores (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL CHECK (length(trim(name)) > 0)
+      )
+    `
+
+    type StoreRow = { id: string, name: string }
+    type StoreGroup = { name: string, stores: StoreRow[], locations: string[] }
+
+    const stores = await tx<StoreRow[]>`
+      SELECT id::text, name FROM grocery_stores ORDER BY id
+    `
+    const locations = await tx<{ location: string }[]>`
+      SELECT DISTINCT location FROM grocery_entries ORDER BY location
+    `
+    const groups = new Map<string, StoreGroup>()
+
+    for (const store of stores) {
+      const key = storeNameKey(store.name)
+      const group = groups.get(key) ?? { name: normalizeStoreName(store.name), stores: [], locations: [] }
+      group.stores.push(store)
+      groups.set(key, group)
+    }
+    for (const { location } of locations) {
+      const key = storeNameKey(location)
+      const group = groups.get(key) ?? { name: normalizeStoreName(location), stores: [], locations: [] }
+      group.locations.push(location)
+      groups.set(key, group)
+    }
+
+    for (const group of groups.values()) {
+      for (const location of group.locations) {
+        if (location !== group.name) {
+          await tx`
+            UPDATE grocery_entries
+            SET location = ${group.name}, updated_at = now()
+            WHERE location = ${location}
+          `
+        }
+      }
+
+      const [winner, ...duplicates] = group.stores
+      for (const duplicate of duplicates) {
+        await tx`DELETE FROM grocery_stores WHERE id = ${duplicate.id}`
+      }
+      if (winner) {
+        if (winner.name !== group.name) {
+          await tx`UPDATE grocery_stores SET name = ${group.name} WHERE id = ${winner.id}`
+        }
+      } else {
+        await tx`INSERT INTO grocery_stores (name) VALUES (${group.name})`
+      }
+    }
+
+    await tx`
+      CREATE UNIQUE INDEX IF NOT EXISTS grocery_stores_name_normalized_idx ON grocery_stores (
+        lower(
+          regexp_replace(
+            regexp_replace(trim(normalize(name, NFKC)), '[[:space:]]+', ' ', 'g'),
+            '[‘’ʼ]', '''', 'g'
+          )
+        )
+      )
+    `
+    await tx`DROP INDEX IF EXISTS grocery_stores_name_idx`
+
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_receipts (
+        id BIGSERIAL PRIMARY KEY,
+        purchased_on DATE NOT NULL,
+        location TEXT NOT NULL CHECK (length(trim(location)) > 0),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `
+    await tx`CREATE INDEX IF NOT EXISTS grocery_receipts_date_idx ON grocery_receipts (purchased_on DESC, id DESC)`
+    await tx`ALTER TABLE grocery_entries ADD COLUMN IF NOT EXISTS receipt_id BIGINT`
+
+    const unassignedReceipts = await tx<{
+      purchasedOn: string | Date
+      location: string
+      createdAt: string | Date
+      updatedAt: string | Date
+    }[]>`
+      SELECT purchased_on, location, min(created_at) AS created_at, max(updated_at) AS updated_at
+      FROM grocery_entries
+      WHERE receipt_id IS NULL
+      GROUP BY purchased_on, location
+      ORDER BY purchased_on, location
+    `
+    for (const receipt of unassignedReceipts) {
+      const [created] = await tx<{ id: string }[]>`
+        INSERT INTO grocery_receipts (purchased_on, location, created_at, updated_at)
+        VALUES (${receipt.purchasedOn}, ${receipt.location}, ${receipt.createdAt}, ${receipt.updatedAt})
+        RETURNING id::text
+      `
+      await tx`
+        UPDATE grocery_entries
+        SET receipt_id = ${created!.id}
+        WHERE receipt_id IS NULL
+          AND purchased_on = ${receipt.purchasedOn}
+          AND location = ${receipt.location}
+      `
+    }
+
+    const [foreignKey] = await tx<{ exists: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'grocery_entries_receipt_id_fkey'
+      ) AS exists
+    `
+    if (!foreignKey?.exists) {
+      await tx`
+        ALTER TABLE grocery_entries
+        ADD CONSTRAINT grocery_entries_receipt_id_fkey
+        FOREIGN KEY (receipt_id) REFERENCES grocery_receipts(id) ON DELETE CASCADE
+      `
+    }
+    await tx`ALTER TABLE grocery_entries ALTER COLUMN receipt_id SET NOT NULL`
+    await tx`CREATE INDEX IF NOT EXISTS grocery_entries_receipt_idx ON grocery_entries (receipt_id, id)`
+  })
 }
 
 export type GroceryEntry = {
   id: string
+  receiptId: string
   purchasedOn: string | Date
   item: string
   location: string
