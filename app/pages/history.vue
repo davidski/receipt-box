@@ -19,6 +19,12 @@ type Entry = {
 }
 
 type EntryList = { entries: Entry[], total: number }
+type ReceiptEntry = Omit<Entry, 'previousPrice' | 'previousCostPerUnit' | 'previousPurchasedOn' | 'priceChangePercent' | 'comparisonBasis'>
+type Receipt = { purchasedOn: string, location: string, total: string, itemCount: number, entries: ReceiptEntry[] }
+type ReceiptList = { receipts: Receipt[], total: number }
+type ReceiptDate = { date: string, receiptCount: number, itemCount: number }
+type ReceiptDates = { dates: ReceiptDate[] }
+type CalendarDay = ReceiptDate & { day: number, currentMonth: boolean }
 type EditableEntry = Omit<Entry, 'unit'> & { unit: string }
 type Store = { id: string, name: string, uses: number }
 type SortKey = 'purchasedOn' | 'item' | 'location' | 'size' | 'price' | 'costPerUnit'
@@ -29,6 +35,7 @@ const search = ref('')
 const { apiUrl } = useApi()
 const route = useRoute()
 const router = useRouter()
+const view = ref<'receipts' | 'entries'>('receipts')
 const location = ref(allLocationsValue)
 const sortBy = ref<SortKey>('purchasedOn')
 const sortDirection = ref<'asc' | 'desc'>('desc')
@@ -42,6 +49,9 @@ const changeFilters: { label: string, value: ChangeFilter, icon: string, activeC
 ]
 const offset = ref(0)
 const limit = 50
+const selectedDate = ref('')
+const today = new Date()
+const visibleMonth = ref(new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)))
 const query = computed(() => ({
   search: search.value,
   location: location.value === allLocationsValue ? '' : location.value,
@@ -52,13 +62,87 @@ const query = computed(() => ({
   offset: offset.value
 }))
 const { data, pending, error, refresh } = await useFetch<EntryList>(apiUrl('/entries'), { query })
+const receiptQuery = computed(() => ({
+  date: selectedDate.value,
+  limit: 50
+}))
+const { data: receiptData, pending: receiptsPending, error: receiptsError, refresh: refreshReceipts } = await useFetch<ReceiptList>(apiUrl('/receipts'), { query: receiptQuery })
+const { data: receiptDates, refresh: refreshReceiptDates } = await useFetch<ReceiptDates>(apiUrl('/receipts/dates'))
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
 const editing = ref<EditableEntry | null>(null)
 const editError = ref('')
 const saving = ref(false)
 const linkedEditError = ref('')
 
-watch([search, location, changeFilter], () => { offset.value = 0 })
+watch([search, location, changeFilter], () => {
+  offset.value = 0
+})
+
+const receiptDateMap = computed(() => new Map((receiptDates.value?.dates || []).map(date => [date.date, date])))
+const calendarMonthOptions = computed(() => {
+  const dates = receiptDates.value?.dates || []
+  if (!dates.length) return []
+  const newest = new Date(`${dates[0]!.date.slice(0, 7)}-01T00:00:00Z`)
+  const oldest = new Date(`${dates.at(-1)!.date.slice(0, 7)}-01T00:00:00Z`)
+  const options: { label: string, value: string }[] = []
+  const cursor = new Date(oldest)
+  while (cursor <= newest) {
+    options.push({
+      label: new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(cursor),
+      value: cursor.toISOString().slice(0, 7)
+    })
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1)
+  }
+  return options
+})
+const selectedCalendarMonth = computed({
+  get: () => visibleMonth.value.toISOString().slice(0, 7),
+  set: (value: string) => { visibleMonth.value = new Date(`${value}-01T00:00:00Z`) }
+})
+const canMoveToPreviousMonth = computed(() => selectedCalendarMonth.value > (calendarMonthOptions.value[0]?.value || ''))
+const canMoveToNextMonth = computed(() => selectedCalendarMonth.value < (calendarMonthOptions.value.at(-1)?.value || ''))
+const calendarDays = computed<CalendarDay[]>(() => {
+  const year = visibleMonth.value.getUTCFullYear()
+  const month = visibleMonth.value.getUTCMonth()
+  const start = new Date(Date.UTC(year, month, 1 - visibleMonth.value.getUTCDay()))
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start)
+    date.setUTCDate(start.getUTCDate() + index)
+    const key = date.toISOString().slice(0, 10)
+    return {
+      date: key,
+      day: date.getUTCDate(),
+      currentMonth: date.getUTCMonth() === month,
+      receiptCount: receiptDateMap.value.get(key)?.receiptCount ?? 0,
+      itemCount: receiptDateMap.value.get(key)?.itemCount ?? 0
+    }
+  })
+})
+const calendarWeeks = computed(() => Array.from({ length: 6 }, (_, index) => calendarDays.value.slice(index * 7, index * 7 + 7)))
+
+watch(receiptDates, (value) => {
+  const dates = value?.dates || []
+  if (!dates.length) {
+    selectedDate.value = ''
+    return
+  }
+  if (!dates.some(date => date.date === selectedDate.value)) selectedDate.value = dates[0]!.date
+  const selected = new Date(`${selectedDate.value}T00:00:00Z`)
+  visibleMonth.value = new Date(Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1))
+}, { immediate: true })
+
+function moveCalendarMonth(amount: number) {
+  visibleMonth.value = new Date(Date.UTC(visibleMonth.value.getUTCFullYear(), visibleMonth.value.getUTCMonth() + amount, 1))
+}
+
+function selectReceiptDate(day: CalendarDay) {
+  if (!day.receiptCount) return
+  selectedDate.value = day.date
+  if (!day.currentMonth) {
+    const date = new Date(`${day.date}T00:00:00Z`)
+    visibleMonth.value = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+  }
+}
 
 function toggleSort(column: SortKey) {
   if (sortBy.value === column) {
@@ -112,11 +196,16 @@ function changeTitle(entry: Entry) {
   return `${percentage(entry.priceChangePercent)} versus the ${basis} on ${date}`
 }
 
-function startEdit(entry: Entry) {
+function startEdit(entry: Entry | ReceiptEntry) {
   editing.value = {
     ...entry,
     size: entry.size === null ? null : String(Number(entry.size)),
-    unit: entry.unit || ''
+    unit: entry.unit || '',
+    previousPrice: 'previousPrice' in entry ? entry.previousPrice : null,
+    previousCostPerUnit: 'previousCostPerUnit' in entry ? entry.previousCostPerUnit : null,
+    previousPurchasedOn: 'previousPurchasedOn' in entry ? entry.previousPurchasedOn : null,
+    priceChangePercent: 'priceChangePercent' in entry ? entry.priceChangePercent : null,
+    comparisonBasis: 'comparisonBasis' in entry ? entry.comparisonBasis : null
   }
   editError.value = ''
 }
@@ -152,7 +241,7 @@ async function saveEdit() {
   try {
     await $fetch(apiUrl(`/entries/${editing.value.id}`), { method: 'PUT', body: editing.value })
     await closeEdit()
-    await Promise.all([refresh(), refreshStores()])
+    await Promise.all([refresh(), refreshReceipts(), refreshReceiptDates(), refreshStores()])
   } catch (error: any) {
     editError.value = error?.data?.statusMessage || error?.message || 'Could not save changes'
   } finally {
@@ -166,7 +255,7 @@ async function removeEntry() {
   try {
     await $fetch(apiUrl(`/entries/${editing.value.id}`), { method: 'DELETE' })
     await closeEdit()
-    await refresh()
+    await Promise.all([refresh(), refreshReceipts(), refreshReceiptDates()])
   } catch (error: any) {
     editError.value = error?.data?.statusMessage || error?.message || 'Could not delete entry'
   } finally {
@@ -179,14 +268,20 @@ async function removeEntry() {
   <div class="content-page history-page">
     <header class="page-heading history-heading">
       <div>
-        <p class="eyebrow">The full pricebook</p>
-        <h1>Price history</h1>
-        <p v-if="data">{{ data.total.toLocaleString() }} {{ data.total === 1 ? 'entry' : 'entries' }}</p>
+        <p class="eyebrow">{{ view === 'receipts' ? 'Shopping trips' : 'The full pricebook' }}</p>
+        <h1>{{ view === 'receipts' ? 'Receipt history' : 'Price history' }}</h1>
+        <p v-if="view === 'receipts' && receiptDates">{{ receiptDates.dates.length.toLocaleString() }} shopping {{ receiptDates.dates.length === 1 ? 'date' : 'dates' }}</p>
+        <p v-else-if="view === 'entries' && data">{{ data.total.toLocaleString() }} {{ data.total === 1 ? 'entry' : 'entries' }}</p>
       </div>
       <UButton class="touch-target" to="/" label="Add price" icon="i-lucide-plus" />
     </header>
 
-    <div class="filter-bar">
+    <div class="history-view-switcher" aria-label="History view">
+      <UButton type="button" label="Receipts" icon="i-lucide-receipt-text" :color="view === 'receipts' ? 'primary' : 'neutral'" :variant="view === 'receipts' ? 'solid' : 'ghost'" :aria-pressed="view === 'receipts'" @click="view = 'receipts'" />
+      <UButton type="button" label="All entries" icon="i-lucide-list" :color="view === 'entries' ? 'primary' : 'neutral'" :variant="view === 'entries' ? 'solid' : 'ghost'" :aria-pressed="view === 'entries'" @click="view = 'entries'" />
+    </div>
+
+    <div v-if="view === 'entries'" class="filter-bar">
       <label class="search-control">
         <span class="sr-only">Search items</span>
         <UInput v-model="search" type="search" icon="i-lucide-search" placeholder="Search items or notes…" @keydown.esc="clearSearch">
@@ -217,10 +312,91 @@ async function removeEntry() {
 
     <UAlert v-if="linkedEditError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="linkedEditError" class="notice" />
 
-    <div v-if="pending" class="empty-state">Loading price history…</div>
-    <div v-else-if="error" class="empty-state error-state">Could not load the price history.</div>
-    <div v-else-if="!data?.entries.length" class="empty-state">No matching entries.</div>
+    <template v-if="view === 'receipts'">
+      <div v-if="!receiptDates?.dates.length" class="empty-state">No receipt dates yet.</div>
+      <div v-else class="receipt-browser">
+        <aside class="receipt-calendar-panel" aria-label="Choose a receipt date">
+          <div class="calendar-heading">
+            <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" :disabled="!canMoveToPreviousMonth" @click="moveCalendarMonth(-1)" />
+            <label>
+              <span class="sr-only">Choose month</span>
+              <select v-model="selectedCalendarMonth" aria-live="polite">
+                <option v-for="month in calendarMonthOptions" :key="month.value" :value="month.value">{{ month.label }}</option>
+              </select>
+            </label>
+            <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" :disabled="!canMoveToNextMonth" @click="moveCalendarMonth(1)" />
+          </div>
+          <table class="receipt-calendar">
+            <caption class="sr-only">Dates with recorded purchases</caption>
+            <thead><tr><th v-for="weekday in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="weekday" scope="col">{{ weekday.slice(0, 1) }}</th></tr></thead>
+            <tbody>
+              <tr v-for="(week, weekIndex) in calendarWeeks" :key="weekIndex">
+                <td v-for="day in week" :key="day.date">
+                  <button
+                    type="button"
+                    :class="{ available: day.receiptCount, selected: day.date === selectedDate, outside: !day.currentMonth }"
+                    :disabled="!day.receiptCount"
+                    :aria-label="day.receiptCount ? `${dateLabel(day.date)}, ${day.receiptCount} ${day.receiptCount === 1 ? 'receipt' : 'receipts'}, ${day.itemCount} ${day.itemCount === 1 ? 'item' : 'items'}` : dateLabel(day.date)"
+                    :aria-pressed="day.date === selectedDate"
+                    @click="selectReceiptDate(day)"
+                  >
+                    <span>{{ day.day }}</span><i v-if="day.receiptCount" aria-hidden="true" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="calendar-legend"><i aria-hidden="true" /> Dates with purchases</p>
+        </aside>
+
+        <section class="selected-receipts" :aria-labelledby="'selected-receipt-date'">
+          <header class="selected-receipts-heading">
+            <div><p class="eyebrow">Selected date</p><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
+            <span v-if="receiptData">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
+          </header>
+          <div v-if="receiptsPending" class="empty-state">Gathering receipts…</div>
+          <div v-else-if="receiptsError" class="empty-state error-state">Could not load receipts for this date.</div>
+          <div v-else-if="!receiptData?.receipts.length" class="empty-state">No receipts recorded for this date.</div>
+          <div v-else class="receipt-grid">
+          <article v-for="receipt in receiptData.receipts" :key="`${receipt.purchasedOn}-${receipt.location}`" class="virtual-receipt">
+            <header class="receipt-heading">
+              <div class="receipt-store-mark" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
+              <div>
+                <h2>{{ receipt.location }}</h2>
+                <p>{{ dateLabel(receipt.purchasedOn) }} · {{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</p>
+              </div>
+            </header>
+            <div class="receipt-rule"><span>Item</span><span>Price</span></div>
+            <ul class="receipt-lines">
+              <li v-for="entry in receipt.entries" :key="entry.id">
+                <div class="receipt-item-copy">
+                  <NuxtLink :to="itemPath(entry.item)" class="item-history-link"><strong>{{ entry.item }}</strong></NuxtLink>
+                  <span class="receipt-item-meta">
+                    {{ packageSize(entry.size, entry.unit) }}
+                    <UBadge v-if="entry.saleItem" label="Sale" color="warning" variant="soft" size="sm" />
+                    <UBadge v-if="entry.nonGrocery" label="Non-grocery" color="neutral" variant="soft" size="sm" />
+                  </span>
+                  <small v-if="entry.notes">{{ entry.notes }}</small>
+                </div>
+                <strong class="receipt-line-price">{{ currency(entry.price) }}</strong>
+                <UButton type="button" icon="i-lucide-pencil" :aria-label="`Edit ${entry.item}`" color="neutral" variant="ghost" size="xs" @click="startEdit(entry)" />
+              </li>
+            </ul>
+            <footer class="receipt-total">
+              <span>Total</span>
+              <strong>{{ currency(receipt.total) }}</strong>
+            </footer>
+          </article>
+          </div>
+        </section>
+      </div>
+    </template>
+
     <template v-else>
+      <div v-if="pending" class="empty-state">Loading price history…</div>
+      <div v-else-if="error" class="empty-state error-state">Could not load the price history.</div>
+      <div v-else-if="!data?.entries.length" class="empty-state">No matching entries.</div>
+      <template v-else>
       <div v-if="data && data.total > limit" class="pagination pagination-top" aria-label="Price history pagination">
         <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="offset === 0" @click="offset = Math.max(0, offset - limit)" />
         <span>{{ offset + 1 }}–{{ Math.min(offset + limit, data.total) }} of {{ data.total }}</span>
@@ -278,13 +454,14 @@ async function removeEntry() {
         </tbody>
       </table>
       </div>
-    </template>
+      </template>
 
-    <div v-if="data && data.total > limit" class="pagination">
+      <div v-if="data && data.total > limit" class="pagination">
       <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="offset === 0" @click="offset = Math.max(0, offset - limit)" />
       <span>{{ offset + 1 }}–{{ Math.min(offset + limit, data.total) }} of {{ data.total }}</span>
       <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
-    </div>
+      </div>
+    </template>
 
     <div v-if="editing" class="modal-backdrop" role="presentation" @mousedown.self="closeEdit">
       <form class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-title" @submit.prevent="saveEdit">

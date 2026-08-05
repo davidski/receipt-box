@@ -237,6 +237,7 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .file-picker:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
 .file-picker span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .history-heading { align-items: end; }
+.history-view-switcher { display: flex; width: max-content; gap: 5px; margin: -8px 0 16px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .filter-bar { position: sticky; top: 87px; z-index: 15; display: grid; grid-template-columns: 1fr 220px; gap: 12px; margin-bottom: 20px; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--bg), transparent 5%); backdrop-filter: blur(16px); }
 .quick-filter-row { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 5px; padding-top: 2px; border-top: 1px solid color-mix(in srgb, var(--line), transparent 35%); }
 .search-control { position: relative; }
@@ -264,6 +265,44 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .row-action { text-align: right; }
 .pagination { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 24px; color: var(--muted); font-size: 13px; }
 .pagination-top { margin: -4px 0 16px; }
+.receipt-browser { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 24px; align-items: start; }
+.receipt-calendar-panel { position: sticky; top: 96px; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.calendar-heading { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; }
+.calendar-heading select { width: 100%; min-height: 40px; padding: 0 26px 0 8px; border: 0; border-radius: 9px; outline: none; background: transparent; color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 600; text-align: center; text-align-last: center; cursor: pointer; }
+.calendar-heading select:hover { background: var(--surface-muted); }
+.calendar-heading select:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.receipt-calendar { width: 100%; margin-top: 12px; table-layout: fixed; border-collapse: separate; border-spacing: 3px; }
+.receipt-calendar th { height: 28px; color: var(--muted); font-size: 10px; font-weight: 750; text-align: center; }
+.receipt-calendar td { padding: 0; }
+.receipt-calendar button { position: relative; display: grid; width: 100%; aspect-ratio: 1; place-items: center; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font-size: 13px; cursor: default; }
+.receipt-calendar button.outside { color: color-mix(in srgb, var(--muted), transparent 55%); }
+.receipt-calendar button.available { background: var(--accent-soft); color: var(--accent-strong); font-weight: 750; cursor: pointer; }
+.receipt-calendar button.available:hover { background: color-mix(in srgb, var(--accent-soft), var(--accent) 12%); }
+.receipt-calendar button.selected { background: var(--accent); color: var(--surface); }
+.receipt-calendar button i { position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.receipt-calendar button:disabled { opacity: 1; }
+.calendar-legend { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 13px 0 0; color: var(--muted); font-size: 11px; }
+.calendar-legend i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.selected-receipts { min-width: 0; }
+.selected-receipts-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin: 0 0 14px; }
+.selected-receipts-heading h2 { font-size: 27px; }
+.selected-receipts-heading > span { color: var(--muted); font-size: 13px; }
+.receipt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 24px; align-items: start; }
+.virtual-receipt { position: relative; overflow: hidden; padding: 26px 26px 22px; border: 1px solid var(--line); border-radius: 8px 8px 18px 18px; background: var(--surface); box-shadow: var(--shadow); }
+.receipt-heading { display: flex; align-items: center; gap: 13px; padding-bottom: 20px; text-align: left; }
+.receipt-heading h2 { font-size: 23px; }
+.receipt-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.receipt-store-mark { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 13px; background: var(--accent-soft); color: var(--accent-strong); font-size: 20px; }
+.receipt-rule { display: flex; justify-content: space-between; padding: 8px 0; border-block: 1px dashed var(--line); color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.receipt-lines { margin: 0; padding: 0; list-style: none; }
+.receipt-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto 32px; gap: 10px; align-items: start; padding: 14px 0; border-bottom: 1px dotted var(--line); }
+.receipt-item-copy { min-width: 0; }
+.receipt-item-copy > small { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.receipt-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 4px; color: var(--muted); font-size: 11px; }
+.receipt-line-price { padding-top: 2px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.receipt-total { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding-top: 18px; font-family: var(--font-display); }
+.receipt-total span { font-size: 18px; font-weight: 600; }
+.receipt-total strong { color: var(--accent-strong); font-size: 30px; font-variant-numeric: tabular-nums; }
 
 .item-history-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .series-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -12px 0 18px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
@@ -331,6 +370,9 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
   .highlight-stats { grid-template-columns: repeat(2, 1fr); }
   .highlights-grid { grid-template-columns: 1fr; }
   .item-price-stats { grid-template-columns: repeat(3, 1fr); }
+  .receipt-browser { grid-template-columns: 1fr; }
+  .receipt-calendar-panel { position: static; width: min(420px, 100%); }
+  .receipt-grid { grid-template-columns: 1fr; }
   .app-header { min-height: 70px; }
   .desktop-nav { display: none; }
   .mobile-nav { position: fixed; z-index: 40; right: max(14px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); display: flex; justify-content: space-around; box-shadow: 0 12px 36px rgb(0 0 0 / 20%); }
@@ -352,10 +394,14 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
   .entry-form .two-up, .entry-form .size-grid { grid-template-columns: 1fr; }
   .cost-preview { grid-column: 1 / -1; }
   .history-heading { align-items: start; }
+  .history-view-switcher { width: 100%; }
+  .history-view-switcher > * { flex: 1; justify-content: center; }
   .item-history-heading { display: grid; align-items: start; }
   .monthly-spend-heading { align-items: start; }
   .item-price-stats { grid-template-columns: 1fr; }
   .filter-bar { top: 78px; grid-template-columns: 1fr; }
+  .virtual-receipt { padding: 22px 16px 18px; }
+  .receipt-calendar-panel { width: 100%; padding: 14px; }
   .history-table-wrap { overflow: visible; border: 0; background: transparent; box-shadow: none; }
   .history-table, .history-table tbody { display: grid; gap: 12px; }
   .history-table thead { display: none; }
