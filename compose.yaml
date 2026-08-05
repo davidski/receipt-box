@@ -1,0 +1,19 @@
+services:
+  pricebook:
+    build:
+      context: .
+      args:
+        NUXT_APP_BASE_URL: ${NUXT_APP_BASE_URL:-/}
+        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
+    image: pantry-pricebook:local
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000${NUXT_APP_BASE_URL:-/}api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

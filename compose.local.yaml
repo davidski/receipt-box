@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pricebook
+      POSTGRES_USER: pricebook
+      POSTGRES_PASSWORD: local-pricebook-only
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pricebook-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pricebook -d pricebook"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  pricebook:
+    build:
+      context: .
+      args:
+        NUXT_APP_BASE_URL: ${NUXT_APP_BASE_URL:-/}
+        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
+    image: pantry-pricebook:local
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://pricebook:local-pricebook-only@postgres:5432/pricebook
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000${NUXT_APP_BASE_URL:-/}api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  pricebook-postgres:

@@ -1,0 +1,7 @@
+.git
+.nuxt
+.output
+node_modules
+.env
+Food_History.numbers
+README.md

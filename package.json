@@ -1,0 +1,30 @@
+{
+  "name": "pantry-pricebook",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "start": "node .output/server/index.mjs",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@nuxt/ui": "4.10.0",
+    "csv-parse": "7.0.2",
+    "exceljs": "4.4.0",
+    "nuxt": "4.5.1",
+    "postgres": "3.4.9",
+    "vue": "3.5.40",
+    "vue-router": "5.2.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vue-tsc": "3.3.9"
+  },
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22"
+  }
+}
