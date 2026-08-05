@@ -8,11 +8,13 @@ export function db() {
 
   const config = useRuntimeConfig()
   const databaseUrl = process.env.DATABASE_URL || config.databaseUrl
+  const socketPath = process.env.DATABASE_SOCKET_PATH?.trim()
   if (!databaseUrl) {
     throw createError({ statusCode: 503, statusMessage: 'DATABASE_URL is not configured' })
   }
 
   client = postgres(databaseUrl, {
+    path: socketPath || undefined,
     max: 10,
     idle_timeout: 20,
     connect_timeout: 10,

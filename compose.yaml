@@ -9,11 +9,22 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
-    ports:
-      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pricebook.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.pricebook.rule=Host(`${EXT_HOSTNAME}`) && PathPrefix(`/pricebook`)"
+      - "traefik.http.routers.pricebook.tls=true"
+      - "traefik.http.routers.pricebook.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myResolver}"
+      - "traefik.http.routers.pricebook.service=pricebook"
+      - "traefik.http.services.pricebook.loadbalancer.server.port=3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000${NUXT_APP_BASE_URL:-/}api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 20s
+
+networks:
+  default:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
