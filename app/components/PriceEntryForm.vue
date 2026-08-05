@@ -28,8 +28,22 @@ function localDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+const purchasedOnStorageKey = 'pantry-pricebook:purchased-on'
+
+function initialPurchasedOn() {
+  if (import.meta.client) {
+    try {
+      const storedDate = localStorage.getItem(purchasedOnStorageKey)
+      if (storedDate && /^\d{4}-\d{2}-\d{2}$/.test(storedDate)) return storedDate
+    } catch {
+      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
+  }
+  return localDate()
+}
+
 const form = reactive({
-  purchasedOn: localDate(),
+  purchasedOn: initialPurchasedOn(),
   item: '',
   location: '',
   size: '',
@@ -38,6 +52,15 @@ const form = reactive({
   saleItem: false,
   nonGrocery: false,
   notes: ''
+})
+
+watch(() => form.purchasedOn, (purchasedOn) => {
+  if (!import.meta.client || !/^\d{4}-\d{2}-\d{2}$/.test(purchasedOn)) return
+  try {
+    localStorage.setItem(purchasedOnStorageKey, purchasedOn)
+  } catch {
+    // Keep the in-memory date sticky even when browser storage is unavailable.
+  }
 })
 
 const normalizedCost = computed(() => {
