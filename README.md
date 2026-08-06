@@ -1,10 +1,10 @@
-# Pantry Pricebook
+# Receipt Box
 
-Pantry Pricebook is a small, self-hosted grocery price tracker designed for quick receipt entry on an iPad. It replaces a Numbers workbook with searchable history, normalized price comparisons, data highlights, and CSV/XLSX import and export.
+Receipt Box is a small, self-hosted receipt tracker designed for quick entry on an iPad. It turns grocery receipts into searchable purchase history, normalized price comparisons, data highlights, and portable CSV/XLSX exports.
 
 ## Disclaimer
 
-Pantry Pricebook is a vibe-coded personal project, developed iteratively with AI assistance. It is provided as-is. Review the code, configuration, security assumptions, and backup plan before relying on it.
+Receipt Box is a vibe-coded personal project, developed iteratively with AI assistance. It is provided as-is. Review the code, configuration, security assumptions, and backup plan before relying on it.
 
 ## Overview
 
@@ -21,7 +21,8 @@ CSV/XLSX parsing, formatting, and file generation happen in the browser. The bro
 
 ## Features
 
-- Fast “save and add another” receipt entry flow
+- Compact multi-line receipt entry with a shared date and store
+- First-class receipt records that keep separate shopping trips distinct
 - Nuxt UI autocomplete that suggests prior values while accepting new items
 - Reuse of the latest store, size, and unit when an existing item is selected
 - Automatic normalized cost per item or per 100 weight/volume units
@@ -37,8 +38,8 @@ CSV/XLSX parsing, formatting, and file generation happen in the browser. The bro
 
 ## Requirements
 
-- Node.js 22 or Docker
-- pnpm 11.18 or Corepack
+- Node.js 26 or Docker
+- pnpm 11.18
 - PostgreSQL 17
 
 The database role needs permission to connect and create tables and indexes in its schema. On first start, the app creates its tables and indexes automatically.
@@ -94,9 +95,30 @@ Create `.env` from `.env.example`, then set `DATABASE_URL` and the public URL va
 docker compose up -d --build
 ```
 
-The included Compose file binds the app to `127.0.0.1:3000` by default. Point an HTTPS reverse proxy at that address, or set `APP_PORT` in `.env` to use another port.
+The production Compose file does not publish a host port. It joins an existing external Docker network named `traefik` by default so Traefik can route to the container's exposed port 3000. Set `TRAEFIK_NETWORK` in `.env` if the proxy network has another name.
 
-> **Security note:** The app intentionally has no built-in user accounts. Do not expose it directly to the public internet. Use a private network, VPN, or authentication at the reverse proxy.
+> **Security note:** Authentication is disabled by default. Do not expose an unauthenticated deployment directly to the public internet. Use the optional OIDC mode described below, a private network, a VPN, or authentication at the reverse proxy.
+
+### Optional OIDC authentication
+
+Receipt Box can require authentication from an OpenID Connect provider such as authentik. OIDC is optional and disabled by default; the same container image can be switched between modes at runtime.
+
+Set these variables on the application container:
+
+```dotenv
+AUTH_MODE=oidc
+NUXT_SESSION_PASSWORD=replace-with-at-least-32-random-characters
+NUXT_OAUTH_OIDC_CLIENT_ID=receipt-box
+NUXT_OAUTH_OIDC_CLIENT_SECRET=replace-with-the-oidc-client-secret
+NUXT_OAUTH_OIDC_OPENID_CONFIG=https://auth.example.com/application/o/receipt-box/.well-known/openid-configuration
+NUXT_OAUTH_OIDC_REDIRECT_URL=https://pricebook.example.com/pricebook/auth/oidc
+```
+
+Register the exact redirect URL with the OIDC provider. For authentik's default per-provider issuer mode, the discovery URL contains the application slug as shown above. Receipt Box requests the `openid`, `profile`, and `email` scopes.
+
+When OIDC mode is enabled, all Receipt Box data API routes require a sealed application session. The OIDC callback, session-management endpoint, authentication-status endpoint, and `/api/health` remain unauthenticated so login, logout, and container health checks can function. Protect the entire public `/pricebook` prefix at the reverse proxy if the health endpoint should not be externally visible.
+
+If `AUTH_MODE=oidc` is set without the required session password, client ID, client secret, or discovery URL, the application exits during startup with a configuration error. Set `AUTH_MODE=disabled` or omit it to retain the default unauthenticated behavior.
 
 ### Portainer without a container registry
 
@@ -104,31 +126,88 @@ When the image will not be pushed to a registry, build it on the same Docker hos
 
 ```sh
 docker build \
-  --tag pantry-pricebook:2026-08-05-1 \
+  --tag pantry-pricebook:latest \
   --build-arg NUXT_APP_BASE_URL=/pricebook/ \
   --build-arg NUXT_PUBLIC_API_BASE=/pricebook/api \
   .
 ```
 
-Use that tag in the Portainer stack and set `pull_policy: never`:
+Use that tag in the Portainer stack and set `pull_policy: never`. This example includes a dedicated PostgreSQL 17 Alpine container and follows the bind-mount, UID, checksum, logging, and backup conventions used by the other PostgreSQL stack:
 
 ```yaml
 services:
+  postgres:
+    image: postgres:17-alpine
+    user: "1000:1000"
+    shm_size: 1g
+    environment:
+      POSTGRES_DB: pricebook
+      POSTGRES_USER: pricebook
+      POSTGRES_PASSWORD: ${PGPASS}
+      TZ: ${TZ}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: local
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_DIR}/pantry-pricebook/postgresql_db:/var/lib/postgresql/data
+      - ${DOCKER_DIR}/pantry-pricebook/pg_socket:/var/run/postgresql
+      - /etc/passwd:/etc/passwd:ro
+    network_mode: none
+    labels:
+      traefik.enable: "false"
+    restart: unless-stopped
+
   pricebook:
-    image: pantry-pricebook:2026-08-05-1
+    image: pantry-pricebook:latest
     pull_policy: never
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-    ports:
-      - "3000:3000"
+      DATABASE_URL: postgres://pricebook:${PGPASS}@localhost:5432/pricebook
+      DATABASE_SOCKET_PATH: /var/run/postgresql/.s.PGSQL.5432
+      AUTH_MODE: ${AUTH_MODE:-disabled}
+      NUXT_SESSION_PASSWORD: ${NUXT_SESSION_PASSWORD:-}
+      NUXT_OAUTH_OIDC_CLIENT_ID: ${NUXT_OAUTH_OIDC_CLIENT_ID:-}
+      NUXT_OAUTH_OIDC_CLIENT_SECRET: ${NUXT_OAUTH_OIDC_CLIENT_SECRET:-}
+      NUXT_OAUTH_OIDC_OPENID_CONFIG: ${NUXT_OAUTH_OIDC_OPENID_CONFIG:-}
+      NUXT_OAUTH_OIDC_REDIRECT_URL: ${NUXT_OAUTH_OIDC_REDIRECT_URL:-}
+    volumes:
+      - ${DOCKER_DIR}/pantry-pricebook/pg_socket:/var/run/postgresql
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pricebook.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.pricebook.rule=Host(`${EXT_HOSTNAME}`) && PathPrefix(`/pricebook`)"
+      - "traefik.http.routers.pricebook.tls=true"
+      - "traefik.http.routers.pricebook.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myResolver}"
+      - "traefik.http.routers.pricebook.service=pricebook"
+      - "traefik.http.services.pricebook.loadbalancer.server.port=3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  default:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
 ```
 
-Add `DATABASE_URL` as a Portainer stack environment variable before deploying. The `never` policy tells Compose to use only the image already present on the Docker host; deployment fails instead of trying a registry when that exact tag is missing.
+Add `PGPASS`, `TZ`, `DOCKER_DIR`, and `EXT_HOSTNAME` as Portainer stack environment variables before deploying. Add the OIDC variables only when enabling authentication. If needed, override `TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT`, or `TRAEFIK_CERTRESOLVER`; their defaults are `traefik`, `websecure`, and `myResolver`. Use a strong URL-safe value for `PGPASS` because the same value is interpolated into the PostgreSQL connection URL. `DOCKER_DIR` is the host directory beneath which the `pantry-pricebook/postgresql_db` and `pantry-pricebook/pg_socket` directories will be stored; create those directories and make them writable by UID/GID `1000:1000` before the first deployment.
+
+The router matches `https://${EXT_HOSTNAME}/pricebook/*`. Do not add a strip-prefix middleware: this image is built with `NUXT_APP_BASE_URL=/pricebook/`, and both the static app and API expect that prefix.
+
+The application and PostgreSQL containers share the `pg_socket` bind mount. `DATABASE_SOCKET_PATH` makes Postgres.js connect through that Unix socket; the hostname and port in `DATABASE_URL` are retained only so the URL can provide the database name and credentials. PostgreSQL uses `network_mode: none` and does not publish port 5432 or join a Docker network. Its health check deliberately queries the final server over container-local TCP, which is unavailable from the temporary initialization server.
+
+The `never` policy applies to the locally built application image and tells Compose to fail rather than contact a registry when that exact tag is missing. The PostgreSQL image continues to pull normally from its registry.
 
 For an update:
 
-1. Build the new source on the managed Docker host with a new tag, such as `pantry-pricebook:2026-08-05-2`.
+1. Build the new source on the managed Docker host with a new tag, such as `pantry-pricebook:2026-08-05-3`.
 2. Change the stack's `image` value to the new tag.
 3. Redeploy the stack.
 4. Remove old images only after confirming the new container works.
@@ -136,8 +215,8 @@ For an update:
 Every Docker node that might run the service must have the tagged image. If the image is built on another computer, transfer it to the managed host and load it before deploying:
 
 ```sh
-docker save pantry-pricebook:2026-08-05-1 | gzip > pantry-pricebook-2026-08-05-1.tar.gz
-gunzip -c pantry-pricebook-2026-08-05-1.tar.gz | docker load
+docker save pantry-pricebook:2026-08-05-2 | gzip > pantry-pricebook-2026-08-05-2.tar.gz
+gunzip -c pantry-pricebook-2026-08-05-2.tar.gz | docker load
 ```
 
 The repository's `compose.yaml` contains a `build` section for command-line Compose. For the Portainer no-registry workflow, use the image-only stack pattern above so that `pull_policy: never` and the prebuilt tag are explicit.
@@ -149,7 +228,18 @@ The application uses these settings:
 | Setting | Applied | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | At container start | Private PostgreSQL connection string used only by the server |
-| `APP_PORT` | At container start | Host port used by the supplied Compose files |
+| `DATABASE_SOCKET_PATH` | At container start | Optional full Unix socket filename that overrides the URL host and port |
+| `AUTH_MODE` | At container start | Optional authentication mode: `disabled` by default or `oidc` |
+| `NUXT_SESSION_PASSWORD` | At container start | Secret of at least 32 characters used to seal OIDC sessions |
+| `NUXT_OAUTH_OIDC_CLIENT_ID` | At container start | OIDC relying-party client identifier |
+| `NUXT_OAUTH_OIDC_CLIENT_SECRET` | At container start | OIDC relying-party client secret |
+| `NUXT_OAUTH_OIDC_OPENID_CONFIG` | At container start | Full URL of the provider's OpenID configuration document |
+| `NUXT_OAUTH_OIDC_REDIRECT_URL` | At container start | Optional explicit public callback URL; recommended behind a reverse proxy |
+| `APP_PORT` | At container start | Host port used only by the local test stack |
+| `TRAEFIK_NETWORK` | At deployment | Existing external Docker network used by Traefik; defaults to `traefik` |
+| `TRAEFIK_ENTRYPOINT` | At deployment | Traefik HTTPS entrypoint; defaults to `websecure` |
+| `TRAEFIK_CERTRESOLVER` | At deployment | Traefik certificate resolver; defaults to `myResolver` |
+| `EXT_HOSTNAME` | At deployment | Public hostname matched by the Traefik router |
 | `NUXT_APP_BASE_URL` | At image build | Public path where the app is mounted; must start and end with `/` |
 | `NUXT_PUBLIC_API_BASE` | At image build | URL used by the browser for API requests; may be a path or full URL |
 
@@ -178,7 +268,7 @@ Then forward public `/api/*` requests to the container's `/pricebook/api/*`. To 
 1. Open `Food_History.numbers` in Apple Numbers.
 2. Choose **File → Export To → Excel**.
 3. Select **One Per Table** when Numbers asks how to organize the export.
-4. Open **Manage → Import & export** in Pantry Pricebook and import the `.xlsx` file.
+4. Open **Manage → Import & export** in Receipt Box and import the `.xlsx` file.
 
 The importer recognizes the original columns:
 

@@ -17,6 +17,7 @@
     "csv-parse": "7.0.2",
     "exceljs": "4.4.0",
     "nuxt": "4.5.1",
+    "nuxt-auth-utils": "0.5.30",
     "postgres": "3.4.9",
     "vue": "3.5.40",
     "vue-router": "5.2.0"

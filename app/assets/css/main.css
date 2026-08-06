@@ -65,7 +65,16 @@ a { color: inherit; }
 .main-nav a { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 18px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 650; text-decoration: none; }
 .main-nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-strong); }
 .mobile-nav { display: none; }
-.theme-toggle { justify-self: end; }
+.header-actions { display: flex; justify-self: end; gap: 8px; }
+
+.login-panel {
+  display: grid; width: min(520px, 100%); margin: clamp(48px, 10vh, 120px) auto 0; padding: clamp(28px, 5vw, 48px);
+  place-items: center; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); text-align: center;
+}
+.login-icon { width: 46px; height: 46px; margin-bottom: 20px; color: var(--accent); }
+.login-panel > p:not(.eyebrow, .notice) { margin: 14px 0 24px; color: var(--muted); }
+.login-panel .notice { width: 100%; margin: -8px 0 20px; }
+.login-panel .primary-button { min-width: 210px; }
 
 .page-shell { width: min(1440px, 100%); margin: 0 auto; padding: 34px clamp(20px, 4vw, 60px) 64px; }
 .entry-layout { display: grid; grid-template-columns: minmax(400px, .9fr) minmax(420px, 1.1fr); gap: clamp(26px, 4vw, 64px); align-items: start; }

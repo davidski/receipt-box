@@ -26,6 +26,12 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://pricebook:local-pricebook-only@postgres:5432/pricebook
+      AUTH_MODE: ${AUTH_MODE:-disabled}
+      NUXT_SESSION_PASSWORD: ${NUXT_SESSION_PASSWORD:-}
+      NUXT_OAUTH_OIDC_CLIENT_ID: ${NUXT_OAUTH_OIDC_CLIENT_ID:-}
+      NUXT_OAUTH_OIDC_CLIENT_SECRET: ${NUXT_OAUTH_OIDC_CLIENT_SECRET:-}
+      NUXT_OAUTH_OIDC_OPENID_CONFIG: ${NUXT_OAUTH_OIDC_OPENID_CONFIG:-}
+      NUXT_OAUTH_OIDC_REDIRECT_URL: ${NUXT_OAUTH_OIDC_REDIRECT_URL:-}
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     depends_on:

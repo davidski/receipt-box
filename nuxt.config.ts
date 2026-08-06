@@ -13,7 +13,10 @@ export default defineNuxtConfig({
   // The browser owns all rendering and navigation. Nitro exists only for /api.
   ssr: false,
   devtools: { enabled: true },
-  modules: ['@nuxt/ui'],
+  modules: ['@nuxt/ui', 'nuxt-auth-utils'],
+  auth: {
+    loadStrategy: 'client-only'
+  },
   fonts: {
     provider: 'local'
   },

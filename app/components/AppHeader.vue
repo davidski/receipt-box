@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const route = useRoute()
 const brandIconURL = `${useRuntimeConfig().app.baseURL}favicon.svg`
+const { enabled: authEnabled } = useAuthMode()
+const { loggedIn, clear } = useUserSession()
 
 const links = [
   { to: '/', label: 'Add receipt', icon: 'i-lucide-receipt-text' },
@@ -11,6 +13,11 @@ const links = [
 
 function isActive(to: string) {
   return route.path === to || (to === '/history' && route.path.startsWith('/items/'))
+}
+
+async function logout() {
+  await clear()
+  await navigateTo('/login')
 }
 </script>
 
@@ -27,7 +34,18 @@ function isActive(to: string) {
       </NuxtLink>
     </nav>
 
-    <UColorModeButton class="theme-toggle" size="xl" variant="outline" color="neutral" />
+    <div class="header-actions">
+      <UButton
+        v-if="authEnabled && loggedIn"
+        icon="i-lucide-log-out"
+        aria-label="Sign out"
+        size="xl"
+        variant="outline"
+        color="neutral"
+        @click="logout"
+      />
+      <UColorModeButton size="xl" variant="outline" color="neutral" />
+    </div>
   </header>
 
   <nav class="main-nav mobile-nav" aria-label="Main navigation">
