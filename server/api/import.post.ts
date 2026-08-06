@@ -6,19 +6,33 @@ async function saveEntries(entries: EntryInput[]) {
   await sql.begin(async (tx) => {
     const stores = [...new Set(entries.map(entry => entry.location))].map(name => ({ name }))
     await tx`INSERT INTO grocery_stores ${tx(stores)} ON CONFLICT DO NOTHING`
-    const rows = entries.map(entry => ({
-      purchased_on: entry.purchasedOn,
-      item: entry.item,
-      location: entry.location,
-      size: entry.size,
-      unit: entry.unit,
-      price: entry.price,
-      cost_per_unit: entry.costPerUnit,
-      sale_item: entry.saleItem,
-      non_grocery: entry.nonGrocery,
-      notes: entry.notes
-    }))
-    await tx`INSERT INTO grocery_entries ${tx(rows)}`
+    const groups = new Map<string, EntryInput[]>()
+    for (const entry of entries) {
+      const key = `${entry.purchasedOn}\u0000${entry.location}`
+      groups.set(key, [...(groups.get(key) || []), entry])
+    }
+    for (const group of groups.values()) {
+      const first = group[0]!
+      const [receipt] = await tx<{ id: string }[]>`
+        INSERT INTO grocery_receipts (purchased_on, location)
+        VALUES (${first.purchasedOn}, ${first.location})
+        RETURNING id::text
+      `
+      const rows = group.map(entry => ({
+        receipt_id: receipt!.id,
+        purchased_on: entry.purchasedOn,
+        item: entry.item,
+        location: entry.location,
+        size: entry.size,
+        unit: entry.unit,
+        price: entry.price,
+        cost_per_unit: entry.costPerUnit,
+        sale_item: entry.saleItem,
+        non_grocery: entry.nonGrocery,
+        notes: entry.notes
+      }))
+      await tx`INSERT INTO grocery_entries ${tx(rows)}`
+    }
   })
 }
 

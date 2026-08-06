@@ -40,8 +40,9 @@ export default defineEventHandler(async (event) => {
       FROM grocery_entries
       ORDER BY year DESC
     `,
-    sql<{ entries: string, items: string, saleEntries: string, stores: string, firstDate: string | null, lastDate: string | null }[]>`
+    sql<{ entries: string, receipts: string, items: string, saleEntries: string, stores: string, firstDate: string | null, lastDate: string | null }[]>`
       SELECT count(*)::text AS entries,
+        count(DISTINCT receipt_id)::text AS receipts,
         count(DISTINCT lower(item))::text AS items,
         count(*) FILTER (WHERE sale_item)::text AS sale_entries,
         count(DISTINCT lower(location))::text AS stores,
@@ -163,6 +164,7 @@ export default defineEventHandler(async (event) => {
     reportingPeriod,
     summary: {
       entries: Number(summary?.entries ?? 0),
+      receipts: Number(summary?.receipts ?? 0),
       items: Number(summary?.items ?? 0),
       saleEntries: Number(summary?.saleEntries ?? 0),
       stores: Number(summary?.stores ?? 0),

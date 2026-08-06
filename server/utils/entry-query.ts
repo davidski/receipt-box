@@ -1,6 +1,6 @@
 import { db, publicEntry, type GroceryEntry } from './db'
 
-export async function insertEntry(entry: Omit<GroceryEntry, 'id' | 'createdAt' | 'updatedAt'>) {
+export async function insertEntry(entry: Omit<GroceryEntry, 'id' | 'receiptId' | 'createdAt' | 'updatedAt'>) {
   const sql = db()
   const row = await sql.begin(async (tx) => {
     await tx`INSERT INTO grocery_stores (name) VALUES (${entry.location}) ON CONFLICT DO NOTHING`

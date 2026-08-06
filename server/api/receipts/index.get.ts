@@ -14,48 +14,38 @@ export default defineEventHandler(async (event) => {
   const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 50)
   const offset = Math.max(Number(query.offset) || 0, 0)
   const sql = db()
+  const dateFilter = purchasedOn ? sql`WHERE purchased_on = ${purchasedOn}` : sql``
 
   const [rows, countRows] = await Promise.all([
     sql<ReceiptRow[]>`
-      WITH matching_receipts AS (
-        SELECT purchased_on, location
-        FROM grocery_entries
-        WHERE (${purchasedOn} = '' OR purchased_on = ${purchasedOn}::date)
-        GROUP BY purchased_on, location
-      ), selected_receipts AS (
-        SELECT purchased_on, location
-        FROM matching_receipts
+      WITH selected_receipts AS (
+        SELECT id, purchased_on, location
+        FROM grocery_receipts
+        ${dateFilter}
         ORDER BY purchased_on DESC, lower(location), location
         LIMIT ${limit} OFFSET ${offset}
       ), receipt_summaries AS (
-        SELECT entries.purchased_on, entries.location,
+        SELECT selected.id AS receipt_id, selected.purchased_on, selected.location,
           sum(entries.price)::text AS receipt_total,
           count(*)::int AS receipt_item_count
-        FROM grocery_entries entries
-        INNER JOIN selected_receipts selected
-          ON selected.purchased_on = entries.purchased_on
-          AND selected.location = entries.location
-        GROUP BY entries.purchased_on, entries.location
+        FROM selected_receipts selected
+        INNER JOIN grocery_entries entries ON entries.receipt_id = selected.id
+        GROUP BY selected.id, selected.purchased_on, selected.location
       )
       SELECT entries.*, summaries.receipt_total, summaries.receipt_item_count
       FROM grocery_entries entries
-      INNER JOIN receipt_summaries summaries
-        ON summaries.purchased_on = entries.purchased_on
-        AND summaries.location = entries.location
-      ORDER BY entries.purchased_on DESC, lower(entries.location), entries.location, lower(entries.item), entries.id
+      INNER JOIN receipt_summaries summaries ON summaries.receipt_id = entries.receipt_id
+      ORDER BY entries.purchased_on DESC, lower(entries.location), entries.location, entries.receipt_id DESC, entries.id
     `,
     sql<{ count: string }[]>`
       SELECT count(*)::text AS count
-      FROM (
-        SELECT purchased_on, location
-        FROM grocery_entries
-        WHERE (${purchasedOn} = '' OR purchased_on = ${purchasedOn}::date)
-        GROUP BY purchased_on, location
-      ) matching_receipts
+      FROM grocery_receipts
+      ${dateFilter}
     `
   ])
 
   const receipts = new Map<string, {
+    id: string
     purchasedOn: string
     location: string
     total: string
@@ -65,8 +55,9 @@ export default defineEventHandler(async (event) => {
 
   for (const row of rows) {
     const entry = publicEntry(row)
-    const key = `${entry.purchasedOn}\u0000${entry.location}`
+    const key = entry.receiptId
     const receipt = receipts.get(key) ?? {
+      id: entry.receiptId,
       purchasedOn: entry.purchasedOn,
       location: entry.location,
       total: row.receiptTotal,

@@ -1,7 +1,5 @@
 <template>
-  <div class="entry-only-layout">
-    <section class="entry-panel">
-      <PriceEntryForm />
-    </section>
+  <div class="receipt-entry-layout">
+    <ReceiptEntryForm />
   </div>
 </template>

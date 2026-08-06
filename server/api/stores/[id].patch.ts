@@ -23,12 +23,14 @@ export default defineEventHandler(async (event) => {
     `
     if (target) {
       await tx`UPDATE grocery_entries SET location = ${target.name}, updated_at = now() WHERE lower(location) = lower(${current.name})`
+      await tx`UPDATE grocery_receipts SET location = ${target.name}, updated_at = now() WHERE lower(location) = lower(${current.name})`
       await tx`DELETE FROM grocery_stores WHERE id = ${id}`
       return { ...target, merged: true }
     }
 
     await tx`UPDATE grocery_stores SET name = ${name} WHERE id = ${id}`
     await tx`UPDATE grocery_entries SET location = ${name}, updated_at = now() WHERE lower(location) = lower(${current.name})`
+    await tx`UPDATE grocery_receipts SET location = ${name}, updated_at = now() WHERE lower(location) = lower(${current.name})`
     return { id, name, merged: false }
   })
 })

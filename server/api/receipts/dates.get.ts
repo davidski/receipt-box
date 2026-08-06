@@ -6,12 +6,13 @@ export default defineEventHandler(async () => {
     receiptCount: number
     itemCount: number
   }[]>`
-    SELECT purchased_on AS date,
-      count(DISTINCT location)::int AS receipt_count,
-      count(*)::int AS item_count
-    FROM grocery_entries
-    GROUP BY purchased_on
-    ORDER BY purchased_on DESC
+    SELECT receipts.purchased_on AS date,
+      count(DISTINCT receipts.id)::int AS receipt_count,
+      count(entries.id)::int AS item_count
+    FROM grocery_receipts receipts
+    INNER JOIN grocery_entries entries ON entries.receipt_id = receipts.id
+    GROUP BY receipts.purchased_on
+    ORDER BY receipts.purchased_on DESC
   `
 
   return {

@@ -5,7 +5,6 @@ export default defineEventHandler(async (event) => {
   const input = normalizeEntry(await readBody(event))
   const entry = await insertEntry({
     ...input,
-    receiptId: '',
     size: input.size === null ? null : String(input.size),
     price: String(input.price),
     costPerUnit: input.costPerUnit === null ? null : String(input.costPerUnit)

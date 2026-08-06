@@ -19,7 +19,7 @@ type PriceMover = HighlightEntry & {
 type Highlights = {
   availableYears: number[]
   reportingPeriod: { startDate: string, endDate: string } | null
-  summary: { entries: number, items: number, saleEntries: number, stores: number, firstDate: string | null, lastDate: string | null }
+  summary: { entries: number, receipts: number, items: number, saleEntries: number, stores: number, firstDate: string | null, lastDate: string | null }
   recent: HighlightEntry[]
   movers: PriceMover[]
   topStores: { name: string, totalSpent: number, lastUsed: string }[]
@@ -140,7 +140,7 @@ function percentage(value: string) {
         <UFormField label="Period" class="period-field">
           <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" />
         </UFormField>
-        <UButton class="touch-target" to="/" label="Add price" icon="i-lucide-plus" />
+        <UButton class="touch-target" to="/" label="Add receipt" icon="i-lucide-plus" />
       </div>
     </header>
 
@@ -151,7 +151,7 @@ function percentage(value: string) {
     </div>
     <template v-else-if="data">
       <section class="highlight-stats" aria-label="Pricebook summary">
-        <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.entries.toLocaleString() }}</strong><span>purchases</span></UCard>
+        <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-store" /><strong>{{ data.summary.stores.toLocaleString() }}</strong><span>stores</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-tags" /><strong>{{ data.summary.saleEntries.toLocaleString() }}</strong><span>sale purchases</span></UCard>

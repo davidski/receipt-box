@@ -166,7 +166,9 @@ export async function migrate() {
 
     const [foreignKey] = await tx<{ exists: boolean }[]>`
       SELECT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'grocery_entries_receipt_id_fkey'
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'grocery_entries_receipt_id_fkey'
+          AND conrelid = 'grocery_entries'::regclass
       ) AS exists
     `
     if (!foreignKey?.exists) {

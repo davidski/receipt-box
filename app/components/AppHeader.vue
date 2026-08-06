@@ -2,7 +2,7 @@
 const route = useRoute()
 
 const links = [
-  { to: '/', label: 'Add', icon: 'i-lucide-plus' },
+  { to: '/', label: 'Add receipt', icon: 'i-lucide-receipt-text' },
   { to: '/highlights', label: 'Highlights', icon: 'i-lucide-sparkles' },
   { to: '/history', label: 'History', icon: 'i-lucide-history' },
   { to: '/data', label: 'Manage', icon: 'i-lucide-settings' }

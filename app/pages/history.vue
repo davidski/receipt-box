@@ -20,7 +20,7 @@ type Entry = {
 
 type EntryList = { entries: Entry[], total: number }
 type ReceiptEntry = Omit<Entry, 'previousPrice' | 'previousCostPerUnit' | 'previousPurchasedOn' | 'priceChangePercent' | 'comparisonBasis'>
-type Receipt = { purchasedOn: string, location: string, total: string, itemCount: number, entries: ReceiptEntry[] }
+type Receipt = { id: string, purchasedOn: string, location: string, total: string, itemCount: number, entries: ReceiptEntry[] }
 type ReceiptList = { receipts: Receipt[], total: number }
 type ReceiptDate = { date: string, receiptCount: number, itemCount: number }
 type ReceiptDates = { dates: ReceiptDate[] }
@@ -70,6 +70,7 @@ const { data: receiptData, pending: receiptsPending, error: receiptsError, refre
 const { data: receiptDates, refresh: refreshReceiptDates } = await useFetch<ReceiptDates>(apiUrl('/receipts/dates'))
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
 const editing = ref<EditableEntry | null>(null)
+const editingReceipt = ref<Receipt | null>(null)
 const editError = ref('')
 const saving = ref(false)
 const linkedEditError = ref('')
@@ -210,6 +211,20 @@ function startEdit(entry: Entry | ReceiptEntry) {
   editError.value = ''
 }
 
+function startReceiptEdit(receipt: Receipt) {
+  editingReceipt.value = receipt
+}
+
+function closeReceiptEdit() {
+  editingReceipt.value = null
+}
+
+async function receiptChanged() {
+  editingReceipt.value = null
+  await Promise.all([refresh(), refreshReceiptDates(), refreshStores()])
+  await refreshReceipts()
+}
+
 async function openLinkedEdit(value: unknown) {
   const id = Array.isArray(value) ? String(value[0] || '') : String(value || '')
   if (!/^\d+$/.test(id)) return
@@ -273,7 +288,7 @@ async function removeEntry() {
         <p v-if="view === 'receipts' && receiptDates">{{ receiptDates.dates.length.toLocaleString() }} shopping {{ receiptDates.dates.length === 1 ? 'date' : 'dates' }}</p>
         <p v-else-if="view === 'entries' && data">{{ data.total.toLocaleString() }} {{ data.total === 1 ? 'entry' : 'entries' }}</p>
       </div>
-      <UButton class="touch-target" to="/" label="Add price" icon="i-lucide-plus" />
+      <UButton class="touch-target" to="/" label="Add receipt" icon="i-lucide-receipt-text" />
     </header>
 
     <div class="history-view-switcher" aria-label="History view">
@@ -358,13 +373,14 @@ async function removeEntry() {
           <div v-else-if="receiptsError" class="empty-state error-state">Could not load receipts for this date.</div>
           <div v-else-if="!receiptData?.receipts.length" class="empty-state">No receipts recorded for this date.</div>
           <div v-else class="receipt-grid">
-          <article v-for="receipt in receiptData.receipts" :key="`${receipt.purchasedOn}-${receipt.location}`" class="virtual-receipt">
+          <article v-for="receipt in receiptData.receipts" :key="receipt.id" class="virtual-receipt">
             <header class="receipt-heading">
               <div class="receipt-store-mark" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
-              <div>
+              <div class="receipt-heading-copy">
                 <h2>{{ receipt.location }}</h2>
                 <p>{{ dateLabel(receipt.purchasedOn) }} · {{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</p>
               </div>
+              <UButton type="button" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" @click="startReceiptEdit(receipt)" />
             </header>
             <div class="receipt-rule"><span>Item</span><span>Price</span></div>
             <ul class="receipt-lines">
@@ -379,7 +395,6 @@ async function removeEntry() {
                   <small v-if="entry.notes">{{ entry.notes }}</small>
                 </div>
                 <strong class="receipt-line-price">{{ currency(entry.price) }}</strong>
-                <UButton type="button" icon="i-lucide-pencil" :aria-label="`Edit ${entry.item}`" color="neutral" variant="ghost" size="xs" @click="startEdit(entry)" />
               </li>
             </ul>
             <footer class="receipt-total">
@@ -462,6 +477,12 @@ async function removeEntry() {
       <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
       </div>
     </template>
+
+    <div v-if="editingReceipt" class="modal-backdrop" role="presentation" @mousedown.self="closeReceiptEdit">
+      <div class="receipt-edit-dialog" role="dialog" aria-modal="true" aria-label="Edit receipt">
+        <ReceiptEntryForm :receipt="editingReceipt" @saved="receiptChanged" @deleted="receiptChanged" @cancel="closeReceiptEdit" />
+      </div>
+    </div>
 
     <div v-if="editing" class="modal-backdrop" role="presentation" @mousedown.self="closeEdit">
       <form class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-title" @submit.prevent="saveEdit">

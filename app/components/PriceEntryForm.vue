@@ -115,7 +115,9 @@ function searchItems(term: string) {
 function chooseItem(suggestion: Suggestion) {
   form.item = suggestion.value
   form.location = suggestion.location ?? ''
-  form.size = suggestion.size ?? ''
+  form.size = suggestion.size === null || suggestion.size === undefined || suggestion.size === ''
+    ? ''
+    : String(Number(suggestion.size))
   form.unit = suggestion.unit ?? ''
   form.price = suggestion.price ?? ''
   selectedHistory.value = suggestion
