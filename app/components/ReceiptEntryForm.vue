@@ -507,7 +507,7 @@ async function deleteReceipt() {
       <div>
         <p class="eyebrow">Shopping trip editor</p>
         <h1>Add or edit a receipt</h1>
-        <p>Choose a date and store. Existing receipt lines load for editing.</p>
+        <p>Select an existing date and store to edit.</p>
       </div>
       <div class="receipt-meta-fields">
         <UFormField label="Date" name="purchasedOn" required class="field date-field">

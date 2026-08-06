@@ -77,12 +77,32 @@ function monthLabel(value: string, compact = false) {
 
 const monthlySpendTotal = computed(() => (data.value?.monthlySpend || []).reduce((total, month) => total + month.totalSpent, 0))
 const selectedMonthlySpend = computed(() => data.value?.monthlySpend.find(month => month.month === selectedSpendMonth.value) || null)
+const monthlySpendContainer = ref<HTMLElement | null>(null)
+const monthlySpendWidth = ref(720)
+let monthlySpendResizeObserver: ResizeObserver | null = null
+
+watch(monthlySpendContainer, (element) => {
+  monthlySpendResizeObserver?.disconnect()
+  monthlySpendResizeObserver = null
+  if (!element || typeof ResizeObserver === 'undefined') return
+
+  const setWidth = (width: number) => {
+    monthlySpendWidth.value = Math.max(280, Math.floor(width))
+  }
+  setWidth(element.clientWidth)
+  monthlySpendResizeObserver = new ResizeObserver(([entry]) => {
+    if (entry) setWidth(entry.contentRect.width)
+  })
+  monthlySpendResizeObserver.observe(element)
+}, { flush: 'post' })
+
+onBeforeUnmount(() => monthlySpendResizeObserver?.disconnect())
 
 const monthlySpendChart = computed(() => {
   const months = data.value?.monthlySpend || []
   if (!months.length) return null
 
-  const width = Math.max(720, months.length * 38 + 94)
+  const width = monthlySpendWidth.value
   const height = 300
   const plot = { left: 72, right: 18, top: 16, bottom: 52 }
   const plotWidth = width - plot.left - plot.right
@@ -94,8 +114,9 @@ const monthlySpendChart = computed(() => {
   const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10) * magnitude
   const max = step * 4
   const slotWidth = plotWidth / months.length
-  const barWidth = Math.max(8, Math.min(28, slotWidth * 0.64))
-  const labelEvery = months.length <= 18 ? 1 : months.length <= 48 ? 3 : months.length <= 96 ? 6 : 12
+  const barWidth = Math.max(1, Math.min(28, slotWidth * 0.64))
+  const hitWidth = Math.max(barWidth, Math.min(28, slotWidth))
+  const labelEvery = Math.max(1, Math.ceil(54 / slotWidth))
   const bars = months.map((month, index) => {
     const x = plot.left + slotWidth * index + slotWidth / 2
     const y = plot.top + ((max - month.totalSpent) / max) * plotHeight
@@ -105,6 +126,7 @@ const monthlySpendChart = computed(() => {
       y,
       height: plot.top + plotHeight - y,
       barWidth,
+      hitWidth,
       showLabel: index % labelEvery === 0 || index === months.length - 1,
       label: months.length > 96
         ? String(parseCalendarDate(month.month)?.getFullYear() || '')
@@ -194,10 +216,9 @@ function changeLabel(value: number | null) {
         <div class="monthly-spend-heading">
           <div><p class="eyebrow">Monthly spending</p><h2>Purchases by month</h2></div>
         </div>
-        <div v-if="monthlySpendChart" class="monthly-spend-scroll">
+        <div v-if="monthlySpendChart" ref="monthlySpendContainer" class="monthly-spend-scroll">
           <svg
             :viewBox="`0 0 ${monthlySpendChart.width} ${monthlySpendChart.height}`"
-            :style="{ minWidth: `${monthlySpendChart.width}px` }"
             role="img"
             aria-label="Total purchase dollars by month"
           >
@@ -222,9 +243,9 @@ function changeLabel(value: number | null) {
               >
                 <rect
                   class="monthly-spend-hit"
-                  :x="bar.x - Math.max(bar.barWidth, 28) / 2"
+                  :x="bar.x - bar.hitWidth / 2"
                   :y="monthlySpendChart.plot.top"
-                  :width="Math.max(bar.barWidth, 28)"
+                  :width="bar.hitWidth"
                   :height="monthlySpendChart.plotBottom - monthlySpendChart.plot.top"
                 />
                 <rect
@@ -292,28 +313,37 @@ function changeLabel(value: number | null) {
       </UCard>
 
       <div class="highlights-grid">
-        <UCard class="highlight-panel movers-panel">
+        <UCard class="highlight-panel movers-panel" aria-labelledby="movers-heading">
             <div class="section-heading">
-              <div><p class="eyebrow">Since last purchase</p><h2>Recent movers</h2></div>
+              <div><p class="eyebrow">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
             </div>
-            <ul v-if="data.movers.length" class="mover-list">
-              <li v-for="entry in data.movers" :key="entry.id">
-                <div>
+            <div v-if="data.movers.length" class="movers-table-wrap">
+              <table class="movers-table">
+                <thead><tr><th>Item</th><th>Comparison</th><th>Change</th></tr></thead>
+                <tbody>
+                  <tr v-for="entry in data.movers" :key="entry.id">
+                    <td data-label="Item">
                   <NuxtLink :to="itemPath(entry.item)" class="item-history-link" :aria-label="`View normalized price history for ${entry.item}`">
                     <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
-                  <span>{{ entry.previousLocation }} → {{ entry.location }} · {{ shortDate(entry.purchasedOn) }}</span>
-                </div>
-                <UBadge
-                  :label="percentage(entry.priceChangePercent)"
-                  :icon="Number(entry.priceChangePercent) > 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
-                  :color="Number(entry.priceChangePercent) > 0 ? 'error' : 'success'"
-                  variant="soft"
-                  size="lg"
-                  :title="`Compared with the ${entry.comparisonBasis} price on ${shortDate(entry.previousPurchasedOn)}`"
-                />
-              </li>
-            </ul>
+                    </td>
+                    <td data-label="Comparison" class="mover-context">
+                      <strong class="mover-dates">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</strong>
+                      <span class="mover-stores">{{ entry.previousLocation }} → {{ entry.location }}</span>
+                    </td>
+                    <td data-label="Change" class="mover-change">
+                      <UBadge
+                        :label="percentage(entry.priceChangePercent)"
+                        :icon="Number(entry.priceChangePercent) > 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
+                        :color="Number(entry.priceChangePercent) > 0 ? 'error' : 'success'"
+                        variant="soft"
+                        :title="`Compared with the ${entry.comparisonBasis} price on ${shortDate(entry.previousPurchasedOn)}`"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p v-else class="panel-empty">No significant price changes in this period.</p>
         </UCard>
 
@@ -324,8 +354,11 @@ function changeLabel(value: number | null) {
             </div>
             <ul v-if="data.topStores.length" class="store-rank-list">
               <li v-for="store in data.topStores" :key="store.name">
-                <div><strong>{{ store.name }}</strong><span>{{ wholeCurrency(store.totalSpent) }} spent</span></div>
-                <span class="store-bar"><i :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }" /></span>
+                <strong>{{ store.name }}</strong>
+                <div class="store-spend-visual">
+                  <span class="store-spend-value" :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }">{{ wholeCurrency(store.totalSpent) }}</span>
+                  <span class="store-bar"><i :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }" /></span>
+                </div>
               </li>
             </ul>
             <p v-else class="panel-empty">No store activity in this period.</p>

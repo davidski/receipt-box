@@ -38,7 +38,8 @@ test('transient receipt messages render below the stable controls row', () => {
 
 test('add and edit use one receipt editor that loads existing lines', () => {
   assert.match(header, /label: 'Add\/edit receipt'/)
-  assert.match(form, /Existing receipt lines load for editing\./)
+  assert.match(form, /Select an existing date and store to edit\./)
+  assert.doesNotMatch(form, /Existing receipt lines load for editing\./)
   assert.match(form, /loadReceipt\(result\.receipt\)/)
   assert.match(form, /@create="createLocation"/)
   assert.match(matchApi, /entries: entries\.map\(publicEntry\)/)

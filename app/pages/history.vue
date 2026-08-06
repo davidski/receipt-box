@@ -280,10 +280,9 @@ async function removeEntry() {
   <div class="content-page history-page">
     <header class="page-heading history-heading">
       <div>
-        <p class="eyebrow">{{ view === 'receipts' ? 'Shopping trips' : 'The full pricebook' }}</p>
-        <h1>{{ view === 'receipts' ? 'Receipt history' : 'Price history' }}</h1>
-        <p v-if="view === 'receipts' && receiptDates">{{ receiptDates.dates.length.toLocaleString() }} shopping {{ receiptDates.dates.length === 1 ? 'date' : 'dates' }}</p>
-        <p v-else-if="view === 'entries' && data">{{ data.total.toLocaleString() }} {{ data.total === 1 ? 'entry' : 'entries' }}</p>
+        <p class="eyebrow">Purchase records</p>
+        <h1>History</h1>
+        <p>Browse receipts or individual purchase entries.</p>
       </div>
     </header>
 
@@ -291,6 +290,9 @@ async function removeEntry() {
       <UButton type="button" label="Receipts" icon="i-lucide-receipt-text" :color="view === 'receipts' ? 'primary' : 'neutral'" :variant="view === 'receipts' ? 'solid' : 'ghost'" :aria-pressed="view === 'receipts'" @click="view = 'receipts'" />
       <UButton type="button" label="All entries" icon="i-lucide-list" :color="view === 'entries' ? 'primary' : 'neutral'" :variant="view === 'entries' ? 'solid' : 'ghost'" :aria-pressed="view === 'entries'" @click="view = 'entries'" />
     </div>
+
+    <p v-if="view === 'receipts' && receiptDates" class="history-view-summary" aria-live="polite">{{ receiptDates.dates.length.toLocaleString() }} shopping {{ receiptDates.dates.length === 1 ? 'date' : 'dates' }}</p>
+    <p v-else-if="view === 'entries' && data" class="history-view-summary" aria-live="polite">{{ data.total.toLocaleString() }} {{ data.total === 1 ? 'entry' : 'entries' }}</p>
 
     <div v-if="view === 'entries'" class="filter-bar">
       <label class="search-control">

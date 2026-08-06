@@ -12,6 +12,16 @@ test('the Highlights period field accommodates its longest option without overfl
   assert.match(stylesheet, /\.period-field \{ width: min\(240px, 100%\); \}/)
 })
 
+test('the monthly spending chart stays within its card and compresses wide ranges', () => {
+  assert.match(page, /ref="monthlySpendContainer" class="monthly-spend-scroll"/)
+  assert.match(page, /const width = monthlySpendWidth\.value/)
+  assert.match(page, /const barWidth = Math\.max\(1, Math\.min\(28, slotWidth \* 0\.64\)\)/)
+  assert.match(page, /const hitWidth = Math\.max\(barWidth, Math\.min\(28, slotWidth\)\)/)
+  assert.match(page, /const labelEvery = Math\.max\(1, Math\.ceil\(54 \/ slotWidth\)\)/)
+  assert.doesNotMatch(page, /minWidth: `\$\{monthlySpendChart\.width\}px`/)
+  assert.match(stylesheet, /\.monthly-spend-scroll \{ width: 100%; max-width: 100%; overflow: hidden;/)
+})
+
 test('the Highlights page explains and renders core-item price velocity', () => {
   assert.match(page, /Core item price stability/)
   assert.match(page, /3\+ receipts across 2\+ months/)
@@ -35,4 +45,22 @@ test('Highlights omits redundant recent and sale-frequency views', () => {
   assert.match(page, /Recent movers/)
   assert.match(page, /Top stores/)
   assert.match(stylesheet, /\.highlight-stats \{ display: grid; grid-template-columns: repeat\(3, 1fr\);/)
+})
+
+test('Top stores anchors each spend amount to the end of its bar', () => {
+  assert.match(page, /class="store-spend-value" :style="\{ width:/)
+  assert.match(page, /class="store-bar"><i :style="\{ width:/)
+  assert.match(stylesheet, /\.store-spend-value \{[^}]*text-align: right;[^}]*white-space: nowrap;/)
+  assert.match(stylesheet, /\.store-rank-list \{ display: grid; gap: 9px; \}/)
+})
+
+test('Recent movers uses compact table rows with a mobile card fallback', () => {
+  assert.match(page, /<table class="movers-table">/)
+  assert.match(page, /<th>Item<\/th><th>Comparison<\/th><th>Change<\/th>/)
+  assert.match(page, /class="mover-dates">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
+  assert.match(page, /class="mover-stores">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
+  assert.doesNotMatch(page, /class="mover-list"/)
+  assert.match(stylesheet, /\.movers-table td \{ padding: 9px;/)
+  assert.match(stylesheet, /\.mover-context \{ display: grid; gap: 2px;/)
+  assert.match(stylesheet, /\.movers-table, \.movers-table tbody \{ display: grid; gap: 10px; \}/)
 })
