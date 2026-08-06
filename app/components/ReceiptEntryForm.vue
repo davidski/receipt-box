@@ -312,7 +312,7 @@ async function deleteReceipt() {
       <div>
         <p class="eyebrow">{{ isEditing ? 'Correct a shopping trip' : 'New shopping trip' }}</p>
         <component :is="isEditing ? 'h2' : 'h1'">{{ isEditing ? 'Edit receipt' : 'Add a receipt' }}</component>
-        <p>{{ isEditing ? 'Update, add, or remove any line on this receipt.' : 'Enter every line, then save the receipt once.' }}</p>
+        <p>{{ isEditing ? 'Update, add, or remove any line on this receipt.' : 'Enter each item, then save the receipt.' }}</p>
       </div>
       <div class="receipt-meta-fields">
         <UFormField label="Date" name="purchasedOn" required class="field date-field">
@@ -375,7 +375,7 @@ async function deleteReceipt() {
 
     <div v-else class="receipt-store-prompt">
       <UIcon name="i-lucide-store" class="receipt-store-prompt-icon" aria-hidden="true" />
-      <p><strong>Choose or add a store</strong><span>Select a store above to begin entering receipt items.</span></p>
+      <p><strong>Choose or add a store</strong><span>Select a store to start entering a receipt.</span></p>
     </div>
 
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
