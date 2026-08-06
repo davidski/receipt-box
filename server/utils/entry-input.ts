@@ -1,5 +1,5 @@
-import { normalizeUnit } from '../../shared/utils/units'
-import { normalizeStoreName } from '../../shared/utils/store-name'
+import { normalizeUnit } from '../../shared/utils/units.ts'
+import { normalizeStoreName } from '../../shared/utils/store-name.ts'
 
 export type EntryInput = {
   purchasedOn: string
@@ -25,6 +25,18 @@ function truthy(value: unknown) {
   return ['1', 'true', 'yes', 'y', 'x'].includes(String(value ?? '').trim().toLowerCase())
 }
 
+function isCalendarDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return false
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day
+}
+
 export function normalizeEntry(input: Record<string, unknown>): EntryInput {
   const rawDate = input.purchasedOn ?? input.food_Date ?? input.date ?? ''
   const purchasedOn = rawDate instanceof Date
@@ -43,7 +55,7 @@ export function normalizeEntry(input: Record<string, unknown>): EntryInput {
       : price / size
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(purchasedOn)) {
+  if (!isCalendarDate(purchasedOn)) {
     throw createError({ statusCode: 400, statusMessage: 'A valid purchase date is required' })
   }
   if (!item) throw createError({ statusCode: 400, statusMessage: 'Item is required' })

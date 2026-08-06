@@ -1,4 +1,4 @@
-import { normalizeUnit } from './units'
+import { normalizeUnit } from './units.ts'
 
 type NormalizedPrice = {
   basis: string
