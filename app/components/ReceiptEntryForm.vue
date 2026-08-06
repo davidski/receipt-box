@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { normalizeUnit } from '../../shared/utils/units'
 import {
-  addedReceiptMessage,
   receiptLineIsComplete,
   receiptLineSaveSnapshot,
   shouldLoadMatchingReceipt,
@@ -70,7 +69,6 @@ const { apiUrl } = useApi()
 const saving = ref(false)
 const confirmingDelete = ref(false)
 const errorMessage = ref('')
-const savedMessage = ref('')
 const locationSuggestions = ref<Suggestion[]>([])
 const matchingReceipt = ref<MatchingReceipt | null>(null)
 const checkingReceiptMatch = ref(false)
@@ -196,7 +194,6 @@ watch(() => [props.initialDate, props.initialLocation] as const, ([initialDate, 
   currentReceiptId.value = null
   lastSavedSummary.value = null
   errorMessage.value = ''
-  savedMessage.value = ''
   confirmingDelete.value = false
 }, { immediate: true })
 
@@ -238,7 +235,6 @@ watch([
     if (result.receipt && shouldLoadMatchingReceipt(currentReceiptId.value, enteredLines.value.length)) {
       loadReceipt(result.receipt)
       matchingReceipt.value = null
-      savedMessage.value = `Loaded ${result.receipt.itemCount} ${result.receipt.itemCount === 1 ? 'item' : 'items'} for editing.`
     } else {
       matchingReceipt.value = result.receipt
     }
@@ -390,7 +386,6 @@ function scheduleAutosave() {
   const validHeader = /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) && Boolean(form.location.trim())
   const dirtyCompleteLines = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
   if (!validHeader || !dirtyCompleteLines.length) return
-  savedMessage.value = ''
   autosaveTimer = setTimeout(() => saveCompletedRows(), 600)
 }
 
@@ -416,7 +411,6 @@ async function saveCompletedRows() {
 
   saving.value = true
   errorMessage.value = ''
-  const newRows = rows.filter(line => !line.id).length
   try {
     for (const line of rows) {
       const snapshot = lineSnapshot(line)
@@ -429,17 +423,7 @@ async function saveCompletedRows() {
       savedLineSnapshots.set(line.key, snapshot)
     }
 
-    const summary = await loadCurrentReceiptSummary()
-    if (summary) {
-      savedMessage.value = newRows
-        ? addedReceiptMessage(newRows, summary)
-        : 'Changes saved.'
-    } else {
-      savedMessage.value = 'Changes saved.'
-    }
-    setTimeout(() => {
-      if (!hasUnsavedChanges.value) savedMessage.value = ''
-    }, 3000)
+    await loadCurrentReceiptSummary()
   } catch (error: any) {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not save these changes'
   } finally {
@@ -473,10 +457,8 @@ async function removeLine(line: ReceiptLine) {
   if (!remainingSavedRows.length) {
     currentReceiptId.value = null
     lastSavedSummary.value = null
-    savedMessage.value = 'Receipt deleted.'
   } else {
     await loadCurrentReceiptSummary()
-    savedMessage.value = 'Row deleted.'
   }
   scheduleAutosave()
 }
@@ -492,7 +474,6 @@ async function deleteReceipt() {
     lastSavedSummary.value = null
     form.lines = [blankLine()]
     confirmingDelete.value = false
-    savedMessage.value = 'Receipt deleted.'
   } catch (error: any) {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not delete this receipt'
   } finally {
@@ -553,7 +534,15 @@ async function deleteReceipt() {
           <UnitInput v-model="line.unit" />
         </UFormField>
         <div class="receipt-line-options">
-          <UButton type="button" icon="i-lucide-tag" :aria-label="line.saleItem ? 'Remove sale flag' : 'Mark as sale item'" :color="line.saleItem ? 'warning' : 'neutral'" :variant="line.saleItem ? 'soft' : 'ghost'" @click="line.saleItem = !line.saleItem" />
+          <UButton
+            type="button"
+            icon="i-lucide-tag"
+            :aria-label="line.saleItem ? 'Remove sale-price flag' : 'Mark as purchased at a sale price'"
+            :title="line.saleItem ? 'Purchased at a sale price. Click to remove.' : 'Mark as purchased at a sale price.'"
+            :color="line.saleItem ? 'warning' : 'neutral'"
+            :variant="line.saleItem ? 'soft' : 'ghost'"
+            @click="line.saleItem = !line.saleItem"
+          />
           <UButton type="button" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @click="line.expanded = !line.expanded" />
         </div>
         <UButton class="receipt-line-remove" type="button" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" :disabled="saving" @click="removeLine(line)" />
@@ -599,6 +588,5 @@ async function deleteReceipt() {
 
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
     <UAlert v-if="matchingReceiptMessage" color="warning" variant="soft" icon="i-lucide-git-merge" :description="matchingReceiptMessage" class="notice" />
-    <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice" />
   </form>
 </template>

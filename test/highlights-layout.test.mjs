@@ -22,6 +22,12 @@ test('the monthly spending chart stays within its card and compresses wide range
   assert.match(stylesheet, /\.monthly-spend-scroll \{ width: 100%; max-width: 100%; overflow: hidden;/)
 })
 
+test('Highlights cards share the Purchases by month heading size', () => {
+  assert.match(stylesheet, /\.highlights-page \.highlight-panel h2 \{ font-size: 25px; \}/)
+  assert.doesNotMatch(stylesheet, /\.core-items-heading h2 \{[^}]*font-size:/)
+  assert.doesNotMatch(stylesheet, /\.movers-panel \.section-heading h2 \{[^}]*font-size:/)
+})
+
 test('the Highlights page explains and renders core-item price velocity', () => {
   assert.match(page, /Core item price stability/)
   assert.match(page, /3\+ receipts across 2\+ months/)
