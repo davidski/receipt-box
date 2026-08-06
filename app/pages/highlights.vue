@@ -20,11 +20,21 @@ type PriceMover = HighlightEntry & {
 type Highlights = {
   availableYears: number[]
   reportingPeriod: { startDate: string, endDate: string } | null
-  summary: { entries: number, receipts: number, items: number, saleItems: number, stores: number, firstDate: string | null, lastDate: string | null }
-  recent: HighlightEntry[]
+  summary: { entries: number, receipts: number, items: number, stores: number, firstDate: string | null, lastDate: string | null }
   movers: PriceMover[]
   topStores: { name: string, totalSpent: number, lastUsed: string }[]
-  topSaleItems: { name: string, sales: number, lastSale: string }[]
+  coreItems: {
+    name: string
+    purchases: number
+    activeMonths: number
+    averageDaysBetween: number | null
+    lastPurchasedOn: string
+    priceObservations: number
+    averageChangePercent: number | null
+    netChangePercent: number | null
+    stability: 'limited' | 'stable' | 'steady' | 'changing' | 'volatile'
+    trend: 'flat' | 'up' | 'down' | 'unknown'
+  }[]
   monthlySpend: { month: string, totalSpent: number }[]
 }
 
@@ -44,10 +54,6 @@ const selectedSpendMonth = ref<string | null>(null)
 watch(selectedPeriod, () => {
   selectedSpendMonth.value = null
 })
-
-function currency(value: string | number | null) {
-  return value === null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value))
-}
 
 function wholeCurrency(value: string | number) {
   return new Intl.NumberFormat(undefined, {
@@ -131,6 +137,26 @@ function percentage(value: string) {
   const number = Number(value)
   return `${number > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number)}%`
 }
+
+const stabilityDetails = {
+  limited: { label: 'Limited history', color: 'neutral' as const, icon: 'i-lucide-circle-help' },
+  stable: { label: 'Stable', color: 'success' as const, icon: 'i-lucide-equal-approximately' },
+  steady: { label: 'Slow-moving', color: 'primary' as const, icon: 'i-lucide-move-right' },
+  changing: { label: 'Changing', color: 'warning' as const, icon: 'i-lucide-activity' },
+  volatile: { label: 'Volatile', color: 'error' as const, icon: 'i-lucide-zap' }
+}
+
+function cadenceLabel(days: number | null) {
+  if (days === null) return '—'
+  if (days < 10) return `Every ${Math.max(1, Math.round(days))} days`
+  const weeks = Math.round(days / 7)
+  return weeks === 1 ? 'About weekly' : `Every ${weeks} weeks`
+}
+
+function changeLabel(value: number | null) {
+  if (value === null) return '—'
+  return `${value > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`
+}
 </script>
 
 <template>
@@ -162,7 +188,6 @@ function percentage(value: string) {
         <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-dollar-sign" /><strong>{{ wholeNumber(monthlySpendTotal) }}</strong><span>total spend</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-tags" /><strong>{{ data.summary.saleItems.toLocaleString() }}</strong><span>unique items bought on sale</span></UCard>
       </section>
 
       <UCard class="monthly-spend-panel highlight-panel">
@@ -224,31 +249,49 @@ function percentage(value: string) {
         </div>
       </UCard>
 
-      <div class="highlights-grid">
-        <UCard class="recent-panel highlight-panel" aria-labelledby="recent-heading">
-          <div class="section-heading">
-            <div><p class="eyebrow">Latest activity</p><h2 id="recent-heading">Recent prices</h2></div>
-            <UButton to="/history" label="View history" trailing-icon="i-lucide-arrow-right" color="neutral" variant="ghost" size="sm" />
+      <UCard class="core-items-panel highlight-panel" aria-labelledby="core-items-heading">
+        <div class="section-heading core-items-heading">
+          <div>
+            <p class="eyebrow">Regular purchases</p>
+            <h2 id="core-items-heading">Core item price stability</h2>
+            <p>Items bought on 3+ receipts across 2+ months; velocity compares non-sale prices.</p>
           </div>
-          <ol v-if="data.recent.length" class="recent-list">
-            <li v-for="entry in data.recent" :key="entry.id">
-              <div class="item-avatar" aria-hidden="true">{{ entry.item.charAt(0).toUpperCase() }}</div>
-              <div class="recent-copy">
-                <NuxtLink :to="itemPath(entry.item)" class="item-history-link" :aria-label="`View normalized price history for ${entry.item}`">
-                  <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
-                </NuxtLink>
-                <span class="recent-meta">{{ entry.location }} · {{ entry.size ? `${Number(entry.size)} ${entry.unit || ''}` : entry.unit || 'No size' }}</span>
-              </div>
-              <div class="recent-price">
-                <strong>{{ currency(entry.price) }}</strong>
-                <span class="recent-date">{{ shortDate(entry.purchasedOn) }}</span>
-                <UBadge v-if="entry.saleItem" class="sale-badge" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" />
-              </div>
-            </li>
-          </ol>
-          <p v-else class="panel-empty">No purchases in this period.</p>
-        </UCard>
+        </div>
+        <div v-if="data.coreItems.length" class="core-items-table-wrap">
+          <table class="core-items-table">
+            <thead>
+              <tr><th>Item</th><th>Regularity</th><th>Price behavior</th><th>Net change</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in data.coreItems" :key="item.name">
+                <td data-label="Item">
+                  <NuxtLink :to="itemPath(item.name)" class="item-history-link" :aria-label="`View normalized price history for ${item.name}`" :title="`Last bought ${shortDate(item.lastPurchasedOn)}`">
+                    <strong>{{ item.name }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
+                  </NuxtLink>
+                </td>
+                <td data-label="Regularity"><div class="core-item-inline"><strong>{{ item.purchases }} receipts</strong><span>{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
+                <td data-label="Price behavior">
+                  <div class="core-item-inline">
+                    <UBadge v-bind="stabilityDetails[item.stability]" variant="soft" />
+                    <span>{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
+                  </div>
+                </td>
+                <td data-label="Net change" class="core-item-change">
+                  <UBadge
+                    :label="changeLabel(item.netChangePercent)"
+                    :icon="item.trend === 'up' ? 'i-lucide-trending-up' : item.trend === 'down' ? 'i-lucide-trending-down' : item.trend === 'flat' ? 'i-lucide-move-right' : 'i-lucide-minus'"
+                    :color="item.trend === 'up' ? 'error' : item.trend === 'down' ? 'success' : 'neutral'"
+                    variant="soft"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="panel-empty">Not enough repeat purchases in this period yet.</p>
+      </UCard>
 
+      <div class="highlights-grid">
         <UCard class="highlight-panel movers-panel">
             <div class="section-heading">
               <div><p class="eyebrow">Since last purchase</p><h2>Recent movers</h2></div>
@@ -288,24 +331,6 @@ function percentage(value: string) {
             <p v-else class="panel-empty">No store activity in this period.</p>
         </UCard>
 
-        <UCard class="highlight-panel sale-items-panel">
-            <div class="section-heading">
-              <div><p class="eyebrow">Sale frequency</p><h2>Frequent sale items</h2></div>
-            </div>
-            <ol v-if="data.topSaleItems.length" class="sale-rank-list">
-              <li v-for="(item, index) in data.topSaleItems" :key="item.name">
-                <span class="sale-rank" aria-hidden="true">{{ index + 1 }}</span>
-                <div>
-                  <NuxtLink :to="itemPath(item.name)" class="item-history-link" :aria-label="`View normalized price history for ${item.name}`">
-                    <strong>{{ item.name }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
-                  </NuxtLink>
-                  <span>Last on sale {{ shortDate(item.lastSale) }}</span>
-                </div>
-                <UBadge :label="`${item.sales} ${item.sales === 1 ? 'sale' : 'sales'}`" icon="i-lucide-tag" color="warning" variant="soft" />
-              </li>
-            </ol>
-            <p v-else class="panel-empty">No items bought on sale in this period.</p>
-        </UCard>
       </div>
     </template>
   </div>

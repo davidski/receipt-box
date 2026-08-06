@@ -5,7 +5,7 @@ const { enabled: authEnabled } = useAuthMode()
 const { loggedIn, clear } = useUserSession()
 
 const links = [
-  { to: '/', label: 'Add receipt', icon: 'i-lucide-receipt-text' },
+  { to: '/', label: 'Add/edit receipt', icon: 'i-lucide-receipt-text' },
   { to: '/highlights', label: 'Highlights', icon: 'i-lucide-sparkles' },
   { to: '/history', label: 'History', icon: 'i-lucide-history' },
   { to: '/data', label: 'Manage', icon: 'i-lucide-settings' }

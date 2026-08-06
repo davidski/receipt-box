@@ -22,7 +22,7 @@ CSV/XLSX parsing, formatting, and file generation happen in the browser. The bro
 ## Features
 
 - Compact multi-line receipt entry with a shared date and store
-- First-class receipt records that keep separate shopping trips distinct
+- One receipt per store and day, with later entry and imports appended to the existing receipt
 - Nuxt UI autocomplete that suggests prior values while accepting new items
 - Reuse of the latest store, size, and unit when an existing item is selected
 - Automatic normalized cost per item or per 100 weight/volume units
@@ -274,7 +274,7 @@ The importer recognizes the original columns:
 
 `food_Date`, `Item`, `Location`, `Size`, `Unit`, `Price`, `Cost_Per_Unit`, `Sale_Item`, `Non_Grocery`, and `Notes`.
 
-Legacy `Unit_Price` columns are ignored. Import adds rows and never deletes existing data, so import the workbook once to avoid duplicating its history.
+Legacy `Unit_Price` columns are ignored. Import adds rows and never deletes existing data. Rows for the same store and date are appended to one receipt, but importing the same workbook twice still duplicates its line items.
 
 ## Export and backup
 

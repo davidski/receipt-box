@@ -1,11 +1,10 @@
 import { db } from '../utils/db'
 import { normalizeEntry, type EntryInput } from '../utils/entry-input'
+import { ensureStore, upsertReceipt } from '../utils/receipt-query'
 
 async function saveEntries(entries: EntryInput[]) {
   const sql = db()
   await sql.begin(async (tx) => {
-    const stores = [...new Set(entries.map(entry => entry.location))].map(name => ({ name }))
-    await tx`INSERT INTO grocery_stores ${tx(stores)} ON CONFLICT DO NOTHING`
     const groups = new Map<string, EntryInput[]>()
     for (const entry of entries) {
       const key = `${entry.purchasedOn}\u0000${entry.location}`
@@ -13,16 +12,13 @@ async function saveEntries(entries: EntryInput[]) {
     }
     for (const group of groups.values()) {
       const first = group[0]!
-      const [receipt] = await tx<{ id: string }[]>`
-        INSERT INTO grocery_receipts (purchased_on, location)
-        VALUES (${first.purchasedOn}, ${first.location})
-        RETURNING id::text
-      `
+      const canonicalLocation = await ensureStore(tx, first.location)
+      const receiptId = await upsertReceipt(tx, first.purchasedOn, canonicalLocation)
       const rows = group.map(entry => ({
-        receipt_id: receipt!.id,
+        receipt_id: receiptId,
         purchased_on: entry.purchasedOn,
         item: entry.item,
-        location: entry.location,
+        location: canonicalLocation,
         size: entry.size,
         unit: entry.unit,
         price: entry.price,

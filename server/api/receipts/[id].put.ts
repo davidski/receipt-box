@@ -1,6 +1,7 @@
 import { db, publicEntry, type GroceryEntry } from '../../utils/db'
 import { normalizeEntry, type EntryInput } from '../../utils/entry-input'
 import { normalizeStoreName } from '../../../shared/utils/store-name'
+import { ensureStore, moveReceiptToKey } from '../../utils/receipt-query'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -43,7 +44,7 @@ export default defineEventHandler(async (event) => {
   if (errors.length) throw createError({ statusCode: 400, statusMessage: errors.slice(0, 5).join('; ') })
 
   const sql = db()
-  const savedEntries = await sql.begin(async (tx) => {
+  const saved = await sql.begin(async (tx) => {
     const [receipt] = await tx<{ id: string }[]>`
       SELECT id::text FROM grocery_receipts WHERE id = ${id} FOR UPDATE
     `
@@ -57,13 +58,7 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: 'One or more lines do not belong to this receipt' })
     }
 
-    await tx`INSERT INTO grocery_stores (name) VALUES (${location}) ON CONFLICT DO NOTHING`
-    await tx`
-      UPDATE grocery_receipts
-      SET purchased_on = ${purchasedOn}, location = ${location}, updated_at = now()
-      WHERE id = ${id}
-    `
-
+    const canonicalLocation = await ensureStore(tx, location)
     if (keptIds.length) {
       await tx`DELETE FROM grocery_entries WHERE receipt_id = ${id} AND id NOT IN ${tx(keptIds)}`
     } else {
@@ -96,15 +91,19 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    return tx<GroceryEntry[]>`SELECT * FROM grocery_entries WHERE receipt_id = ${id} ORDER BY id`
+    const savedReceiptId = await moveReceiptToKey(tx, id, purchasedOn, canonicalLocation)
+    const savedEntries = await tx<GroceryEntry[]>`
+      SELECT * FROM grocery_entries WHERE receipt_id = ${savedReceiptId} ORDER BY id
+    `
+    return { id: savedReceiptId, location: canonicalLocation, entries: savedEntries }
   })
 
   return {
-    id,
+    id: saved.id,
     purchasedOn,
-    location,
-    itemCount: savedEntries.length,
-    total: entries.reduce((sum, entry) => sum + entry.price, 0).toFixed(2),
-    entries: savedEntries.map(publicEntry)
+    location: saved.location,
+    itemCount: saved.entries.length,
+    total: saved.entries.reduce((sum, entry) => sum + Number(entry.price), 0).toFixed(2),
+    entries: saved.entries.map(publicEntry)
   }
 })

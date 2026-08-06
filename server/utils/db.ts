@@ -1,6 +1,7 @@
 import postgres from 'postgres'
 import { normalizeUnit } from '../../shared/utils/units'
 import { normalizeStoreName, storeNameKey } from '../../shared/utils/store-name'
+import { mergeDuplicateReceipts } from './receipt-query'
 
 let client: ReturnType<typeof postgres> | undefined
 
@@ -163,6 +164,36 @@ export async function migrate() {
           AND location = ${receipt.location}
       `
     }
+
+    await tx`
+      UPDATE grocery_receipts receipts
+      SET purchased_on = canonical.purchased_on,
+        location = canonical.location,
+        updated_at = greatest(receipts.updated_at, canonical.updated_at)
+      FROM (
+        SELECT DISTINCT ON (receipt_id) receipt_id, purchased_on, location, updated_at
+        FROM grocery_entries
+        WHERE receipt_id IS NOT NULL
+        ORDER BY receipt_id, id
+      ) canonical
+      WHERE receipts.id = canonical.receipt_id
+        AND (receipts.purchased_on, receipts.location) IS DISTINCT FROM
+          (canonical.purchased_on, canonical.location)
+    `
+
+    await mergeDuplicateReceipts(tx)
+    await tx`
+      CREATE UNIQUE INDEX IF NOT EXISTS grocery_receipts_store_date_idx
+      ON grocery_receipts (
+        purchased_on,
+        lower(
+          regexp_replace(
+            regexp_replace(trim(normalize(location, NFKC)), '[[:space:]]+', ' ', 'g'),
+            '[‘’ʼ]', '''', 'g'
+          )
+        )
+      )
+    `
 
     const [foreignKey] = await tx<{ exists: boolean }[]>`
       SELECT EXISTS (

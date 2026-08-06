@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { normalizedHistoricalPrice } from '../../shared/utils/normalized-price'
+import { storeNameKey } from '../../shared/utils/store-name'
 
 type Entry = {
   purchasedOn: string
@@ -16,6 +17,8 @@ type Entry = {
 
 type ImportResult = { imported: number, skipped: number, errors: string[] }
 type Store = { id: string, name: string, uses: number }
+type ItemVariant = { name: string, uses: number, lastUsed: string }
+type ItemDuplicateGroup = { id: string, variants: ItemVariant[], preferredTarget: string, reasons: string[] }
 
 const exportHeaders = [
   'purchase_date', 'item', 'store', 'package_size', 'package_unit', 'price',
@@ -26,20 +29,50 @@ const { apiUrl } = useApi()
 const file = ref<File | null>(null)
 const importing = ref(false)
 const exporting = ref<'csv' | 'xlsx' | null>(null)
-const activeSection = ref<'stores' | 'transfer' | 'maintenance'>('stores')
+const activeSection = ref<'stores' | 'items' | 'transfer' | 'maintenance'>('stores')
 const result = ref<{ imported: number, skipped: number, errors: string[] } | null>(null)
 const errorMessage = ref('')
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
+const {
+  data: duplicateItems,
+  pending: duplicateItemsPending,
+  error: duplicateItemsLoadError,
+  status: duplicateItemsStatus,
+  execute: loadDuplicateItems,
+  refresh: refreshDuplicateItems
+} = await useFetch<{ groups: ItemDuplicateGroup[] }>(apiUrl('/items/duplicates'), { immediate: false, server: false })
 const newStoreName = ref('')
 const editingStoreId = ref<string | null>(null)
 const editingStoreName = ref('')
 const storeBusy = ref(false)
 const storeError = ref('')
+const storeNotice = ref('')
+const itemTargets = reactive<Record<string, string>>({})
+const itemMergeBusy = ref<string | null>(null)
+const itemMergeError = ref('')
+const itemMergeNotice = ref('')
+const visibleItemGroupCount = ref(30)
 const resetConfirmation = ref('')
 const resetConfirming = ref(false)
 const resetBusy = ref(false)
 const resetError = ref('')
 const resetComplete = ref(false)
+const visibleDuplicateItemGroups = computed(() => (duplicateItems.value?.groups || []).slice(0, visibleItemGroupCount.value))
+
+watch(duplicateItems, (value) => {
+  for (const group of value?.groups || []) {
+    if (!group.variants.some(variant => variant.name === itemTargets[group.id])) {
+      itemTargets[group.id] = group.preferredTarget
+    }
+  }
+}, { immediate: true })
+
+function selectManageSection(section: typeof activeSection.value) {
+  activeSection.value = section
+  if (section === 'items' && duplicateItemsStatus.value === 'idle') {
+    void loadDuplicateItems()
+  }
+}
 
 function storeErrorMessage(error: any, fallback: string) {
   return error?.data?.statusMessage || error?.statusMessage || error?.message || fallback
@@ -72,13 +105,27 @@ function cancelStoreEdit() {
   editingStoreName.value = ''
 }
 
+function storeMergeTarget(store: Store) {
+  const key = storeNameKey(editingStoreName.value)
+  return (stores.value || []).find(candidate => candidate.id !== store.id && storeNameKey(candidate.name) === key) || null
+}
+
 async function saveStore(store: Store) {
   const name = editingStoreName.value.trim()
   if (!name) return
   storeBusy.value = true
   storeError.value = ''
+  storeNotice.value = ''
+  const mergeTarget = storeMergeTarget(store)
+  if (mergeTarget && !confirm(`Merge “${store.name}” into “${mergeTarget.name}”? Receipts from the same dates will be combined and all line items will be kept.`)) {
+    storeBusy.value = false
+    return
+  }
   try {
-    await $fetch(apiUrl(`/stores/${store.id}`), { method: 'PATCH', body: { name } })
+    const saved = await $fetch<{ name: string, merged: boolean }>(apiUrl(`/stores/${store.id}`), { method: 'PATCH', body: { name } })
+    storeNotice.value = saved.merged
+      ? `${store.name} was merged into ${saved.name}. Receipts from matching dates were combined.`
+      : `${store.name} was renamed to ${saved.name}.`
     cancelStoreEdit()
     await refreshStores()
   } catch (error: any) {
@@ -99,6 +146,32 @@ async function deleteStore(store: Store) {
     storeError.value = storeErrorMessage(error, 'Could not delete the store')
   } finally {
     storeBusy.value = false
+  }
+}
+
+async function mergeItemGroup(group: ItemDuplicateGroup) {
+  const target = itemTargets[group.id]
+  const sources = group.variants.map(variant => variant.name).filter(name => name !== target)
+  if (!target || !sources.length) return
+  const affectedEntries = group.variants
+    .filter(variant => sources.includes(variant.name))
+    .reduce((total, variant) => total + variant.uses, 0)
+  if (!confirm(`Merge ${sources.map(source => `“${source}”`).join(', ')} into “${target}”? This will rename ${affectedEntries} historical ${affectedEntries === 1 ? 'entry' : 'entries'}.`)) return
+
+  itemMergeBusy.value = group.id
+  itemMergeError.value = ''
+  itemMergeNotice.value = ''
+  try {
+    const result = await $fetch<{ target: string, mergedNames: number, mergedEntries: number }>(apiUrl('/items/merge'), {
+      method: 'POST',
+      body: { target, sources }
+    })
+    itemMergeNotice.value = `${result.mergedNames} ${result.mergedNames === 1 ? 'variant was' : 'variants were'} merged into ${result.target}, updating ${result.mergedEntries} historical ${result.mergedEntries === 1 ? 'entry' : 'entries'}.`
+    await refreshDuplicateItems()
+  } catch (error: any) {
+    itemMergeError.value = storeErrorMessage(error, 'Could not merge the item variants')
+  } finally {
+    itemMergeBusy.value = null
   }
 }
 
@@ -328,6 +401,16 @@ async function exportXlsx() {
       />
       <UButton
         type="button"
+        label="Items"
+        icon="i-lucide-package-search"
+        size="lg"
+        :variant="activeSection === 'items' ? 'solid' : 'ghost'"
+        :color="activeSection === 'items' ? 'primary' : 'neutral'"
+        :aria-current="activeSection === 'items' ? 'page' : undefined"
+        @click="selectManageSection('items')"
+      />
+      <UButton
+        type="button"
         label="Import & export"
         icon="i-lucide-arrow-left-right"
         size="lg"
@@ -358,12 +441,13 @@ async function exportXlsx() {
           <UButton class="touch-target" type="submit" label="Add store" icon="i-lucide-plus" :disabled="!newStoreName.trim()" :loading="storeBusy && !editingStoreId" />
         </form>
         <UAlert v-if="storeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="storeError" class="notice" />
+        <UAlert v-if="storeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="storeNotice" class="notice" />
         <p class="store-help">Stores with purchase history can be renamed or merged. Only unused stores can be deleted.</p>
         <ul class="store-list">
           <li v-for="store in stores || []" :key="store.id">
             <form v-if="editingStoreId === store.id" class="store-edit" @submit.prevent="saveStore(store)">
               <UInput v-model="editingStoreName" :aria-label="`Rename ${store.name}`" autofocus />
-              <UButton type="submit" label="Save" size="sm" :disabled="!editingStoreName.trim()" :loading="storeBusy" />
+              <UButton type="submit" :label="storeMergeTarget(store) ? 'Merge' : 'Save'" :icon="storeMergeTarget(store) ? 'i-lucide-git-merge' : undefined" size="sm" :disabled="!editingStoreName.trim()" :loading="storeBusy" />
               <UButton type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="cancelStoreEdit" />
             </form>
             <template v-else>
@@ -375,6 +459,68 @@ async function exportXlsx() {
             </template>
           </li>
         </ul>
+      </div>
+    </UCard>
+
+    <UCard v-else-if="activeSection === 'items'" class="data-card item-editor-card" :ui="{ body: 'contents' }">
+      <div class="data-icon" aria-hidden="true"><UIcon name="i-lucide-package-search" /></div>
+      <div>
+        <h2>Review item names</h2>
+        <p>Review likely duplicate item names and choose the one to keep.</p>
+
+        <UAlert v-if="itemMergeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="itemMergeError" class="notice" />
+        <UAlert v-if="itemMergeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="itemMergeNotice" class="notice" />
+        <UAlert v-if="duplicateItemsLoadError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not check item names for duplicates." class="notice">
+          <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="loadDuplicateItems()" /></template>
+        </UAlert>
+
+        <div v-if="duplicateItemsPending" class="item-review-state"><UIcon name="i-lucide-loader-circle" class="spinning" /><span>Checking item names…</span></div>
+        <div v-else-if="!duplicateItemsLoadError && !duplicateItems?.groups.length" class="item-review-empty">
+          <UIcon name="i-lucide-circle-check-big" />
+          <div><strong>No likely duplicates</strong><span>Your item names look consistent.</span></div>
+        </div>
+        <template v-else-if="!duplicateItemsLoadError">
+          <p class="item-review-summary">Showing {{ visibleDuplicateItemGroups.length }} of {{ duplicateItems?.groups.length || 0 }} suggestions, ordered by purchase history.</p>
+          <ul class="item-duplicate-list">
+          <li v-for="group in visibleDuplicateItemGroups" :key="group.id">
+            <div class="item-duplicate-heading">
+              <div>
+                <strong>{{ group.variants.length }} similar names</strong>
+                <span>{{ group.reasons.join(' · ') }}</span>
+              </div>
+              <UBadge :label="`${group.variants.reduce((total, variant) => total + variant.uses, 0)} entries`" color="neutral" variant="soft" />
+            </div>
+            <div class="item-variant-list">
+              <label v-for="variant in group.variants" :key="variant.name" :class="{ selected: itemTargets[group.id] === variant.name }">
+                <input v-model="itemTargets[group.id]" type="radio" :name="`item-target-${group.id}`" :value="variant.name">
+                <span><strong>{{ variant.name }}</strong><small>{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }} · last used {{ variant.lastUsed }}</small></span>
+                <span class="item-target-label">{{ itemTargets[group.id] === variant.name ? 'Keep this name' : 'Merge this name' }}</span>
+              </label>
+            </div>
+            <div class="item-merge-action">
+              <span>The other {{ group.variants.length - 1 }} {{ group.variants.length === 2 ? 'name' : 'names' }} will be replaced throughout purchase history.</span>
+              <UButton
+                type="button"
+                label="Merge variants"
+                icon="i-lucide-git-merge"
+                :loading="itemMergeBusy === group.id"
+                :disabled="itemMergeBusy !== null"
+                @click="mergeItemGroup(group)"
+              />
+            </div>
+          </li>
+          </ul>
+          <UButton
+            v-if="visibleDuplicateItemGroups.length < (duplicateItems?.groups.length || 0)"
+            class="item-show-more"
+            type="button"
+            label="Show 30 more"
+            icon="i-lucide-chevron-down"
+            color="neutral"
+            variant="outline"
+            @click="visibleItemGroupCount += 30"
+          />
+        </template>
       </div>
     </UCard>
 

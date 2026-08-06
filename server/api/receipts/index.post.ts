@@ -1,6 +1,7 @@
 import { db, publicEntry, type GroceryEntry } from '../../utils/db'
 import { normalizeEntry, type EntryInput } from '../../utils/entry-input'
 import { normalizeStoreName } from '../../../shared/utils/store-name'
+import { ensureStore, upsertReceipt } from '../../utils/receipt-query'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
@@ -38,17 +39,13 @@ export default defineEventHandler(async (event) => {
 
   const sql = db()
   const saved = await sql.begin(async (tx) => {
-    await tx`INSERT INTO grocery_stores (name) VALUES (${location}) ON CONFLICT DO NOTHING`
-    const [receipt] = await tx<{ id: string }[]>`
-      INSERT INTO grocery_receipts (purchased_on, location)
-      VALUES (${purchasedOn}, ${location})
-      RETURNING id::text
-    `
+    const canonicalLocation = await ensureStore(tx, location)
+    const receiptId = await upsertReceipt(tx, purchasedOn, canonicalLocation)
     const rows = entries.map(entry => ({
-      receipt_id: receipt!.id,
+      receipt_id: receiptId,
       purchased_on: entry.purchasedOn,
       item: entry.item,
-      location: entry.location,
+      location: canonicalLocation,
       size: entry.size,
       unit: entry.unit,
       price: entry.price,
@@ -57,17 +54,20 @@ export default defineEventHandler(async (event) => {
       non_grocery: entry.nonGrocery,
       notes: entry.notes
     }))
-    const inserted = await tx<GroceryEntry[]>`INSERT INTO grocery_entries ${tx(rows)} RETURNING *`
-    return { receiptId: receipt!.id, entries: inserted.map(publicEntry) }
+    await tx`INSERT INTO grocery_entries ${tx(rows)}`
+    const savedEntries = await tx<GroceryEntry[]>`
+      SELECT * FROM grocery_entries WHERE receipt_id = ${receiptId} ORDER BY id
+    `
+    return { receiptId, location: canonicalLocation, entries: savedEntries.map(publicEntry) }
   })
 
   setResponseStatus(event, 201)
   return {
     id: saved.receiptId,
     purchasedOn,
-    location,
+    location: saved.location,
     itemCount: saved.entries.length,
-    total: entries.reduce((sum, entry) => sum + entry.price, 0).toFixed(2),
+    total: saved.entries.reduce((sum, entry) => sum + Number(entry.price), 0).toFixed(2),
     entries: saved.entries
   }
 })

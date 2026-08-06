@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { normalizeUnit } from '../../shared/utils/units'
-import { receiptDraftSnapshot } from '../utils/receipt-draft'
+import {
+  addedReceiptMessage,
+  receiptLineIsComplete,
+  receiptLineSaveSnapshot,
+  shouldLoadMatchingReceipt,
+  type ReceiptSaveSummary
+} from '../utils/receipt-merge'
 
 type Suggestion = {
   value: string
@@ -31,6 +37,8 @@ type EditableReceipt = {
   id: string
   purchasedOn: string
   location: string
+  itemCount: number
+  total: string
   entries: Array<{
     id: string
     item: string
@@ -43,8 +51,20 @@ type EditableReceipt = {
   }>
 }
 
-const props = defineProps<{ receipt?: EditableReceipt | null }>()
-const emit = defineEmits<{ saved: [], deleted: [], cancel: [], dirtyChange: [dirty: boolean] }>()
+type MatchingReceipt = EditableReceipt
+type SavedEntry = EditableReceipt['entries'][number] & {
+  receiptId: string
+  purchasedOn: string
+  location: string
+}
+
+const props = defineProps<{
+  initialDate?: string
+  initialLocation?: string
+}>()
+const emit = defineEmits<{
+  dirtyChange: [dirty: boolean]
+}>()
 
 const { apiUrl } = useApi()
 const saving = ref(false)
@@ -52,9 +72,15 @@ const confirmingDelete = ref(false)
 const errorMessage = ref('')
 const savedMessage = ref('')
 const locationSuggestions = ref<Suggestion[]>([])
-const cleanSnapshot = ref('')
+const matchingReceipt = ref<MatchingReceipt | null>(null)
+const checkingReceiptMatch = ref(false)
+const currentReceiptId = ref<string | null>(null)
+const lastSavedSummary = ref<ReceiptSaveSummary | null>(null)
+const savedLineSnapshots = reactive(new Map<number, string>())
 let nextKey = 1
-const isEditing = computed(() => Boolean(props.receipt?.id))
+let matchRequest = 0
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+const hasReceipt = computed(() => Boolean(currentReceiptId.value))
 
 function localDate() {
   const now = new Date()
@@ -106,40 +132,78 @@ const form = reactive({
   lines: [blankLine()]
 })
 
-const hasUnsavedChanges = computed(() => receiptDraftSnapshot(form) !== cleanSnapshot.value)
-
-function markClean() {
-  cleanSnapshot.value = receiptDraftSnapshot(form)
-}
-
-watch(() => props.receipt, (receipt) => {
-  form.lines.forEach(line => clearTimeout(line.timer))
-  if (receipt) {
-    form.purchasedOn = receipt.purchasedOn
-    form.location = receipt.location
-    form.lines = receipt.entries.map(lineFromEntry)
-  } else {
-    form.purchasedOn = initialPurchasedOn()
-    form.location = ''
-    form.lines = [blankLine()]
-  }
-  errorMessage.value = ''
-  savedMessage.value = ''
-  confirmingDelete.value = false
-  markClean()
-}, { immediate: true })
-
-watch(hasUnsavedChanges, dirty => emit('dirtyChange', dirty), { immediate: true })
-
 function lineHasContent(line: ReceiptLine) {
   return Boolean(
-    line.item.trim() || line.price !== '' || line.size !== '' || line.unit.trim()
+    line.id || line.item.trim() || line.price !== '' || line.size !== '' || line.unit.trim()
     || line.saleItem || line.nonGrocery || line.notes.trim()
   )
 }
 
+function lineSnapshot(line: ReceiptLine) {
+  return receiptLineSaveSnapshot(form.purchasedOn, form.location, line)
+}
+
+const enteredLines = computed(() => form.lines.filter(lineHasContent))
+const completeLines = computed(() => enteredLines.value.filter(receiptLineIsComplete))
+const incompleteLines = computed(() => enteredLines.value.filter(line => !receiptLineIsComplete(line)))
+const hasBlankLine = computed(() => form.lines.some(line => !lineHasContent(line)))
+const hasUnsavedChanges = computed(() => enteredLines.value.some(line => (
+  !receiptLineIsComplete(line) || savedLineSnapshots.get(line.key) !== lineSnapshot(line)
+)))
+const canEnterLines = computed(() => Boolean(form.location.trim()) && (
+  !checkingReceiptMatch.value || hasReceipt.value || enteredLines.value.length > 0
+))
+const storeError = computed(() => !form.location.trim() && enteredLines.value.length > 0
+  ? 'Select a store to save this receipt'
+  : undefined)
+const receiptTotal = computed(() => completeLines.value.reduce((sum, line) => sum + Number(line.price), 0))
+const autosaveStatus = computed(() => {
+  if (saving.value) return 'Saving changes…'
+  if (incompleteLines.value.length) {
+    return `${incompleteLines.value.length} unsaved ${incompleteLines.value.length === 1 ? 'row' : 'rows'} in progress`
+  }
+  if (hasUnsavedChanges.value) return 'Changes waiting to save…'
+  if (currentReceiptId.value) return 'All changes saved'
+  return 'Complete a row to save it'
+})
+
+function loadReceipt(receipt: EditableReceipt) {
+  form.purchasedOn = receipt.purchasedOn
+  form.location = receipt.location
+  form.lines = receipt.entries.map(lineFromEntry)
+  if (!form.lines.length) form.lines = [blankLine()]
+  currentReceiptId.value = receipt.id
+  lastSavedSummary.value = {
+    id: receipt.id,
+    purchasedOn: receipt.purchasedOn,
+    location: receipt.location,
+    itemCount: receipt.itemCount,
+    total: receipt.total
+  }
+  savedLineSnapshots.clear()
+  for (const line of form.lines) {
+    if (line.id) savedLineSnapshots.set(line.key, lineSnapshot(line))
+  }
+}
+
+watch(() => [props.initialDate, props.initialLocation] as const, ([initialDate, initialLocation]) => {
+  clearTimeout(autosaveTimer)
+  form.lines.forEach(line => clearTimeout(line.timer))
+  savedLineSnapshots.clear()
+  form.purchasedOn = /^\d{4}-\d{2}-\d{2}$/.test(initialDate || '') ? initialDate! : initialPurchasedOn()
+  form.location = initialLocation?.trim() || ''
+  form.lines = [blankLine()]
+  currentReceiptId.value = null
+  lastSavedSummary.value = null
+  errorMessage.value = ''
+  savedMessage.value = ''
+  confirmingDelete.value = false
+}, { immediate: true })
+
+watch(hasUnsavedChanges, dirty => emit('dirtyChange', dirty), { immediate: true })
+
 watch(() => form.purchasedOn, (purchasedOn) => {
-  if (isEditing.value || !import.meta.client || !/^\d{4}-\d{2}-\d{2}$/.test(purchasedOn)) return
+  if (!import.meta.client || !/^\d{4}-\d{2}-\d{2}$/.test(purchasedOn)) return
   try {
     localStorage.setItem(purchasedOnStorageKey, purchasedOn)
   } catch {
@@ -147,26 +211,52 @@ watch(() => form.purchasedOn, (purchasedOn) => {
   }
 })
 
-const enteredLines = computed(() => form.lines.filter(lineHasContent))
-const hasBlankLine = computed(() => form.lines.some(line => !lineHasContent(line)))
-const canEnterLines = computed(() => isEditing.value || Boolean(form.location.trim()) || enteredLines.value.length > 0)
-const storeError = computed(() => !form.location.trim() && enteredLines.value.length > 0
-  ? 'Select a store to save this receipt'
-  : undefined)
-const canSaveReceipt = computed(() => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) || !form.location.trim() || !form.lines.length) return false
-  return form.lines.every((line) => {
-    const price = Number(line.price)
-    return lineHasContent(line) && Boolean(line.item.trim()) && line.price !== '' && Number.isFinite(price) && price >= 0
-  })
+const matchingReceiptMessage = computed(() => {
+  if (!matchingReceipt.value) return ''
+  const existingItems = `${matchingReceipt.value.itemCount} ${matchingReceipt.value.itemCount === 1 ? 'item' : 'items'}`
+  return `A receipt already exists for this store and date with ${existingItems}. Changes will combine both receipts and keep every line.`
 })
-const receiptTotal = computed(() => enteredLines.value.reduce((sum, line) => {
-  const price = Number(line.price)
-  return sum + (Number.isFinite(price) && price >= 0 ? price : 0)
-}, 0))
+
+watch([
+  () => form.purchasedOn,
+  () => form.location,
+  () => currentReceiptId.value
+], async ([purchasedOn, location, receiptId]) => {
+  const request = ++matchRequest
+  matchingReceipt.value = null
+  const normalizedLocation = String(location ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(purchasedOn)) || !normalizedLocation) {
+    checkingReceiptMatch.value = false
+    return
+  }
+  checkingReceiptMatch.value = true
+  try {
+    const result = await $fetch<{ receipt: MatchingReceipt | null }>(apiUrl('/receipts/match'), {
+      query: { date: purchasedOn, location: normalizedLocation, excludeId: receiptId || undefined }
+    })
+    if (request !== matchRequest) return
+    if (result.receipt && shouldLoadMatchingReceipt(currentReceiptId.value, enteredLines.value.length)) {
+      loadReceipt(result.receipt)
+      matchingReceipt.value = null
+      savedMessage.value = `Loaded ${result.receipt.itemCount} ${result.receipt.itemCount === 1 ? 'item' : 'items'} for editing.`
+    } else {
+      matchingReceipt.value = result.receipt
+    }
+  } catch {
+    if (request === matchRequest) matchingReceipt.value = null
+  } finally {
+    if (request === matchRequest) checkingReceiptMatch.value = false
+  }
+}, { immediate: true })
+
+watch(() => JSON.stringify({
+  purchasedOn: form.purchasedOn,
+  location: form.location,
+  lines: form.lines.map(line => ({ key: line.key, id: line.id, value: lineSnapshot(line) }))
+}), () => scheduleAutosave())
 
 watch(() => form.location, (location, previousLocation) => {
-  if (isEditing.value || previousLocation.trim() || !location.trim() || enteredLines.value.length) return
+  if (previousLocation.trim() || !location.trim() || enteredLines.value.length) return
   nextTick(() => document.querySelector<HTMLInputElement>('[data-line-item]')?.focus())
 })
 
@@ -196,6 +286,10 @@ async function loadLocations() {
   }
 }
 
+function createLocation(value: string | { value: string }) {
+  form.location = (typeof value === 'string' ? value : value.value).trim()
+}
+
 function confirmDiscardChanges() {
   return !hasUnsavedChanges.value || window.confirm('Discard this unsaved receipt? Your changes will be lost.')
 }
@@ -214,6 +308,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(autosaveTimer)
   window.removeEventListener('beforeunload', handleBeforeUnload)
   form.lines.forEach(line => clearTimeout(line.timer))
 })
@@ -275,63 +370,129 @@ function finishLine(line: ReceiptLine) {
   else requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-item="${form.lines[index + 1]!.key}"]`)?.focus())
 }
 
-function removeLine(line: ReceiptLine) {
-  if (form.lines.length === 1) {
-    Object.assign(line, blankLine(), { key: line.key })
-    return
+function entryBody(line: ReceiptLine) {
+  return {
+    purchasedOn: form.purchasedOn,
+    location: form.location,
+    item: line.item,
+    price: line.price,
+    size: line.size || null,
+    unit: normalizeUnit(line.unit),
+    saleItem: line.saleItem,
+    nonGrocery: line.nonGrocery,
+    notes: line.notes
   }
-  clearTimeout(line.timer)
-  form.lines.splice(form.lines.indexOf(line), 1)
 }
 
-async function saveReceipt() {
-  if (!canSaveReceipt.value) {
-    errorMessage.value = 'Complete the date, store, item, and price for every receipt line'
-    return
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer)
+  if (saving.value) return
+  const validHeader = /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) && Boolean(form.location.trim())
+  const dirtyCompleteLines = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
+  if (!validHeader || !dirtyCompleteLines.length) return
+  savedMessage.value = ''
+  autosaveTimer = setTimeout(() => saveCompletedRows(), 600)
+}
+
+async function loadCurrentReceiptSummary() {
+  if (!currentReceiptId.value) return null
+  const result = await $fetch<{ receipt: MatchingReceipt | null }>(apiUrl('/receipts/match'), {
+    query: { date: form.purchasedOn, location: form.location }
+  })
+  if (!result.receipt || result.receipt.id !== currentReceiptId.value) return null
+  const summary: ReceiptSaveSummary = {
+    ...result.receipt,
+    purchasedOn: form.purchasedOn,
+    location: form.location
   }
+  lastSavedSummary.value = summary
+  return summary
+}
+
+async function saveCompletedRows() {
+  if (saving.value) return
+  const rows = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
+  if (!rows.length || !/^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) || !form.location.trim()) return
+
   saving.value = true
   errorMessage.value = ''
-  savedMessage.value = ''
+  const newRows = rows.filter(line => !line.id).length
   try {
-    const lines = enteredLines.value.map(line => ({
-      id: line.id,
-      item: line.item,
-      price: line.price,
-      size: line.size || null,
-      unit: normalizeUnit(line.unit),
-      saleItem: line.saleItem,
-      nonGrocery: line.nonGrocery,
-      notes: line.notes
-    }))
-    const saved = await $fetch<{ itemCount: number, total: string }>(apiUrl(isEditing.value ? `/receipts/${props.receipt!.id}` : '/receipts'), {
-      method: isEditing.value ? 'PUT' : 'POST',
-      body: { purchasedOn: form.purchasedOn, location: form.location, entries: lines }
-    })
-    if (isEditing.value) {
-      markClean()
-      emit('saved')
-      return
+    for (const line of rows) {
+      const snapshot = lineSnapshot(line)
+      const saved = await $fetch<SavedEntry>(apiUrl(line.id ? `/entries/${line.id}` : '/entries'), {
+        method: line.id ? 'PUT' : 'POST',
+        body: entryBody(line)
+      })
+      line.id = saved.id
+      currentReceiptId.value = saved.receiptId
+      savedLineSnapshots.set(line.key, snapshot)
     }
-    form.lines.forEach(line => clearTimeout(line.timer))
-    form.lines = [blankLine()]
-    markClean()
-    savedMessage.value = `${saved.itemCount} ${saved.itemCount === 1 ? 'item' : 'items'} saved · $${Number(saved.total).toFixed(2)}`
-    requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-line-item]')?.focus())
+
+    const summary = await loadCurrentReceiptSummary()
+    if (summary) {
+      savedMessage.value = newRows
+        ? addedReceiptMessage(newRows, summary)
+        : 'Changes saved.'
+    } else {
+      savedMessage.value = 'Changes saved.'
+    }
+    setTimeout(() => {
+      if (!hasUnsavedChanges.value) savedMessage.value = ''
+    }, 3000)
   } catch (error: any) {
-    errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not save this receipt'
+    errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not save these changes'
   } finally {
     saving.value = false
+    scheduleAutosave()
   }
+}
+
+async function removeLine(line: ReceiptLine) {
+  if (saving.value) return
+  clearTimeout(line.timer)
+  if (line.id) {
+    saving.value = true
+    errorMessage.value = ''
+    try {
+      await $fetch(apiUrl(`/entries/${line.id}`), { method: 'DELETE' })
+      savedLineSnapshots.delete(line.key)
+    } catch (error: any) {
+      errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not delete this row'
+      saving.value = false
+      return
+    }
+    saving.value = false
+  }
+
+  const index = form.lines.indexOf(line)
+  if (form.lines.length === 1) Object.assign(line, blankLine(), { key: line.key })
+  else form.lines.splice(index, 1)
+
+  const remainingSavedRows = form.lines.filter(candidate => candidate.id)
+  if (!remainingSavedRows.length) {
+    currentReceiptId.value = null
+    lastSavedSummary.value = null
+    savedMessage.value = 'Receipt deleted.'
+  } else {
+    await loadCurrentReceiptSummary()
+    savedMessage.value = 'Row deleted.'
+  }
+  scheduleAutosave()
 }
 
 async function deleteReceipt() {
-  if (!props.receipt || !confirmingDelete.value) return
+  if (!currentReceiptId.value || !confirmingDelete.value) return
   saving.value = true
   errorMessage.value = ''
   try {
-    await $fetch(apiUrl(`/receipts/${props.receipt.id}`), { method: 'DELETE' })
-    markClean()
-    emit('deleted')
+    await $fetch(apiUrl(`/receipts/${currentReceiptId.value}`), { method: 'DELETE' })
+    savedLineSnapshots.clear()
+    currentReceiptId.value = null
+    lastSavedSummary.value = null
+    form.lines = [blankLine()]
+    confirmingDelete.value = false
+    savedMessage.value = 'Receipt deleted.'
   } catch (error: any) {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not delete this receipt'
   } finally {
@@ -341,19 +502,19 @@ async function deleteReceipt() {
 </script>
 
 <template>
-  <form class="receipt-entry-form" @submit.prevent="saveReceipt">
+  <form class="receipt-entry-form" @submit.prevent>
     <header class="receipt-entry-heading">
       <div>
-        <p class="eyebrow">{{ isEditing ? 'Correct a shopping trip' : 'New shopping trip' }}</p>
-        <component :is="isEditing ? 'h2' : 'h1'">{{ isEditing ? 'Edit receipt' : 'Add a receipt' }}</component>
-        <p>{{ isEditing ? 'Update, add, or remove any line on this receipt.' : 'Enter each item, then save the receipt.' }}</p>
+        <p class="eyebrow">Shopping trip editor</p>
+        <h1>Add or edit a receipt</h1>
+        <p>Choose a date and store. Existing receipt lines load for editing.</p>
       </div>
       <div class="receipt-meta-fields">
         <UFormField label="Date" name="purchasedOn" required class="field date-field">
           <UInput v-model="form.purchasedOn" type="date" required size="lg" />
         </UFormField>
         <UFormField label="Store" name="location" required class="field receipt-store-field" :error="storeError">
-          <UInputMenu v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" />
+          <UInputMenu v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" @create="createLocation" />
         </UFormField>
       </div>
     </header>
@@ -395,7 +556,7 @@ async function deleteReceipt() {
           <UButton type="button" icon="i-lucide-tag" :aria-label="line.saleItem ? 'Remove sale flag' : 'Mark as sale item'" :color="line.saleItem ? 'warning' : 'neutral'" :variant="line.saleItem ? 'soft' : 'ghost'" @click="line.saleItem = !line.saleItem" />
           <UButton type="button" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @click="line.expanded = !line.expanded" />
         </div>
-        <UButton class="receipt-line-remove" type="button" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" @click="removeLine(line)" />
+        <UButton class="receipt-line-remove" type="button" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" :disabled="saving" @click="removeLine(line)" />
         <div v-if="line.expanded" class="receipt-line-details">
           <UFormField label="Notes" :name="`notes-${line.key}`" class="field">
             <UInput v-model="line.notes" placeholder="Optional note" />
@@ -409,14 +570,12 @@ async function deleteReceipt() {
 
     <div v-else class="receipt-store-prompt">
       <UIcon name="i-lucide-store" class="receipt-store-prompt-icon" aria-hidden="true" />
-      <p><strong>Choose or add a store</strong><span>Select a store to start entering a receipt.</span></p>
+      <p v-if="checkingReceiptMatch"><strong>Checking for a receipt</strong><span>Looking for existing lines for this date and store.</span></p>
+      <p v-else><strong>Choose or add a store</strong><span>Select a store to add or edit a receipt.</span></p>
     </div>
 
-    <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
-    <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice" />
-
     <footer v-if="canEnterLines" class="receipt-entry-footer">
-      <div v-if="isEditing && confirmingDelete" class="receipt-delete-confirmation" role="alert">
+      <div v-if="hasReceipt && confirmingDelete" class="receipt-delete-confirmation" role="alert">
         <div class="receipt-delete-copy">
           <strong>Delete this receipt?</strong>
           <span>All {{ enteredLines.length }} {{ enteredLines.length === 1 ? 'entry' : 'entries' }} will be permanently deleted.</span>
@@ -425,15 +584,21 @@ async function deleteReceipt() {
         <UButton type="button" size="xl" label="Delete permanently" icon="i-lucide-trash-2" color="error" :loading="saving" @click="deleteReceipt" />
       </div>
       <template v-else>
-        <UButton v-if="isEditing" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
-        <span v-if="isEditing" class="spacer" />
+        <UButton v-if="hasReceipt" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
+        <span v-if="hasReceipt" class="spacer" />
+        <div class="receipt-autosave-status" role="status" aria-live="polite">
+          <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ spinning: saving || checkingReceiptMatch }" aria-hidden="true" />
+          <span>{{ autosaveStatus }}</span>
+        </div>
         <div>
           <span>{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>
           <strong>${{ receiptTotal.toFixed(2) }}</strong>
         </div>
-        <UButton v-if="isEditing" type="button" size="xl" label="Cancel" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />
-        <UButton type="submit" size="xl" icon="i-lucide-receipt-text" :loading="saving" :disabled="!canSaveReceipt" :label="isEditing ? 'Save changes' : 'Save receipt'" />
       </template>
     </footer>
+
+    <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
+    <UAlert v-if="matchingReceiptMessage" color="warning" variant="soft" icon="i-lucide-git-merge" :description="matchingReceiptMessage" class="notice" />
+    <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice" />
   </form>
 </template>

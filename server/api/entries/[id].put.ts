@@ -1,5 +1,6 @@
 import { db, publicEntry, type GroceryEntry } from '../../utils/db'
 import { normalizeEntry } from '../../utils/entry-input'
+import { ensureStore, moveReceiptToKey } from '../../utils/receipt-query'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -7,21 +8,12 @@ export default defineEventHandler(async (event) => {
   const input = normalizeEntry(await readBody(event))
   const sql = db()
   const row = await sql.begin(async (tx) => {
-    await tx`INSERT INTO grocery_stores (name) VALUES (${input.location}) ON CONFLICT DO NOTHING`
+    const canonicalLocation = await ensureStore(tx, input.location)
     const [current] = await tx<{ receiptId: string }[]>`
       SELECT receipt_id::text FROM grocery_entries WHERE id = ${id} FOR UPDATE
     `
     if (!current) return undefined
-    await tx`
-      UPDATE grocery_receipts
-      SET purchased_on = ${input.purchasedOn}, location = ${input.location}, updated_at = now()
-      WHERE id = ${current.receiptId}
-    `
-    await tx`
-      UPDATE grocery_entries
-      SET purchased_on = ${input.purchasedOn}, location = ${input.location}, updated_at = now()
-      WHERE receipt_id = ${current.receiptId}
-    `
+    await moveReceiptToKey(tx, current.receiptId, input.purchasedOn, canonicalLocation)
     const [updated] = await tx<GroceryEntry[]>`
       UPDATE grocery_entries SET
         item = ${input.item}, size = ${input.size}, unit = ${input.unit}, price = ${input.price},

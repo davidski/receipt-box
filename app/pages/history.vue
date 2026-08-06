@@ -70,8 +70,6 @@ const { data: receiptData, pending: receiptsPending, error: receiptsError, refre
 const { data: receiptDates, refresh: refreshReceiptDates } = await useFetch<ReceiptDates>(apiUrl('/receipts/dates'))
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
 const editing = ref<EditableEntry | null>(null)
-const editingReceipt = ref<Receipt | null>(null)
-const receiptEditDirty = ref(false)
 const editError = ref('')
 const saving = ref(false)
 const linkedEditError = ref('')
@@ -222,24 +220,6 @@ function startEdit(entry: Entry | ReceiptEntry) {
     comparisonBasis: 'comparisonBasis' in entry ? entry.comparisonBasis : null
   }
   editError.value = ''
-}
-
-function startReceiptEdit(receipt: Receipt) {
-  receiptEditDirty.value = false
-  editingReceipt.value = receipt
-}
-
-function closeReceiptEdit() {
-  if (receiptEditDirty.value && !confirm('Discard your unsaved receipt changes?')) return
-  editingReceipt.value = null
-  receiptEditDirty.value = false
-}
-
-async function receiptChanged() {
-  editingReceipt.value = null
-  receiptEditDirty.value = false
-  await Promise.all([refresh(), refreshReceiptDates(), refreshStores()])
-  await refreshReceipts()
 }
 
 async function openLinkedEdit(value: unknown) {
@@ -422,7 +402,7 @@ async function removeEntry() {
                 <h2>{{ receipt.location }}</h2>
                 <p>{{ dateLabel(receipt.purchasedOn) }} · {{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</p>
               </div>
-              <UButton type="button" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" @click="startReceiptEdit(receipt)" />
+              <UButton :to="{ path: '/', query: { date: receipt.purchasedOn, location: receipt.location } }" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" />
             </header>
             <div class="receipt-rule"><span>Item</span><span>Price</span></div>
             <ul class="receipt-lines">
@@ -521,12 +501,6 @@ async function removeEntry() {
       <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
       </div>
     </template>
-
-    <div v-if="editingReceipt" class="modal-backdrop" role="presentation" @mousedown.self="closeReceiptEdit">
-      <div class="receipt-edit-dialog" role="dialog" aria-modal="true" aria-label="Edit receipt">
-        <ReceiptEntryForm :receipt="editingReceipt" @saved="receiptChanged" @deleted="receiptChanged" @cancel="closeReceiptEdit" @dirty-change="receiptEditDirty = $event" />
-      </div>
-    </div>
 
     <div v-if="editing" class="modal-backdrop" role="presentation" @mousedown.self="closeEdit">
       <form class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-title" @submit.prevent="saveEdit">
