@@ -256,7 +256,7 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .content-page { width: min(1200px, 100%); margin: 0 auto; }
 .narrow-page { width: min(840px, 100%); }
 .page-heading { margin: 15px 0 32px; }
-.page-heading > p { max-width: 600px; margin: 12px 0 0; color: var(--muted); line-height: 1.6; }
+.page-heading > p:last-child, .page-heading > div:first-child > p:last-child { max-width: 600px; margin: 10px 0 0; color: var(--muted); line-height: 1.6; }
 .manage-sections { display: inline-flex; gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
 .manage-sections [aria-current="page"] { pointer-events: none; }
 .transfer-section { margin-top: 28px; }

@@ -272,12 +272,12 @@ async function exportXlsx() {
 <template>
   <div class="content-page narrow-page">
     <header class="page-heading">
-      <p class="eyebrow">Pricebook settings</p>
-      <h1>Manage pricebook</h1>
+      <p class="eyebrow">Receipt Box settings</p>
+      <h1>Manage Receipt Box</h1>
       <p>Maintain the stores used for everyday entries, or open the data tools when you need to move or back up your history.</p>
     </header>
 
-    <nav class="manage-sections" aria-label="Pricebook management sections">
+    <nav class="manage-sections" aria-label="Receipt Box management sections">
       <UButton
         type="button"
         label="Stores"
