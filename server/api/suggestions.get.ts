@@ -9,12 +9,25 @@ export default defineEventHandler(async (event) => {
 
   if (field === 'location') {
     return sql`
-      SELECT stores.name AS value, count(entries.id)::int AS uses, max(entries.purchased_on) AS last_used
-      FROM grocery_stores stores
-      LEFT JOIN grocery_entries entries ON lower(entries.location) = lower(stores.name)
-      WHERE (${search} = '' OR stores.name ILIKE ${`${search}%`})
-      GROUP BY stores.id, stores.name
-      ORDER BY max(entries.purchased_on) DESC NULLS LAST, count(entries.id) DESC, stores.name
+      WITH ranked_stores AS (
+        SELECT stores.name AS value,
+          count(receipts.id)::int AS uses,
+          max(receipts.purchased_on) AS last_used,
+          coalesce(
+            sum(power(
+              0.5::numeric,
+              greatest(current_date - receipts.purchased_on, 0)::numeric / 90
+            )) FILTER (WHERE receipts.id IS NOT NULL),
+            0
+          ) AS frecency
+        FROM grocery_stores stores
+        LEFT JOIN grocery_receipts receipts ON lower(receipts.location) = lower(stores.name)
+        WHERE (${search} = '' OR stores.name ILIKE ${`${search}%`})
+        GROUP BY stores.id, stores.name
+      )
+      SELECT value, uses, last_used
+      FROM ranked_stores
+      ORDER BY frecency DESC, last_used DESC NULLS LAST, uses DESC, lower(value)
       LIMIT ${limit}
     `
   }

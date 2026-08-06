@@ -201,7 +201,7 @@ function entryValues(entry: Entry): (string | number | boolean | Date | null)[] 
   ]
 }
 
-function download(blob: Blob, extension: string, basename = `pantry-pricebook-${new Date().toISOString().slice(0, 10)}`) {
+function download(blob: Blob, extension: string, basename = `receipt-box-${new Date().toISOString().slice(0, 10)}`) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
@@ -217,7 +217,7 @@ function csvCell(value: unknown) {
 }
 
 function downloadCsvTemplate() {
-  download(new Blob([`\uFEFF${exportHeaders.join(',')}\r\n`], { type: 'text/csv;charset=utf-8' }), 'csv', 'pantry-pricebook-template')
+  download(new Blob([`\uFEFF${exportHeaders.join(',')}\r\n`], { type: 'text/csv;charset=utf-8' }), 'csv', 'receipt-box-template')
 }
 
 async function exportCsv() {
@@ -242,7 +242,7 @@ async function exportXlsx() {
     const entries = await fetchAllEntries()
     const { default: ExcelJS } = await import('exceljs')
     const workbook = new ExcelJS.Workbook()
-    workbook.creator = 'Pantry Pricebook'
+    workbook.creator = 'Receipt Box'
     const sheet = workbook.addWorksheet('Purchases', { views: [{ state: 'frozen', ySplit: 1 }] })
     sheet.addRow(exportHeaders)
     for (const entry of entries) {

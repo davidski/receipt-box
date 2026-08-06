@@ -1,7 +1,7 @@
 {
-  "name": "Pantry Pricebook",
-  "short_name": "Pricebook",
-  "description": "A quick, private grocery price tracker.",
+  "name": "Receipt Box",
+  "short_name": "Receipt Box",
+  "description": "A private receipt tracker with grocery price history.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

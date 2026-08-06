@@ -47,6 +47,7 @@ const emit = defineEmits<{ saved: [], deleted: [], cancel: [] }>()
 
 const { apiUrl } = useApi()
 const saving = ref(false)
+const confirmingDelete = ref(false)
 const errorMessage = ref('')
 const savedMessage = ref('')
 const locationSuggestions = ref<Suggestion[]>([])
@@ -116,6 +117,7 @@ watch(() => props.receipt, (receipt) => {
   }
   errorMessage.value = ''
   savedMessage.value = ''
+  confirmingDelete.value = false
 }, { immediate: true })
 
 function lineHasContent(line: ReceiptLine) {
@@ -136,6 +138,10 @@ watch(() => form.purchasedOn, (purchasedOn) => {
 
 const enteredLines = computed(() => form.lines.filter(lineHasContent))
 const hasBlankLine = computed(() => form.lines.some(line => !lineHasContent(line)))
+const canEnterLines = computed(() => isEditing.value || Boolean(form.location.trim()) || enteredLines.value.length > 0)
+const storeError = computed(() => !form.location.trim() && enteredLines.value.length > 0
+  ? 'Select a store to save this receipt'
+  : undefined)
 const canSaveReceipt = computed(() => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) || !form.location.trim() || !form.lines.length) return false
   return form.lines.every((line) => {
@@ -147,6 +153,11 @@ const receiptTotal = computed(() => enteredLines.value.reduce((sum, line) => {
   const price = Number(line.price)
   return sum + (Number.isFinite(price) && price >= 0 ? price : 0)
 }, 0))
+
+watch(() => form.location, (location, previousLocation) => {
+  if (isEditing.value || previousLocation.trim() || !location.trim() || enteredLines.value.length) return
+  nextTick(() => document.querySelector<HTMLInputElement>('[data-line-item]')?.focus())
+})
 
 function itemOptions(line: ReceiptLine) {
   return line.suggestions.map(suggestion => ({
@@ -281,7 +292,7 @@ async function saveReceipt() {
 }
 
 async function deleteReceipt() {
-  if (!props.receipt || !confirm(`Delete the entire ${form.location} receipt from ${form.purchasedOn}? This cannot be undone.`)) return
+  if (!props.receipt || !confirmingDelete.value) return
   saving.value = true
   errorMessage.value = ''
   try {
@@ -304,20 +315,20 @@ async function deleteReceipt() {
         <p>{{ isEditing ? 'Update, add, or remove any line on this receipt.' : 'Enter every line, then save the receipt once.' }}</p>
       </div>
       <div class="receipt-meta-fields">
-        <UFormField label="Date" name="purchasedOn" required class="date-field">
+        <UFormField label="Date" name="purchasedOn" required class="field date-field">
           <UInput v-model="form.purchasedOn" type="date" required size="lg" />
         </UFormField>
-        <UFormField label="Store" name="location" required class="field receipt-store-field">
+        <UFormField label="Store" name="location" required class="field receipt-store-field" :error="storeError">
           <UInputMenu v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" />
         </UFormField>
       </div>
     </header>
 
-    <div class="receipt-line-labels" aria-hidden="true">
+    <div v-if="canEnterLines" class="receipt-line-labels" aria-hidden="true">
       <span>Item</span><span>Price</span><span>Size</span><span>Unit</span><span>Options</span><span />
     </div>
 
-    <ol class="receipt-entry-lines">
+    <ol v-if="canEnterLines" class="receipt-entry-lines">
       <li v-for="(line, index) in form.lines" :key="line.key" class="receipt-entry-line">
         <span class="receipt-line-number" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
         <UFormField :name="`item-${line.key}`" class="field receipt-line-item">
@@ -360,20 +371,35 @@ async function deleteReceipt() {
       </li>
     </ol>
 
-    <UButton type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line" :disabled="hasBlankLine" @click="addLine()" />
+    <UButton v-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line" :disabled="hasBlankLine" @click="addLine()" />
+
+    <div v-else class="receipt-store-prompt">
+      <UIcon name="i-lucide-store" class="receipt-store-prompt-icon" aria-hidden="true" />
+      <p><strong>Choose or add a store</strong><span>Select a store above to begin entering receipt items.</span></p>
+    </div>
 
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
     <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice" />
 
-    <footer class="receipt-entry-footer">
-      <UButton v-if="isEditing" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="deleteReceipt" />
-      <span v-if="isEditing" class="spacer" />
-      <div>
-        <span>{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>
-        <strong>${{ receiptTotal.toFixed(2) }}</strong>
+    <footer v-if="canEnterLines" class="receipt-entry-footer">
+      <div v-if="isEditing && confirmingDelete" class="receipt-delete-confirmation" role="alert">
+        <div class="receipt-delete-copy">
+          <strong>Delete this receipt?</strong>
+          <span>All {{ enteredLines.length }} {{ enteredLines.length === 1 ? 'entry' : 'entries' }} will be permanently deleted.</span>
+        </div>
+        <UButton type="button" size="xl" label="Keep receipt" color="neutral" variant="outline" :disabled="saving" @click="confirmingDelete = false" />
+        <UButton type="button" size="xl" label="Delete permanently" icon="i-lucide-trash-2" color="error" :loading="saving" @click="deleteReceipt" />
       </div>
-      <UButton v-if="isEditing" type="button" size="xl" label="Cancel" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />
-      <UButton type="submit" size="xl" icon="i-lucide-receipt-text" :loading="saving" :disabled="!canSaveReceipt" :label="isEditing ? 'Save changes' : 'Save receipt'" />
+      <template v-else>
+        <UButton v-if="isEditing" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
+        <span v-if="isEditing" class="spacer" />
+        <div>
+          <span>{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>
+          <strong>${{ receiptTotal.toFixed(2) }}</strong>
+        </div>
+        <UButton v-if="isEditing" type="button" size="xl" label="Cancel" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />
+        <UButton type="submit" size="xl" icon="i-lucide-receipt-text" :loading="saving" :disabled="!canSaveReceipt" :label="isEditing ? 'Save changes' : 'Save receipt'" />
+      </template>
     </footer>
   </form>
 </template>

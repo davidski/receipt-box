@@ -140,7 +140,7 @@ function percentage(value: string) {
         <UFormField label="Period" class="period-field">
           <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" />
         </UFormField>
-        <UButton class="touch-target" to="/" label="Add receipt" icon="i-lucide-plus" />
+        <UButton class="touch-target" to="/" label="Add receipt" icon="i-lucide-receipt-text" />
       </div>
     </header>
 
@@ -154,7 +154,7 @@ function percentage(value: string) {
         <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-store" /><strong>{{ data.summary.stores.toLocaleString() }}</strong><span>stores</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-tags" /><strong>{{ data.summary.saleEntries.toLocaleString() }}</strong><span>sale purchases</span></UCard>
+        <UCard class="stat-card"><UIcon name="i-lucide-tags" /><strong>{{ data.summary.saleEntries.toLocaleString() }}</strong><span>items bought on sale</span></UCard>
       </section>
 
       <p class="coverage-line">
@@ -301,7 +301,7 @@ function percentage(value: string) {
                 <UBadge :label="`${item.sales} ${item.sales === 1 ? 'sale' : 'sales'}`" icon="i-lucide-tag" color="warning" variant="soft" />
               </li>
             </ol>
-            <p v-else class="panel-empty">No sale purchases in this period.</p>
+            <p v-else class="panel-empty">No items bought on sale in this period.</p>
         </UCard>
       </div>
     </template>

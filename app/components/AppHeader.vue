@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
+const brandIconURL = `${useRuntimeConfig().app.baseURL}favicon.svg`
 
 const links = [
   { to: '/', label: 'Add receipt', icon: 'i-lucide-receipt-text' },
@@ -15,12 +16,9 @@ function isActive(to: string) {
 
 <template>
   <header class="app-header">
-    <NuxtLink to="/" class="brand" aria-label="Pantry Pricebook home">
-      <span class="brand-mark" aria-hidden="true">P</span>
-      <span>
-        <strong>Pantry</strong>
-        <small>Pricebook</small>
-      </span>
+    <NuxtLink to="/" class="brand" aria-label="Receipt Box home">
+      <img :src="brandIconURL" class="brand-mark" alt="" width="42" height="42">
+      <strong>Receipt Box</strong>
     </NuxtLink>
 
     <nav class="main-nav desktop-nav" aria-label="Main navigation">

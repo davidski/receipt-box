@@ -1,8 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#295c3b"/>
-  <path
-    fill="#f4f0e6"
-    fill-rule="evenodd"
-    d="M17 53V11h19c11 0 18 6 18 16s-7 16-18 16h-8v10H17Zm11-31v11h8c4 0 7-2 7-6s-3-5-7-5h-8Z"
-  />
+  <g
+    fill="none"
+    stroke="#f4f0e6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="4"
+  >
+    <path d="M16 12v40l4-4 4 4 4-4 4 4 4-4 4 4 4-4 4 4V12l-4 4-4-4-4 4-4-4-4 4-4-4-4 4Z"/>
+    <path d="M40 24H28M40 32H28M34 40h-6"/>
+  </g>
 </svg>
