@@ -139,7 +139,7 @@ function percentage(value: string) {
       <div>
         <p class="eyebrow">At a glance</p>
         <h1>Price highlights</h1>
-        <p>Recent activity, notable price movement, and the shape of your pricebook.</p>
+        <p>Recent activity and notable price movement.</p>
       </div>
       <div class="highlights-actions">
         <UFormField label="Period" class="period-field">
