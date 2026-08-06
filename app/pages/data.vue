@@ -309,7 +309,7 @@ async function exportXlsx() {
 </script>
 
 <template>
-  <div class="content-page narrow-page">
+  <div class="content-page">
     <header class="page-heading">
       <p class="eyebrow">Receipt Box settings</p>
       <h1>Manage Receipt Box</h1>

@@ -259,7 +259,6 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .panel-empty { margin: 18px 0 4px; color: var(--muted); font-size: 13px; }
 
 .content-page { width: min(1200px, 100%); margin: 0 auto; }
-.narrow-page { width: min(840px, 100%); }
 .page-heading { margin: 15px 0 32px; }
 .page-heading > p:last-child, .page-heading > div:first-child > p:last-child { max-width: 600px; margin: 10px 0 0; color: var(--muted); line-height: 1.6; }
 .manage-sections { display: inline-flex; gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
