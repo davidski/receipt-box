@@ -2,6 +2,7 @@ import { db, publicEntry, type GroceryEntry } from '../utils/db'
 
 type MoverRow = GroceryEntry & {
   previousPurchasedOn: string | Date
+  previousLocation: string
   priceChangePercent: string
   comparisonBasis: 'normalized' | 'package'
 }
@@ -40,11 +41,11 @@ export default defineEventHandler(async (event) => {
       FROM grocery_entries
       ORDER BY year DESC
     `,
-    sql<{ entries: string, receipts: string, items: string, saleEntries: string, stores: string, firstDate: string | null, lastDate: string | null }[]>`
+    sql<{ entries: string, receipts: string, items: string, saleItems: string, stores: string, firstDate: string | null, lastDate: string | null }[]>`
       SELECT count(*)::text AS entries,
         count(DISTINCT receipt_id)::text AS receipts,
         count(DISTINCT lower(item))::text AS items,
-        count(*) FILTER (WHERE sale_item)::text AS sale_entries,
+        count(DISTINCT lower(item)) FILTER (WHERE sale_item)::text AS sale_items,
         count(DISTINCT lower(location))::text AS stores,
         min(purchased_on)::text AS first_date,
         max(purchased_on)::text AS last_date
@@ -67,6 +68,7 @@ export default defineEventHandler(async (event) => {
           lag(size) OVER previous AS previous_size,
           lag(unit) OVER previous AS previous_unit,
           lag(sale_item) OVER previous AS previous_sale_item,
+          lag(location) OVER previous AS previous_location,
           lag(purchased_on) OVER previous AS previous_purchased_on
         FROM grocery_entries entries
         WINDOW previous AS (PARTITION BY lower(item) ORDER BY purchased_on, id)
@@ -106,14 +108,14 @@ export default defineEventHandler(async (event) => {
     `,
     sql<{ name: string, sales: number, lastSale: string | Date }[]>`
       SELECT (array_agg(item ORDER BY purchased_on DESC, id DESC))[1] AS name,
-        count(DISTINCT (purchased_on, lower(location)))::int AS sales,
+        count(DISTINCT receipt_id)::int AS sales,
         max(purchased_on) AS last_sale
       FROM grocery_entries
       WHERE sale_item
         AND (${startDate}::date IS NULL OR purchased_on >= ${startDate}::date)
         AND (${endDate}::date IS NULL OR purchased_on < ${endDate}::date)
       GROUP BY lower(item)
-      ORDER BY count(DISTINCT (purchased_on, lower(location))) DESC, max(purchased_on) DESC
+      ORDER BY count(DISTINCT receipt_id) DESC, max(purchased_on) DESC
       LIMIT 6
     `,
     sql<{ month: string | Date, totalSpent: string }[]>`
@@ -166,7 +168,7 @@ export default defineEventHandler(async (event) => {
       entries: Number(summary?.entries ?? 0),
       receipts: Number(summary?.receipts ?? 0),
       items: Number(summary?.items ?? 0),
-      saleEntries: Number(summary?.saleEntries ?? 0),
+      saleItems: Number(summary?.saleItems ?? 0),
       stores: Number(summary?.stores ?? 0),
       firstDate: summary?.firstDate ?? null,
       lastDate: summary?.lastDate ?? null
@@ -174,6 +176,7 @@ export default defineEventHandler(async (event) => {
     recent: recentRows.map(publicEntry),
     movers: moverRows.map(row => ({
       ...publicEntry(row),
+      previousLocation: row.previousLocation,
       previousPurchasedOn: row.previousPurchasedOn instanceof Date
         ? row.previousPurchasedOn.toISOString().slice(0, 10)
         : String(row.previousPurchasedOn).slice(0, 10)

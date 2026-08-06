@@ -80,6 +80,17 @@ watch([search, location, changeFilter], () => {
 })
 
 const receiptDateMap = computed(() => new Map((receiptDates.value?.dates || []).map(date => [date.date, date])))
+const selectedReceiptDateIndex = computed(() => (receiptDates.value?.dates || []).findIndex(date => date.date === selectedDate.value))
+const olderReceiptDate = computed(() => {
+  const dates = receiptDates.value?.dates || []
+  const index = selectedReceiptDateIndex.value
+  return index >= 0 ? dates[index + 1] || null : null
+})
+const newerReceiptDate = computed(() => {
+  const dates = receiptDates.value?.dates || []
+  const index = selectedReceiptDateIndex.value
+  return index > 0 ? dates[index - 1] || null : null
+})
 const calendarMonthOptions = computed(() => {
   const dates = receiptDates.value?.dates || []
   if (!dates.length) return []
@@ -136,13 +147,14 @@ function moveCalendarMonth(amount: number) {
   visibleMonth.value = new Date(Date.UTC(visibleMonth.value.getUTCFullYear(), visibleMonth.value.getUTCMonth() + amount, 1))
 }
 
+function selectReceiptDateValue(value: string) {
+  selectedDate.value = value
+  const date = new Date(`${value}T00:00:00Z`)
+  visibleMonth.value = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+}
+
 function selectReceiptDate(day: CalendarDay) {
-  if (!day.receiptCount) return
-  selectedDate.value = day.date
-  if (!day.currentMonth) {
-    const date = new Date(`${day.date}T00:00:00Z`)
-    visibleMonth.value = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
-  }
+  if (day.receiptCount) selectReceiptDateValue(day.date)
 }
 
 function toggleSort(column: SortKey) {
@@ -288,7 +300,6 @@ async function removeEntry() {
         <p v-if="view === 'receipts' && receiptDates">{{ receiptDates.dates.length.toLocaleString() }} shopping {{ receiptDates.dates.length === 1 ? 'date' : 'dates' }}</p>
         <p v-else-if="view === 'entries' && data">{{ data.total.toLocaleString() }} {{ data.total === 1 ? 'entry' : 'entries' }}</p>
       </div>
-      <UButton class="touch-target" to="/" label="Add receipt" icon="i-lucide-receipt-text" />
     </header>
 
     <div class="history-view-switcher" aria-label="History view">
@@ -367,7 +378,33 @@ async function removeEntry() {
         <section class="selected-receipts" :aria-labelledby="'selected-receipt-date'">
           <header class="selected-receipts-heading">
             <div><p class="eyebrow">Selected date</p><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
-            <span v-if="receiptData">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
+            <div class="selected-receipts-controls">
+              <span v-if="receiptData">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
+              <nav class="receipt-day-navigation" aria-label="Receipt day navigation">
+                <UButton
+                  type="button"
+                  label="Older"
+                  icon="i-lucide-chevron-left"
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  :disabled="!olderReceiptDate"
+                  :aria-label="olderReceiptDate ? `Older receipt day, ${dateLabel(olderReceiptDate.date)}` : 'No older receipt days'"
+                  @click="olderReceiptDate && selectReceiptDateValue(olderReceiptDate.date)"
+                />
+                <UButton
+                  type="button"
+                  label="Newer"
+                  trailing-icon="i-lucide-chevron-right"
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                  :disabled="!newerReceiptDate"
+                  :aria-label="newerReceiptDate ? `Newer receipt day, ${dateLabel(newerReceiptDate.date)}` : 'No newer receipt days'"
+                  @click="newerReceiptDate && selectReceiptDateValue(newerReceiptDate.date)"
+                />
+              </nav>
+            </div>
           </header>
           <div v-if="receiptsPending" class="empty-state">Gathering receipts…</div>
           <div v-else-if="receiptsError" class="empty-state error-state">Could not load receipts for this date.</div>
@@ -386,7 +423,9 @@ async function removeEntry() {
             <ul class="receipt-lines">
               <li v-for="entry in receipt.entries" :key="entry.id">
                 <div class="receipt-item-copy">
-                  <NuxtLink :to="itemPath(entry.item)" class="item-history-link"><strong>{{ entry.item }}</strong></NuxtLink>
+                  <NuxtLink :to="itemPath(entry.item)" class="item-history-link" :aria-label="`View normalized price history for ${entry.item}`">
+                    <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
+                  </NuxtLink>
                   <span class="receipt-item-meta">
                     {{ packageSize(entry.size, entry.unit) }}
                     <UBadge v-if="entry.saleItem" label="Sale" color="warning" variant="soft" size="sm" />

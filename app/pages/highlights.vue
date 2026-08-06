@@ -12,6 +12,7 @@ type HighlightEntry = {
 
 type PriceMover = HighlightEntry & {
   previousPurchasedOn: string
+  previousLocation: string
   priceChangePercent: string
   comparisonBasis: 'normalized' | 'package'
 }
@@ -19,7 +20,7 @@ type PriceMover = HighlightEntry & {
 type Highlights = {
   availableYears: number[]
   reportingPeriod: { startDate: string, endDate: string } | null
-  summary: { entries: number, receipts: number, items: number, saleEntries: number, stores: number, firstDate: string | null, lastDate: string | null }
+  summary: { entries: number, receipts: number, items: number, saleItems: number, stores: number, firstDate: string | null, lastDate: string | null }
   recent: HighlightEntry[]
   movers: PriceMover[]
   topStores: { name: string, totalSpent: number, lastUsed: string }[]
@@ -34,7 +35,7 @@ const { data, pending, error, refresh } = await useFetch<Highlights>(apiUrl('/hi
 const periodOptions = computed(() => [
   { label: 'All time', value: 'all' },
   { label: 'Current month', value: 'current-month' },
-  { label: 'Past 12 months', value: '12m' },
+  { label: 'Previous 12 full months', value: '12m' },
   ...(data.value?.availableYears || []).map(year => ({ label: String(year), value: String(year) }))
 ])
 const maxStoreSpend = computed(() => Math.max(1, ...(data.value?.topStores.map(store => store.totalSpent) || [])))
@@ -54,6 +55,10 @@ function wholeCurrency(value: string | number) {
     currency: 'USD',
     maximumFractionDigits: 0
   }).format(Number(value))
+}
+
+function wholeNumber(value: string | number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Number(value))
 }
 
 function monthLabel(value: string, compact = false) {
@@ -140,7 +145,6 @@ function percentage(value: string) {
         <UFormField label="Period" class="period-field">
           <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" />
         </UFormField>
-        <UButton class="touch-target" to="/" label="Add receipt" icon="i-lucide-receipt-text" />
       </div>
     </header>
 
@@ -150,21 +154,20 @@ function percentage(value: string) {
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
     <template v-else-if="data">
-      <section class="highlight-stats" aria-label="Pricebook summary">
-        <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-store" /><strong>{{ data.summary.stores.toLocaleString() }}</strong><span>stores</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-tags" /><strong>{{ data.summary.saleEntries.toLocaleString() }}</strong><span>items bought on sale</span></UCard>
-      </section>
-
       <p class="coverage-line">
         {{ coverageText }}
       </p>
 
+      <section class="highlight-stats" aria-label="Pricebook summary">
+        <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
+        <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
+        <UCard class="stat-card"><UIcon name="i-lucide-dollar-sign" /><strong>{{ wholeNumber(monthlySpendTotal) }}</strong><span>total spend</span></UCard>
+        <UCard class="stat-card"><UIcon name="i-lucide-tags" /><strong>{{ data.summary.saleItems.toLocaleString() }}</strong><span>unique items bought on sale</span></UCard>
+      </section>
+
       <UCard class="monthly-spend-panel highlight-panel">
         <div class="monthly-spend-heading">
           <div><p class="eyebrow">Monthly spending</p><h2>Purchases by month</h2></div>
-          <div class="monthly-spend-total"><strong>{{ wholeCurrency(monthlySpendTotal) }}</strong><span>in selected period</span></div>
         </div>
         <div v-if="monthlySpendChart" class="monthly-spend-scroll">
           <svg
@@ -256,7 +259,7 @@ function percentage(value: string) {
                   <NuxtLink :to="itemPath(entry.item)" class="item-history-link" :aria-label="`View normalized price history for ${entry.item}`">
                     <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
-                  <span>{{ entry.location }} · {{ shortDate(entry.purchasedOn) }}</span>
+                  <span>{{ entry.previousLocation }} → {{ entry.location }} · {{ shortDate(entry.purchasedOn) }}</span>
                 </div>
                 <UBadge
                   :label="percentage(entry.priceChangePercent)"
