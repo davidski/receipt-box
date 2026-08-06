@@ -26,7 +26,7 @@ const { apiUrl } = useApi()
 const file = ref<File | null>(null)
 const importing = ref(false)
 const exporting = ref<'csv' | 'xlsx' | null>(null)
-const activeSection = ref<'stores' | 'transfer'>('stores')
+const activeSection = ref<'stores' | 'transfer' | 'maintenance'>('stores')
 const result = ref<{ imported: number, skipped: number, errors: string[] } | null>(null)
 const errorMessage = ref('')
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
@@ -35,6 +35,11 @@ const editingStoreId = ref<string | null>(null)
 const editingStoreName = ref('')
 const storeBusy = ref(false)
 const storeError = ref('')
+const resetConfirmation = ref('')
+const resetConfirming = ref(false)
+const resetBusy = ref(false)
+const resetError = ref('')
+const resetComplete = ref(false)
 
 function storeErrorMessage(error: any, fallback: string) {
   return error?.data?.statusMessage || error?.statusMessage || error?.message || fallback
@@ -94,6 +99,40 @@ async function deleteStore(store: Store) {
     storeError.value = storeErrorMessage(error, 'Could not delete the store')
   } finally {
     storeBusy.value = false
+  }
+}
+
+function beginDatabaseReset() {
+  resetConfirmation.value = ''
+  resetError.value = ''
+  resetComplete.value = false
+  resetConfirming.value = true
+}
+
+function cancelDatabaseReset() {
+  resetConfirmation.value = ''
+  resetError.value = ''
+  resetConfirming.value = false
+}
+
+async function resetDatabase() {
+  if (resetConfirmation.value !== 'RESET') return
+  resetBusy.value = true
+  resetError.value = ''
+  resetComplete.value = false
+  try {
+    await $fetch(apiUrl('/maintenance/reset'), {
+      method: 'POST',
+      body: { confirmation: resetConfirmation.value }
+    })
+    resetConfirmation.value = ''
+    resetConfirming.value = false
+    resetComplete.value = true
+    await refreshStores()
+  } catch (error: any) {
+    resetError.value = storeErrorMessage(error, 'Could not reset the database')
+  } finally {
+    resetBusy.value = false
   }
 }
 
@@ -274,7 +313,6 @@ async function exportXlsx() {
     <header class="page-heading">
       <p class="eyebrow">Receipt Box settings</p>
       <h1>Manage Receipt Box</h1>
-      <p>Maintain the stores used for everyday entries, or open the data tools when you need to move or back up your history.</p>
     </header>
 
     <nav class="manage-sections" aria-label="Receipt Box management sections">
@@ -297,6 +335,16 @@ async function exportXlsx() {
         :color="activeSection === 'transfer' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'transfer' ? 'page' : undefined"
         @click="activeSection = 'transfer'"
+      />
+      <UButton
+        type="button"
+        label="Maintenance"
+        icon="i-lucide-wrench"
+        size="lg"
+        :variant="activeSection === 'maintenance' ? 'solid' : 'ghost'"
+        :color="activeSection === 'maintenance' ? 'primary' : 'neutral'"
+        :aria-current="activeSection === 'maintenance' ? 'page' : undefined"
+        @click="activeSection = 'maintenance'"
       />
     </nav>
 
@@ -330,20 +378,12 @@ async function exportXlsx() {
       </div>
     </UCard>
 
-    <section v-else class="transfer-section" aria-labelledby="transfer-heading">
-      <header class="section-heading">
-        <div>
-          <p class="eyebrow">Occasional tools</p>
-          <h2 id="transfer-heading">Import & export</h2>
-          <p>Bring in existing history or download a complete copy of the pricebook.</p>
-        </div>
-      </header>
-
+    <section v-else-if="activeSection === 'transfer'" class="transfer-section" aria-label="Import and export tools">
       <UCard class="data-card" :ui="{ body: 'contents' }">
         <div class="data-icon" aria-hidden="true">↑</div>
         <div>
           <h2>Import spreadsheet</h2>
-          <p>Use an XLSX exported from Numbers, an export from this app, or a CSV based on the pricebook template. Existing entries are left untouched.</p>
+          <p>Use an XLSX exported from Numbers, a Receipt Box export, or a CSV based on the provided template. Existing entries are left untouched.</p>
           <div class="import-controls">
             <label class="file-picker">
               <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="selectFile">
@@ -366,6 +406,31 @@ async function exportXlsx() {
             <UButton class="touch-target" type="button" label="Download CSV" icon="i-lucide-file-text" color="neutral" variant="outline" :loading="exporting === 'csv'" @click="exportCsv" />
             <UButton class="touch-target" type="button" label="Download XLSX" icon="i-lucide-file-spreadsheet" :loading="exporting === 'xlsx'" @click="exportXlsx" />
           </div>
+        </div>
+      </UCard>
+    </section>
+
+    <section v-else class="transfer-section" aria-label="Maintenance tools">
+      <UCard class="data-card maintenance-card" :ui="{ body: 'contents' }">
+        <div class="data-icon danger-icon" aria-hidden="true"><UIcon name="i-lucide-database-zap" /></div>
+        <div>
+          <h2>Reset database</h2>
+          <p>Delete every receipt, purchase entry, and store so you can start with a fresh database. This cannot be undone.</p>
+
+          <UAlert v-if="resetComplete" color="success" variant="soft" icon="i-lucide-circle-check" description="The database was reset. Receipt Box is ready for fresh data." class="notice" />
+          <UAlert v-if="resetError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="resetError" class="notice" />
+
+          <div v-if="resetConfirming" class="reset-confirmation">
+            <label class="field">
+              <span>Type <strong>RESET</strong> to confirm</span>
+              <UInput v-model="resetConfirmation" autocomplete="off" :spellcheck="false" placeholder="RESET" aria-label="Type RESET to confirm database reset" />
+            </label>
+            <div class="reset-actions">
+              <UButton type="button" label="Cancel" color="neutral" variant="ghost" :disabled="resetBusy" @click="cancelDatabaseReset" />
+              <UButton type="button" label="Permanently reset database" icon="i-lucide-trash-2" color="error" :disabled="resetConfirmation !== 'RESET'" :loading="resetBusy" @click="resetDatabase" />
+            </div>
+          </div>
+          <UButton v-else class="reset-button" type="button" label="Reset database" icon="i-lucide-trash-2" color="error" variant="outline" @click="beginDatabaseReset" />
         </div>
       </UCard>
     </section>

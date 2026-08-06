@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { normalizeUnit } from '../../shared/utils/units'
+import { receiptDraftSnapshot } from '../utils/receipt-draft'
 
 type Suggestion = {
   value: string
@@ -43,7 +44,7 @@ type EditableReceipt = {
 }
 
 const props = defineProps<{ receipt?: EditableReceipt | null }>()
-const emit = defineEmits<{ saved: [], deleted: [], cancel: [] }>()
+const emit = defineEmits<{ saved: [], deleted: [], cancel: [], dirtyChange: [dirty: boolean] }>()
 
 const { apiUrl } = useApi()
 const saving = ref(false)
@@ -51,6 +52,7 @@ const confirmingDelete = ref(false)
 const errorMessage = ref('')
 const savedMessage = ref('')
 const locationSuggestions = ref<Suggestion[]>([])
+const cleanSnapshot = ref('')
 let nextKey = 1
 const isEditing = computed(() => Boolean(props.receipt?.id))
 
@@ -104,6 +106,12 @@ const form = reactive({
   lines: [blankLine()]
 })
 
+const hasUnsavedChanges = computed(() => receiptDraftSnapshot(form) !== cleanSnapshot.value)
+
+function markClean() {
+  cleanSnapshot.value = receiptDraftSnapshot(form)
+}
+
 watch(() => props.receipt, (receipt) => {
   form.lines.forEach(line => clearTimeout(line.timer))
   if (receipt) {
@@ -118,7 +126,10 @@ watch(() => props.receipt, (receipt) => {
   errorMessage.value = ''
   savedMessage.value = ''
   confirmingDelete.value = false
+  markClean()
 }, { immediate: true })
+
+watch(hasUnsavedChanges, dirty => emit('dirtyChange', dirty), { immediate: true })
 
 function lineHasContent(line: ReceiptLine) {
   return Boolean(
@@ -185,7 +196,27 @@ async function loadLocations() {
   }
 }
 
-onMounted(loadLocations)
+function confirmDiscardChanges() {
+  return !hasUnsavedChanges.value || window.confirm('Discard this unsaved receipt? Your changes will be lost.')
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (!hasUnsavedChanges.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => confirmDiscardChanges())
+
+onMounted(() => {
+  loadLocations()
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  form.lines.forEach(line => clearTimeout(line.timer))
+})
 
 function searchItems(line: ReceiptLine, value: string) {
   line.searchTerm = value
@@ -277,11 +308,13 @@ async function saveReceipt() {
       body: { purchasedOn: form.purchasedOn, location: form.location, entries: lines }
     })
     if (isEditing.value) {
+      markClean()
       emit('saved')
       return
     }
     form.lines.forEach(line => clearTimeout(line.timer))
     form.lines = [blankLine()]
+    markClean()
     savedMessage.value = `${saved.itemCount} ${saved.itemCount === 1 ? 'item' : 'items'} saved · $${Number(saved.total).toFixed(2)}`
     requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-line-item]')?.focus())
   } catch (error: any) {
@@ -297,6 +330,7 @@ async function deleteReceipt() {
   errorMessage.value = ''
   try {
     await $fetch(apiUrl(`/receipts/${props.receipt.id}`), { method: 'DELETE' })
+    markClean()
     emit('deleted')
   } catch (error: any) {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not delete this receipt'

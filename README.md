@@ -54,7 +54,7 @@ Start the app and a PostgreSQL 17 test instance:
 docker compose -f compose.local.yaml up -d --build
 ```
 
-Open `http://localhost:3000`. PostgreSQL data is retained in the `pricebook-postgres` named volume. Set `POSTGRES_PORT` or `APP_PORT` before running Compose if either default port is occupied.
+Open `http://localhost:3000`. Compose uses the `receipt-box` project name, and PostgreSQL data is retained in the `pricebook-postgres` named volume. Set `POSTGRES_PORT` or `APP_PORT` before running Compose if either default port is occupied.
 
 ### Local development
 

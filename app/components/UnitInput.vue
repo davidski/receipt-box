@@ -12,6 +12,6 @@ const unitOptions: string[] = [...STANDARD_UNITS]
     v-model="model"
     :items="unitOptions"
     create-item
-    placeholder="Choose or add a unit…"
+    placeholder="Unit…"
   />
 </template>

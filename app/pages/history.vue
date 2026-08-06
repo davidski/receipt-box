@@ -71,6 +71,7 @@ const { data: receiptDates, refresh: refreshReceiptDates } = await useFetch<Rece
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
 const editing = ref<EditableEntry | null>(null)
 const editingReceipt = ref<Receipt | null>(null)
+const receiptEditDirty = ref(false)
 const editError = ref('')
 const saving = ref(false)
 const linkedEditError = ref('')
@@ -224,15 +225,19 @@ function startEdit(entry: Entry | ReceiptEntry) {
 }
 
 function startReceiptEdit(receipt: Receipt) {
+  receiptEditDirty.value = false
   editingReceipt.value = receipt
 }
 
 function closeReceiptEdit() {
+  if (receiptEditDirty.value && !confirm('Discard your unsaved receipt changes?')) return
   editingReceipt.value = null
+  receiptEditDirty.value = false
 }
 
 async function receiptChanged() {
   editingReceipt.value = null
+  receiptEditDirty.value = false
   await Promise.all([refresh(), refreshReceiptDates(), refreshStores()])
   await refreshReceipts()
 }
@@ -519,7 +524,7 @@ async function removeEntry() {
 
     <div v-if="editingReceipt" class="modal-backdrop" role="presentation" @mousedown.self="closeReceiptEdit">
       <div class="receipt-edit-dialog" role="dialog" aria-modal="true" aria-label="Edit receipt">
-        <ReceiptEntryForm :receipt="editingReceipt" @saved="receiptChanged" @deleted="receiptChanged" @cancel="closeReceiptEdit" />
+        <ReceiptEntryForm :receipt="editingReceipt" @saved="receiptChanged" @deleted="receiptChanged" @cancel="closeReceiptEdit" @dirty-change="receiptEditDirty = $event" />
       </div>
     </div>
 
