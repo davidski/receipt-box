@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { normalizedHistoricalPrice } from '../../shared/utils/normalized-price'
 import { storeNameKey } from '../../shared/utils/store-name'
+import { entryCsv, entryExportHeaders } from '../utils/csv-export'
 
 type Entry = {
   purchasedOn: string
@@ -19,11 +20,6 @@ type ImportResult = { imported: number, skipped: number, errors: string[] }
 type Store = { id: string, name: string, uses: number }
 type ItemVariant = { name: string, uses: number, lastUsed: string }
 type ItemDuplicateGroup = { id: string, variants: ItemVariant[], preferredTarget: string, reasons: string[] }
-
-const exportHeaders = [
-  'purchase_date', 'item', 'store', 'package_size', 'package_unit', 'price',
-  'normalized_price', 'normalized_basis', 'on_sale', 'non_grocery', 'notes'
-]
 
 const { apiUrl } = useApi()
 const file = ref<File | null>(null)
@@ -322,14 +318,8 @@ function download(blob: Blob, extension: string, basename = `receipt-box-${new D
   URL.revokeObjectURL(url)
 }
 
-function csvCell(value: unknown) {
-  if (value === null || value === undefined) return ''
-  const text = String(value)
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
 function downloadCsvTemplate() {
-  download(new Blob([`\uFEFF${exportHeaders.join(',')}\r\n`], { type: 'text/csv;charset=utf-8' }), 'csv', 'receipt-box-template')
+  download(new Blob([entryCsv([])], { type: 'text/csv;charset=utf-8' }), 'csv', 'receipt-box-template')
 }
 
 async function exportCsv() {
@@ -337,8 +327,7 @@ async function exportCsv() {
   errorMessage.value = ''
   try {
     const entries = await fetchAllEntries()
-    const lines = [exportHeaders, ...entries.map(entryValues)]
-    const content = `\uFEFF${lines.map(row => row.map(csvCell).join(',')).join('\r\n')}`
+    const content = entryCsv(entries.map(entryValues))
     download(new Blob([content], { type: 'text/csv;charset=utf-8' }), 'csv')
   } catch (error: any) {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Export failed'
@@ -356,7 +345,7 @@ async function exportXlsx() {
     const workbook = new ExcelJS.Workbook()
     workbook.creator = 'Receipt Box'
     const sheet = workbook.addWorksheet('Purchases', { views: [{ state: 'frozen', ySplit: 1 }] })
-    sheet.addRow(exportHeaders)
+    sheet.addRow(entryExportHeaders)
     for (const entry of entries) {
       const values = entryValues(entry)
       values[0] = parseCalendarDate(entry.purchasedOn) || entry.purchasedOn

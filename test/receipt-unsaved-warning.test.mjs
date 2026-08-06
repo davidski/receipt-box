@@ -57,3 +57,64 @@ test('add and edit use one receipt editor that loads existing lines', () => {
   assert.match(history, /query: \{ date: receipt\.purchasedOn, location: receipt\.location \}/)
   assert.doesNotMatch(history, /<ReceiptEntryForm/)
 })
+
+test('receipt item entry preserves a new name while showing suggestions', () => {
+  assert.match(form, /v-model:search-term="line\.searchTerm"/)
+  assert.match(form, /:create-item="\{ when: 'always', position: 'top' \}"/)
+  assert.match(form, /@update:search-term="searchItems\(line, \$event\)"/)
+  assert.match(form, /@create="createItem\(line, \$event\)"/)
+})
+
+test('enter follows the row fields and finishes at unit', () => {
+  assert.match(form, /v-model="line\.price"[^>]+@keydown\.enter\.exact\.prevent="focusLineSize\(line\)"/)
+  assert.match(form, /v-model="line\.size"[^>]+@keydown\.enter\.exact\.prevent="focusLineUnit\(line\)"/)
+  assert.match(form, /<UnitInput[^>]+v-model="line\.unit"[^>]+@keydown\.enter\.exact\.prevent="finishLine\(line\)"/)
+})
+
+test('command-enter or control-enter finishes from every row field', () => {
+  assert.equal((form.match(/@keydown\.meta\.enter\.prevent="finishLine\(line\)"/g) || []).length, 4)
+  assert.equal((form.match(/@keydown\.ctrl\.enter\.prevent="finishLine\(line\)"/g) || []).length, 4)
+})
+
+test('enter advances only after the required item and price are complete', () => {
+  assert.match(form, /if \(!line\.item\.trim\(\)\)[\s\S]+data-line-item/)
+  assert.match(form, /if \(!receiptLineIsComplete\(line\)\)[\s\S]+data-line-price/)
+})
+
+test('selecting or creating an item advances focus to its price', () => {
+  assert.match(form, /function chooseItem[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
+  assert.match(form, /function createItem[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
+  assert.doesNotMatch(form, /Enter a price to complete this row/)
+})
+
+test('receipt entry provides keyboard workflow help', () => {
+  const labelsStart = form.indexOf('class="receipt-line-labels"')
+  const linesStart = form.indexOf('<ol v-if="canEnterLines"')
+  assert.match(form, /<UPopover>/)
+  assert.ok(form.indexOf('aria-label="Keyboard entry help"') > labelsStart)
+  assert.ok(form.indexOf('aria-label="Keyboard entry help"') < linesStart)
+  assert.match(form, /aria-label="Keyboard entry help"/)
+  assert.match(form, /Enter<\/kbd> accepts an item, then moves through Price, Size, and Unit/)
+  assert.match(form, /From Unit, it starts the next row/)
+  assert.match(form, /Item and Price are required\. Size and Unit are optional\./)
+  assert.match(stylesheet, /\.receipt-keyboard-help \{[^}]+text-align: left;/)
+  assert.match(stylesheet, /\.receipt-line-labels \{[^}]+align-items: center;/)
+})
+
+test('a saved receipt can be exported for CSV reimport', () => {
+  assert.match(form, /label="Export receipt"[^>]+icon="i-lucide-download"/)
+  assert.match(form, /:disabled="saving \|\| !completeLines\.length"/)
+  assert.match(form, /@click="exportReceiptCsv"/)
+  assert.match(form, /const rows = completeLines\.value\.map/)
+  assert.match(form, /entryCsv\(rows\)/)
+  assert.match(form, /receipt-box-\$\{form\.purchasedOn\}-\$\{store\}\.csv/)
+})
+
+test('receipt-key collisions require confirmation before autosave can merge', () => {
+  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value\) return/)
+  assert.match(form, /window\.confirm\(/)
+  assert.match(form, /Merge this receipt into it\?/)
+  assert.match(form, /form\.purchasedOn = confirmedKey\.purchasedOn/)
+  assert.match(form, /form\.location = confirmedKey\.location/)
+  assert.match(form, /Could not check for an existing receipt\. The date and store were restored\./)
+})

@@ -88,7 +88,8 @@ a { color: inherit; }
 .receipt-meta-fields .date-field { font-size: 14px; font-weight: 500; }
 .receipt-meta-fields :is(.date-field, .receipt-store-field) input { min-height: 52px; }
 .receipt-store-field [data-slot="root"]:has([data-slot="leading"]) [data-slot="base"] { padding-inline-start: 42px; }
-.receipt-line-labels { display: grid; grid-template-columns: minmax(230px, 2fr) 120px 100px 130px 96px 44px; gap: 10px; padding: 12px 24px 10px 54px; background: var(--surface-muted); color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.receipt-line-labels { display: grid; grid-template-columns: minmax(230px, 2fr) 120px 100px 130px 96px 44px; align-items: center; gap: 10px; padding: 12px 24px 10px 54px; background: var(--surface-muted); color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.receipt-line-labels > :last-child { justify-self: center; align-self: center; }
 .receipt-entry-lines { margin: 0; padding: 0; list-style: none; counter-reset: receipt-line; }
 .receipt-entry-line { position: relative; display: grid; grid-template-columns: minmax(230px, 2fr) 120px 100px 130px 96px 44px; gap: 10px; align-items: center; padding: 12px 24px 12px 54px; border-top: 1px solid var(--line); }
 .receipt-entry-line:first-child { border-top: 0; }
@@ -118,6 +119,10 @@ a { color: inherit; }
 .receipt-autosave-status svg { width: 17px; height: 17px; color: var(--accent); }
 .receipt-autosave-status .spinning { animation: receipt-autosave-spin .9s linear infinite; }
 .receipt-autosave-status span { display: inline; font-size: 12px; }
+.receipt-keyboard-help { width: min(320px, calc(100vw - 32px)); padding: 14px 16px; color: var(--ink); text-align: left; }
+.receipt-keyboard-help strong { display: block; margin-bottom: 8px; font-size: 14px; }
+.receipt-keyboard-help p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.receipt-keyboard-help kbd { padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-soft); color: var(--ink); font: inherit; white-space: nowrap; }
 @keyframes receipt-autosave-spin { to { transform: rotate(360deg); } }
 .receipt-entry-footer > .receipt-delete-confirmation { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; width: 100%; text-align: left; }
 .receipt-delete-copy { min-width: 0; text-align: left; }
