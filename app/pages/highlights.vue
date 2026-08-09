@@ -279,7 +279,7 @@ function changeLabel(value: number | null) {
           </div>
         </div>
         <div v-if="data.coreItems.length" class="core-items-table-wrap">
-          <table class="core-items-table">
+          <table class="core-items-table text-sm [&_th]:text-[11px]">
             <thead>
               <tr><th>Item</th><th>Regularity</th><th>Price behavior</th><th>Net change</th></tr>
             </thead>
@@ -290,11 +290,11 @@ function changeLabel(value: number | null) {
                     <strong>{{ item.name }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
                 </td>
-                <td data-label="Regularity"><div class="core-item-inline"><strong>{{ item.purchases }} receipts</strong><span>{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
+                <td data-label="Regularity"><div class="core-item-inline"><strong>{{ item.purchases }} receipts</strong><span class="text-xs">{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
                 <td data-label="Price behavior">
                   <div class="core-item-inline">
                     <UBadge v-bind="stabilityDetails[item.stability]" variant="soft" />
-                    <span>{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
+                    <span class="text-xs">{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
                   </div>
                 </td>
                 <td data-label="Net change" class="core-item-change">
@@ -318,7 +318,7 @@ function changeLabel(value: number | null) {
               <div><p class="eyebrow">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
             </div>
             <div v-if="data.movers.length" class="movers-table-wrap">
-              <table class="movers-table">
+              <table class="movers-table text-sm [&_th]:text-[11px]">
                 <thead><tr><th>Item</th><th>Comparison</th><th>Change</th></tr></thead>
                 <tbody>
                   <tr v-for="entry in data.movers" :key="entry.id">
@@ -328,8 +328,8 @@ function changeLabel(value: number | null) {
                   </NuxtLink>
                     </td>
                     <td data-label="Comparison" class="mover-context">
-                      <strong class="mover-dates">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</strong>
-                      <span class="mover-stores">{{ entry.previousLocation }} → {{ entry.location }}</span>
+                      <strong class="mover-dates text-xs">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</strong>
+                      <span class="mover-stores text-xs">{{ entry.previousLocation }} → {{ entry.location }}</span>
                     </td>
                     <td data-label="Change" class="mover-change">
                       <UBadge
@@ -356,7 +356,7 @@ function changeLabel(value: number | null) {
               <li v-for="store in data.topStores" :key="store.name">
                 <strong>{{ store.name }}</strong>
                 <div class="store-spend-visual">
-                  <span class="store-spend-value" :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }">{{ wholeCurrency(store.totalSpent) }}</span>
+                  <span class="store-spend-value text-xs" :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }">{{ wholeCurrency(store.totalSpent) }}</span>
                   <span class="store-bar"><i :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }" /></span>
                 </div>
               </li>

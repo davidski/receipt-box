@@ -49,6 +49,12 @@ export async function migrate() {
     await tx`CREATE INDEX IF NOT EXISTS grocery_entries_item_idx ON grocery_entries (lower(item))`
     await tx`CREATE INDEX IF NOT EXISTS grocery_entries_location_idx ON grocery_entries (lower(location))`
     await tx`CREATE INDEX IF NOT EXISTS grocery_entries_date_idx ON grocery_entries (purchased_on DESC, id DESC)`
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_item_merge_dismissals (
+        group_id TEXT PRIMARY KEY,
+        hidden_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
     const existingUnits = await tx<{ unit: string }[]>`
       SELECT DISTINCT unit FROM grocery_entries WHERE unit IS NOT NULL AND length(trim(unit)) > 0

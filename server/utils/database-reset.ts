@@ -15,7 +15,7 @@ type ResetDatabaseClient = {
 export async function resetDatabase(sql: ResetDatabaseClient): Promise<void> {
   await sql.begin(async (transaction) => {
     await transaction.unsafe(`
-      TRUNCATE TABLE grocery_entries, grocery_receipts, grocery_stores
+      TRUNCATE TABLE grocery_entries, grocery_receipts, grocery_stores, grocery_item_merge_dismissals
       RESTART IDENTITY
     `)
   })

@@ -38,6 +38,8 @@ test('the Highlights page explains and renders core-item price velocity', () => 
 
 test('the core-item table uses compact desktop rows without losing mobile labels', () => {
   assert.match(stylesheet, /\.core-items-table td \{ padding: 9px 12px;/)
+  assert.match(page, /class="core-items-table text-sm \[&_th\]:text-\[11px\]"/)
+  assert.doesNotMatch(stylesheet, /\.core-items-table (?:th|td) \{[^}]*font-size:/)
   assert.match(stylesheet, /\.core-item-inline \{ display: flex;/)
   assert.match(page, /data-label="Regularity"/)
   assert.match(page, /data-label="Price behavior"/)
@@ -54,19 +56,25 @@ test('Highlights omits redundant recent and sale-frequency views', () => {
 })
 
 test('Top stores anchors each spend amount to the end of its bar', () => {
-  assert.match(page, /class="store-spend-value" :style="\{ width:/)
+  assert.match(page, /class="store-spend-value text-xs" :style="\{ width:/)
   assert.match(page, /class="store-bar"><i :style="\{ width:/)
   assert.match(stylesheet, /\.store-spend-value \{[^}]*text-align: right;[^}]*white-space: nowrap;/)
   assert.match(stylesheet, /\.store-rank-list \{ display: grid; gap: 9px; \}/)
 })
 
 test('Recent movers uses compact table rows with a mobile card fallback', () => {
-  assert.match(page, /<table class="movers-table">/)
+  assert.match(page, /<table class="movers-table text-sm \[&_th\]:text-\[11px\]">/)
   assert.match(page, /<th>Item<\/th><th>Comparison<\/th><th>Change<\/th>/)
-  assert.match(page, /class="mover-dates">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
-  assert.match(page, /class="mover-stores">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
+  assert.match(page, /class="mover-dates text-xs">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
+  assert.match(page, /class="mover-stores text-xs">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
   assert.doesNotMatch(page, /class="mover-list"/)
   assert.match(stylesheet, /\.movers-table td \{ padding: 9px;/)
   assert.match(stylesheet, /\.mover-context \{ display: grid; gap: 2px;/)
   assert.match(stylesheet, /\.movers-table, \.movers-table tbody \{ display: grid; gap: 10px; \}/)
+})
+
+test('Highlights avoids undersized nine-pixel text', () => {
+  assert.doesNotMatch(stylesheet, /font-size: 9px/)
+  assert.match(page, /class="mover-stores text-xs"/)
+  assert.match(page, /class="store-spend-value text-xs"/)
 })

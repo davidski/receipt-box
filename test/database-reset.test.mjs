@@ -38,7 +38,7 @@ describe('resetDatabase', () => {
 
     assert.equal(transactions, 1)
     assert.deepEqual(queries, [
-      'TRUNCATE TABLE grocery_entries, grocery_receipts, grocery_stores RESTART IDENTITY'
+      'TRUNCATE TABLE grocery_entries, grocery_receipts, grocery_stores, grocery_item_merge_dismissals RESTART IDENTITY'
     ])
   })
 

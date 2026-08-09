@@ -1,5 +1,9 @@
 # Repository instructions
 
+## Interface components
+
+- Prefer Nuxt UI components over native HTML controls or custom replacements when Nuxt UI provides a suitable element.
+
 ## Tests and coverage
 
 - Add or update tests whenever behavior changes. Cover successful behavior, boundary cases, and expected failures.

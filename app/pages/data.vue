@@ -20,6 +20,7 @@ type ImportResult = { imported: number, skipped: number, errors: string[] }
 type Store = { id: string, name: string, uses: number }
 type ItemVariant = { name: string, uses: number, lastUsed: string }
 type ItemDuplicateGroup = { id: string, variants: ItemVariant[], preferredTarget: string, reasons: string[] }
+type ItemReview = { items: ItemVariant[], groups: ItemDuplicateGroup[], hiddenGroups: ItemDuplicateGroup[] }
 
 const { apiUrl } = useApi()
 const file = ref<File | null>(null)
@@ -36,7 +37,7 @@ const {
   status: duplicateItemsStatus,
   execute: loadDuplicateItems,
   refresh: refreshDuplicateItems
-} = await useFetch<{ groups: ItemDuplicateGroup[] }>(apiUrl('/items/duplicates'), { immediate: false, server: false })
+} = await useFetch<ItemReview>(apiUrl('/items/duplicates'), { immediate: false, server: false })
 const newStoreName = ref('')
 const editingStoreId = ref<string | null>(null)
 const editingStoreName = ref('')
@@ -47,6 +48,11 @@ const itemTargets = reactive<Record<string, string>>({})
 const itemMergeBusy = ref<string | null>(null)
 const itemMergeError = ref('')
 const itemMergeNotice = ref('')
+const itemReviewBusy = ref<string | null>(null)
+const showHiddenItemGroups = ref(false)
+const renameItemSource = ref('')
+const renameItemTarget = ref('')
+const itemRenameBusy = ref(false)
 const visibleItemGroupCount = ref(30)
 const resetConfirmation = ref('')
 const resetConfirming = ref(false)
@@ -54,6 +60,12 @@ const resetBusy = ref(false)
 const resetError = ref('')
 const resetComplete = ref(false)
 const visibleDuplicateItemGroups = computed(() => (duplicateItems.value?.groups || []).slice(0, visibleItemGroupCount.value))
+const displayedHiddenItemGroups = computed(() => showHiddenItemGroups.value ? (duplicateItems.value?.hiddenGroups || []) : [])
+const renameItemOptions = computed(() => (duplicateItems.value?.items || []).map(item => ({
+  label: item.name,
+  description: `${item.uses} ${item.uses === 1 ? 'entry' : 'entries'}`,
+  value: item.name
+})))
 
 watch(duplicateItems, (value) => {
   for (const group of value?.groups || []) {
@@ -168,6 +180,47 @@ async function mergeItemGroup(group: ItemDuplicateGroup) {
     itemMergeError.value = storeErrorMessage(error, 'Could not merge the item variants')
   } finally {
     itemMergeBusy.value = null
+  }
+}
+
+async function setItemGroupHidden(group: ItemDuplicateGroup, hidden: boolean) {
+  itemReviewBusy.value = group.id
+  itemMergeError.value = ''
+  itemMergeNotice.value = ''
+  try {
+    await $fetch(apiUrl('/items/duplicates'), { method: 'PATCH', body: { id: group.id, hidden } })
+    itemMergeNotice.value = hidden ? 'The merge suggestion was hidden.' : 'The merge suggestion was restored.'
+    await refreshDuplicateItems()
+  } catch (error: any) {
+    itemMergeError.value = storeErrorMessage(error, hidden ? 'Could not hide the suggestion' : 'Could not restore the suggestion')
+  } finally {
+    itemReviewBusy.value = null
+  }
+}
+
+watch(renameItemSource, source => renameItemTarget.value = source)
+
+async function renameItem() {
+  const source = renameItemSource.value
+  const target = renameItemTarget.value.trim()
+  if (!source || !target || source === target) return
+  const uses = duplicateItems.value?.items.find(item => item.name === source)?.uses || 0
+  if (!confirm(`Rename all ${uses} ${uses === 1 ? 'instance' : 'instances'} of “${source}” to “${target}”?`)) return
+  itemRenameBusy.value = true
+  itemMergeError.value = ''
+  itemMergeNotice.value = ''
+  try {
+    const result = await $fetch<{ target: string, renamedEntries: number }>(apiUrl('/items/rename'), {
+      method: 'PATCH', body: { source, target }
+    })
+    itemMergeNotice.value = `${result.renamedEntries} ${result.renamedEntries === 1 ? 'entry was' : 'entries were'} renamed to ${result.target}.`
+    renameItemSource.value = ''
+    renameItemTarget.value = ''
+    await refreshDuplicateItems()
+  } catch (error: any) {
+    itemMergeError.value = storeErrorMessage(error, 'Could not rename the item')
+  } finally {
+    itemRenameBusy.value = false
   }
 }
 
@@ -455,7 +508,29 @@ async function exportXlsx() {
       <div class="data-icon" aria-hidden="true"><UIcon name="i-lucide-package-search" /></div>
       <div>
         <h2>Review item names</h2>
-        <p>Review likely duplicate item names and choose the one to keep.</p>
+        <p>Rename an item everywhere, or review likely duplicates and choose the name to keep.</p>
+
+        <form class="item-rename" @submit.prevent="renameItem">
+          <label class="field">
+            <span>Item to rename</span>
+            <USelectMenu
+              v-model="renameItemSource"
+              :items="renameItemOptions"
+              value-key="value"
+              label-key="label"
+              description-key="description"
+              placeholder="Choose an item"
+              :search-input="{ placeholder: 'Search items…' }"
+              virtualize
+              size="xl"
+            />
+          </label>
+          <label class="field">
+            <span>New name</span>
+            <input v-model="renameItemTarget" aria-label="New item name" :disabled="!renameItemSource">
+          </label>
+          <UButton type="submit" label="Rename all instances" icon="i-lucide-pencil" :loading="itemRenameBusy" :disabled="!renameItemSource || !renameItemTarget.trim() || renameItemSource === renameItemTarget.trim()" />
+        </form>
 
         <UAlert v-if="itemMergeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="itemMergeError" class="notice" />
         <UAlert v-if="itemMergeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="itemMergeNotice" class="notice" />
@@ -464,7 +539,7 @@ async function exportXlsx() {
         </UAlert>
 
         <div v-if="duplicateItemsPending" class="item-review-state"><UIcon name="i-lucide-loader-circle" class="spinning" /><span>Checking item names…</span></div>
-        <div v-else-if="!duplicateItemsLoadError && !duplicateItems?.groups.length" class="item-review-empty">
+        <div v-else-if="!duplicateItemsLoadError && !duplicateItems?.groups.length && !duplicateItems?.hiddenGroups.length" class="item-review-empty">
           <UIcon name="i-lucide-circle-check-big" />
           <div><strong>No likely duplicates</strong><span>Your item names look consistent.</span></div>
         </div>
@@ -488,14 +563,10 @@ async function exportXlsx() {
             </div>
             <div class="item-merge-action">
               <span>The other {{ group.variants.length - 1 }} {{ group.variants.length === 2 ? 'name' : 'names' }} will be replaced throughout purchase history.</span>
-              <UButton
-                type="button"
-                label="Merge variants"
-                icon="i-lucide-git-merge"
-                :loading="itemMergeBusy === group.id"
-                :disabled="itemMergeBusy !== null"
-                @click="mergeItemGroup(group)"
-              />
+              <div class="item-review-actions">
+                <UButton type="button" label="Hide suggestion" icon="i-lucide-eye-off" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="setItemGroupHidden(group, true)" />
+                <UButton type="button" label="Merge variants" icon="i-lucide-git-merge" :loading="itemMergeBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="mergeItemGroup(group)" />
+              </div>
             </div>
           </li>
           </ul>
@@ -509,6 +580,15 @@ async function exportXlsx() {
             variant="outline"
             @click="visibleItemGroupCount += 30"
           />
+          <div v-if="duplicateItems?.hiddenGroups.length" class="item-hidden-section">
+            <UButton type="button" :label="showHiddenItemGroups ? 'Hide dismissed suggestions' : `Show ${duplicateItems.hiddenGroups.length} hidden ${duplicateItems.hiddenGroups.length === 1 ? 'suggestion' : 'suggestions'}`" :icon="showHiddenItemGroups ? 'i-lucide-eye-off' : 'i-lucide-eye'" color="neutral" variant="outline" @click="showHiddenItemGroups = !showHiddenItemGroups" />
+            <ul v-if="displayedHiddenItemGroups.length" class="item-hidden-list">
+              <li v-for="group in displayedHiddenItemGroups" :key="group.id">
+                <span><strong>{{ group.variants.map(variant => variant.name).join(' · ') }}</strong><small>{{ group.variants.reduce((total, variant) => total + variant.uses, 0) }} entries</small></span>
+                <UButton type="button" label="Unhide" icon="i-lucide-undo-2" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemReviewBusy !== null" @click="setItemGroupHidden(group, false)" />
+              </li>
+            </ul>
+          </div>
         </template>
       </div>
     </UCard>
