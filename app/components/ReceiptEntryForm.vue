@@ -27,10 +27,22 @@ type ReceiptLine = {
   nonGrocery: boolean
   notes: string
   expanded: boolean
+  itemMenuOpen: boolean
   searchTerm: string
   suggestions: Suggestion[]
   request: number
+  backfillKey: string
+  backfillChecking: boolean
   timer?: ReturnType<typeof setTimeout>
+}
+
+type PendingBackfill = {
+  lineKey: number
+  entryId: string
+  item: string
+  size: string
+  unit: string | null
+  counts: { size: number, unit: number, either: number }
 }
 
 type EditableReceipt = {
@@ -76,6 +88,10 @@ const checkingReceiptMatch = ref(false)
 const currentReceiptId = ref<string | null>(null)
 const lastSavedSummary = ref<ReceiptSaveSummary | null>(null)
 const confirmedReceiptKey = ref<{ purchasedOn: string, location: string } | null>(null)
+const pendingBackfill = ref<PendingBackfill | null>(null)
+const backfillBusy = ref(false)
+const backfillSizeSelected = ref(false)
+const backfillUnitSelected = ref(false)
 const savedLineSnapshots = reactive(new Map<number, string>())
 let nextKey = 1
 let matchRequest = 0
@@ -104,25 +120,34 @@ function initialPurchasedOn() {
 function blankLine(): ReceiptLine {
   return {
     key: nextKey++, item: '', price: '', size: '', unit: '', saleItem: false,
-    nonGrocery: false, notes: '', expanded: false, searchTerm: '', suggestions: [], request: 0
+    nonGrocery: false, notes: '', expanded: false, itemMenuOpen: false, searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false
   }
 }
 
+function dimensionBackfillKey(item: string, size: string, unit: string | null) {
+  return size || unit ? `${item.trim()}\u001f${size}\u001f${unit ?? ''}` : ''
+}
+
 function lineFromEntry(entry: EditableReceipt['entries'][number]): ReceiptLine {
+  const size = compactNumber(entry.size)
+  const unit = entry.unit ?? ''
   return {
     id: entry.id,
     key: nextKey++,
     item: entry.item,
     price: Number(entry.price).toFixed(2),
-    size: compactNumber(entry.size),
-    unit: entry.unit ?? '',
+    size,
+    unit,
     saleItem: entry.saleItem,
     nonGrocery: entry.nonGrocery,
     notes: entry.notes ?? '',
     expanded: Boolean(entry.notes || entry.nonGrocery),
+    itemMenuOpen: false,
     searchTerm: '',
     suggestions: [],
-    request: 0
+    request: 0,
+    backfillKey: '',
+    backfillChecking: false
   }
 }
 
@@ -389,12 +414,18 @@ function chooseItem(line: ReceiptLine, suggestion: Suggestion) {
   line.item = suggestion.value
   line.size = compactNumber(suggestion.size)
   line.unit = suggestion.unit ?? ''
+  line.itemMenuOpen = false
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-price="${line.key}"]`)?.focus())
 }
 
 function createItem(line: ReceiptLine, value: string | { value: string }) {
   line.item = (typeof value === 'string' ? value : value.value).trim()
+  line.itemMenuOpen = false
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-price="${line.key}"]`)?.focus())
+}
+
+function closeItemMenu(line: ReceiptLine) {
+  line.itemMenuOpen = false
 }
 
 function formatPrice(line: ReceiptLine) {
@@ -454,11 +485,100 @@ function entryBody(line: ReceiptLine) {
 
 function scheduleAutosave() {
   clearTimeout(autosaveTimer)
-  if (saving.value || checkingReceiptMatch.value) return
+  if (saving.value || checkingReceiptMatch.value || pendingBackfill.value) return
   const validHeader = /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) && Boolean(form.location.trim())
   const dirtyCompleteLines = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
   if (!validHeader || !dirtyCompleteLines.length) return
   autosaveTimer = setTimeout(() => saveCompletedRows(), 600)
+}
+
+async function offerItemBackfill(line: ReceiptLine) {
+  const size = String(line.size ?? '').trim()
+  const unit = normalizeUnit(line.unit)
+  if (!line.id || (!size && !unit)) return false
+  const key = dimensionBackfillKey(line.item, size, unit)
+  if (line.backfillKey === key || line.backfillChecking || pendingBackfill.value) return false
+  line.backfillChecking = true
+  try {
+    const counts = await $fetch<{ size: number, unit: number, either: number }>(apiUrl('/items/backfill'), {
+      query: { item: line.item.trim(), excludeId: line.id }
+    })
+    line.backfillKey = key
+    const hasEligibleEntries = (Boolean(size) && counts.size > 0) || (Boolean(unit) && counts.unit > 0)
+    if (!hasEligibleEntries) return false
+    backfillSizeSelected.value = Boolean(size) && counts.size > 0
+    backfillUnitSelected.value = Boolean(unit) && counts.unit > 0
+    pendingBackfill.value = {
+      lineKey: line.key,
+      entryId: line.id,
+      item: line.item.trim(),
+      size,
+      unit,
+      counts
+    }
+    return true
+  } finally {
+    line.backfillChecking = false
+  }
+}
+
+function backfillDescription(pending: PendingBackfill) {
+  return `Choose which new values to add to earlier purchases of ${pending.item}.`
+}
+
+const selectedBackfillFields = computed<Array<'size' | 'unit'>>(() => [
+  ...(backfillSizeSelected.value ? ['size' as const] : []),
+  ...(backfillUnitSelected.value ? ['unit' as const] : [])
+])
+
+const selectedBackfillCount = computed(() => {
+  const pending = pendingBackfill.value
+  if (!pending) return 0
+  if (backfillSizeSelected.value && backfillUnitSelected.value) return pending.counts.either
+  if (backfillSizeSelected.value) return pending.counts.size
+  if (backfillUnitSelected.value) return pending.counts.unit
+  return 0
+})
+
+function unitFieldIsFocused(line: ReceiptLine) {
+  return import.meta.client && document.activeElement?.matches(`[data-line-unit="${line.key}"]`)
+}
+
+async function checkItemBackfillOnUnitExit(line: ReceiptLine) {
+  if (saving.value) return
+  try {
+    await offerItemBackfill(line)
+  } catch (error: any) {
+    errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not check previous entries'
+  }
+}
+
+async function resolveItemBackfill(fields: Array<'size' | 'unit'>) {
+  const pending = pendingBackfill.value
+  if (!pending) return
+  if (fields.length) {
+    backfillBusy.value = true
+    errorMessage.value = ''
+    try {
+      await $fetch(apiUrl('/items/backfill'), {
+        method: 'PATCH',
+        body: {
+          item: pending.item,
+          excludeId: pending.entryId,
+          size: pending.size,
+          unit: pending.unit,
+          fields
+        }
+      })
+    } catch (error: any) {
+      errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not update previous entries'
+      backfillBusy.value = false
+      return
+    }
+    backfillBusy.value = false
+  }
+  pendingBackfill.value = null
+  scheduleAutosave()
 }
 
 async function loadCurrentReceiptSummary() {
@@ -493,6 +613,7 @@ async function saveCompletedRows() {
       line.id = saved.id
       currentReceiptId.value = saved.receiptId
       savedLineSnapshots.set(line.key, snapshot)
+      if (!unitFieldIsFocused(line) && await offerItemBackfill(line)) break
     }
 
     confirmedReceiptKey.value = { purchasedOn: form.purchasedOn, location: form.location }
@@ -596,6 +717,7 @@ async function deleteReceipt() {
           <span class="mobile-field-label">Item</span>
           <UInputMenu
             v-model="line.item"
+            v-model:open="line.itemMenuOpen"
             v-model:search-term="line.searchTerm"
             :data-line-item="line.key"
             :items="itemOptions(line)"
@@ -611,7 +733,7 @@ async function deleteReceipt() {
         </UFormField>
         <UFormField :name="`price-${line.key}`" class="field receipt-line-price-input">
           <span class="mobile-field-label">Price</span>
-          <UInput :data-line-price="line.key" v-model="line.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" @blur="formatPrice(line)" @keydown.enter.exact.prevent="focusLineSize(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
+          <UInput :data-line-price="line.key" v-model="line.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" @focus="closeItemMenu(line)" @blur="formatPrice(line)" @keydown.enter.exact.prevent="focusLineSize(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
         </UFormField>
         <UFormField :name="`size-${line.key}`" class="field receipt-line-size">
           <span class="mobile-field-label">Size</span>
@@ -619,7 +741,7 @@ async function deleteReceipt() {
         </UFormField>
         <UFormField :name="`unit-${line.key}`" class="field receipt-line-unit">
           <span class="mobile-field-label">Unit</span>
-          <UnitInput :data-line-unit="line.key" v-model="line.unit" @keydown.enter.exact.prevent="finishLine(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
+          <UnitInput :data-line-unit="line.key" v-model="line.unit" @blur="checkItemBackfillOnUnitExit(line)" @commit="finishLine(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
         </UFormField>
         <div class="receipt-line-options">
           <UButton
@@ -678,4 +800,51 @@ async function deleteReceipt() {
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
     <UAlert v-if="matchingReceiptMessage" color="warning" variant="soft" icon="i-lucide-git-merge" :description="matchingReceiptMessage" class="notice" />
   </form>
+
+  <UModal
+    :open="Boolean(pendingBackfill)"
+    :dismissible="false"
+    :close="false"
+    title="Update previous entries?"
+    :description="pendingBackfill ? backfillDescription(pendingBackfill) : ''"
+  >
+    <template #body>
+      <div v-if="pendingBackfill" class="item-backfill-summary">
+        <p class="item-backfill-proposed-label">Proposed values</p>
+        <div class="item-backfill-proposed">
+          <div v-if="pendingBackfill.size">
+            <span>Size</span>
+            <strong>{{ pendingBackfill.size }}</strong>
+          </div>
+          <div v-if="pendingBackfill.unit">
+            <span>Unit</span>
+            <strong>{{ pendingBackfill.unit }}</strong>
+          </div>
+        </div>
+        <div class="item-backfill-choices">
+          <UCheckbox
+            v-if="pendingBackfill.size"
+            v-model="backfillSizeSelected"
+            label="Update missing sizes"
+            :description="`${pendingBackfill.counts.size} previous ${pendingBackfill.counts.size === 1 ? 'entry' : 'entries'}`"
+            :disabled="backfillBusy || !pendingBackfill.counts.size"
+          />
+          <UCheckbox
+            v-if="pendingBackfill.unit"
+            v-model="backfillUnitSelected"
+            label="Update missing units"
+            :description="`${pendingBackfill.counts.unit} previous ${pendingBackfill.counts.unit === 1 ? 'entry' : 'entries'}`"
+            :disabled="backfillBusy || !pendingBackfill.counts.unit"
+          />
+        </div>
+        <p class="item-backfill-note">Existing values will not be overwritten.</p>
+      </div>
+    </template>
+    <template #footer>
+      <div v-if="pendingBackfill" class="item-backfill-actions">
+        <UButton type="button" color="neutral" variant="ghost" label="Keep unchanged" :disabled="backfillBusy" @click="resolveItemBackfill([])" />
+        <UButton type="button" :label="`Update ${selectedBackfillCount} ${selectedBackfillCount === 1 ? 'entry' : 'entries'}`" :loading="backfillBusy" :disabled="!selectedBackfillFields.length" @click="resolveItemBackfill(selectedBackfillFields)" />
+      </div>
+    </template>
+  </UModal>
 </template>

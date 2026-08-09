@@ -47,6 +47,11 @@ test('only actionable receipt messages render below the stable controls row', ()
   assert.match(stylesheet, /\.receipt-entry-form > \.notice \{ width: auto; margin-inline: 24px; \}/)
 })
 
+test('expanding line details keeps the row number aligned with the item field', () => {
+  assert.match(stylesheet, /\.receipt-line-number \{ position: absolute; top: 22px;/)
+  assert.match(stylesheet, /\.receipt-line-number \{ top: 10px; left: 14px; \}/)
+})
+
 test('add and edit use one receipt editor that loads existing lines', () => {
   assert.match(header, /label: 'Add\/edit receipt'/)
   assert.match(form, /Select an existing date and store to edit\./)
@@ -59,6 +64,7 @@ test('add and edit use one receipt editor that loads existing lines', () => {
 })
 
 test('receipt item entry preserves a new name while showing suggestions', () => {
+  assert.match(form, /v-model:open="line\.itemMenuOpen"/)
   assert.match(form, /v-model:search-term="line\.searchTerm"/)
   assert.match(form, /:create-item="\{ when: 'always', position: 'top' \}"/)
   assert.match(form, /@update:search-term="searchItems\(line, \$event\)"/)
@@ -68,7 +74,7 @@ test('receipt item entry preserves a new name while showing suggestions', () => 
 test('enter follows the row fields and finishes at unit', () => {
   assert.match(form, /v-model="line\.price"[^>]+@keydown\.enter\.exact\.prevent="focusLineSize\(line\)"/)
   assert.match(form, /v-model="line\.size"[^>]+@keydown\.enter\.exact\.prevent="focusLineUnit\(line\)"/)
-  assert.match(form, /<UnitInput[^>]+v-model="line\.unit"[^>]+@keydown\.enter\.exact\.prevent="finishLine\(line\)"/)
+  assert.match(form, /<UnitInput[^>]+v-model="line\.unit"[^>]+@commit="finishLine\(line\)"/)
 })
 
 test('command-enter or control-enter finishes from every row field', () => {
@@ -82,9 +88,32 @@ test('enter advances only after the required item and price are complete', () =>
 })
 
 test('selecting or creating an item advances focus to its price', () => {
-  assert.match(form, /function chooseItem[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
-  assert.match(form, /function createItem[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
+  assert.match(form, /function chooseItem[\s\S]+line\.itemMenuOpen = false[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
+  assert.match(form, /function createItem[\s\S]+line\.itemMenuOpen = false[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
+  assert.match(form, /v-model="line\.price"[^>]+@focus="closeItemMenu\(line\)"/)
   assert.doesNotMatch(form, /Enter a price to complete this row/)
+})
+
+test('new dimensions offer to backfill earlier purchases without overwriting values', () => {
+  assert.match(form, /<UModal[\s\S]+title="Update previous entries\?"/)
+  assert.match(form, /class="item-backfill-proposed"[\s\S]+pendingBackfill\.size[\s\S]+pendingBackfill\.unit/)
+  assert.match(form, /<UCheckbox[\s\S]+label="Update missing sizes"/)
+  assert.match(form, /<UCheckbox[\s\S]+label="Update missing units"/)
+  assert.match(form, /label="Keep unchanged"/)
+  assert.match(form, /`Update \$\{selectedBackfillCount\}/)
+  assert.match(form, /if \(!line\.id \|\| \(!size && !unit\)\) return false/)
+  assert.match(form, /const size = String\(line\.size \?\? ''\)\.trim\(\)/)
+  assert.match(form, /Boolean\(size\) && counts\.size > 0/)
+  assert.match(form, /Boolean\(unit\) && counts\.unit > 0/)
+  assert.match(form, /backfillSizeSelected\.value = Boolean\(size\) && counts\.size > 0/)
+  assert.match(form, /backfillUnitSelected\.value = Boolean\(unit\) && counts\.unit > 0/)
+  assert.match(form, /query: \{ item: line\.item\.trim\(\), excludeId: line\.id \}/)
+  assert.match(form, /<UnitInput[^>]+@blur="checkItemBackfillOnUnitExit\(line\)"/)
+  assert.match(form, /document\.activeElement\?\.matches\(`\[data-line-unit="\$\{line\.key\}"\]`\)/)
+  assert.match(form, /if \(!unitFieldIsFocused\(line\) && await offerItemBackfill\(line\)\) break/)
+  assert.match(form, /backfillKey: '',[\s\S]+backfillChecking: false/)
+  assert.match(form, /line\.backfillKey === key \|\| line\.backfillChecking \|\| pendingBackfill\.value/)
+  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
 })
 
 test('receipt entry provides keyboard workflow help', () => {
@@ -111,7 +140,7 @@ test('a saved receipt can be exported for CSV reimport', () => {
 })
 
 test('receipt-key collisions require confirmation before autosave can merge', () => {
-  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value\) return/)
+  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
   assert.match(form, /window\.confirm\(/)
   assert.match(form, /Merge this receipt into it\?/)
   assert.match(form, /form\.purchasedOn = confirmedKey\.purchasedOn/)
