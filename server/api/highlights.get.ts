@@ -1,5 +1,6 @@
 import { db, publicEntry, type GroceryEntry } from '../utils/db'
 import { priceStability, priceTrend } from '../../shared/utils/core-price'
+import { priceIndex, shrinkflation, spendChanges, type HighlightObservation } from '../../shared/utils/highlight-reports'
 
 type MoverRow = GroceryEntry & {
   previousPurchasedOn: string | Date
@@ -17,6 +18,17 @@ type CoreItemRow = {
   priceObservations: number
   averageChangePercent: string | null
   netChangePercent: string | null
+  priceSeries: string[] | null
+}
+
+type ReportRow = {
+  purchasedOn: string | Date
+  item: string
+  size: string | null
+  unit: string | null
+  price: string
+  costPerUnit: string | null
+  saleItem: boolean
 }
 
 export default defineEventHandler(async (event) => {
@@ -47,7 +59,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const [yearRows, summaryRows, moverRows, storeRows, monthlySpendRows, coreItemRows] = await Promise.all([
+  const [yearRows, summaryRows, moverRows, storeRows, monthlySpendRows, coreItemRows, reportRows, shrinkRows] = await Promise.all([
     sql<{ year: number }[]>`
       SELECT DISTINCT extract(year FROM purchased_on)::int AS year
       FROM grocery_entries
@@ -61,7 +73,8 @@ export default defineEventHandler(async (event) => {
         min(purchased_on)::text AS first_date,
         max(purchased_on)::text AS last_date
       FROM grocery_entries
-      WHERE (${startDate}::date IS NULL OR purchased_on >= ${startDate}::date)
+      WHERE NOT non_grocery
+        AND (${startDate}::date IS NULL OR purchased_on >= ${startDate}::date)
         AND (${endDate}::date IS NULL OR purchased_on < ${endDate}::date)
     `,
     sql<MoverRow[]>`
@@ -114,7 +127,8 @@ export default defineEventHandler(async (event) => {
       SELECT date_trunc('month', purchased_on)::date AS month,
         sum(price)::text AS total_spent
       FROM grocery_entries
-      WHERE (${startDate}::date IS NULL OR purchased_on >= ${startDate}::date)
+      WHERE NOT non_grocery
+        AND (${startDate}::date IS NULL OR purchased_on >= ${startDate}::date)
         AND (${endDate}::date IS NULL OR purchased_on < ${endDate}::date)
       GROUP BY date_trunc('month', purchased_on)
       ORDER BY date_trunc('month', purchased_on)
@@ -174,19 +188,35 @@ export default defineEventHandler(async (event) => {
         SELECT item_key, count(*)::int AS price_observations,
           avg(abs((comparable_price - previous_price) / previous_price) * 100)
             FILTER (WHERE previous_price > 0)::text AS average_change_percent,
-          ((max(last_price) - max(first_price)) / nullif(max(first_price), 0) * 100)::text AS net_change_percent
+          ((max(last_price) - max(first_price)) / nullif(max(first_price), 0) * 100)::text AS net_change_percent,
+          array_agg(comparable_price::text ORDER BY purchased_on, id) AS price_series
         FROM selected_prices
         GROUP BY item_key
       )
       SELECT item_stats.name, item_stats.purchases, item_stats.active_months,
         cadence.average_days_between, item_stats.last_purchased_on,
         coalesce(price_metrics.price_observations, 0)::int AS price_observations,
-        price_metrics.average_change_percent, price_metrics.net_change_percent
+        price_metrics.average_change_percent, price_metrics.net_change_percent, price_metrics.price_series
       FROM item_stats
       LEFT JOIN cadence USING (item_key)
       LEFT JOIN price_metrics USING (item_key)
       ORDER BY item_stats.purchases DESC, item_stats.active_months DESC, item_stats.last_purchased_on DESC, item_stats.name
       LIMIT 12
+    `,
+    sql<ReportRow[]>`
+      SELECT purchased_on, item, size::text, unit, price::text, cost_per_unit::text, sale_item
+      FROM grocery_entries
+      WHERE NOT non_grocery
+        AND (${startDate}::date IS NULL OR purchased_on >= ${startDate}::date)
+        AND (${endDate}::date IS NULL OR purchased_on < ${endDate}::date)
+      ORDER BY purchased_on, id
+    `,
+    sql<ReportRow[]>`
+      SELECT purchased_on, item, size::text, unit, price::text, cost_per_unit::text, sale_item
+      FROM grocery_entries
+      WHERE NOT non_grocery
+        AND (${endDate}::date IS NULL OR purchased_on < ${endDate}::date)
+      ORDER BY purchased_on, id
     `
   ])
 
@@ -222,6 +252,19 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const observations = (rows: ReportRow[]): HighlightObservation[] => rows.map(row => ({
+    purchasedOn: row.purchasedOn instanceof Date ? row.purchasedOn.toISOString().slice(0, 10) : String(row.purchasedOn).slice(0, 10),
+    item: row.item,
+    size: row.size === null ? null : Number(row.size),
+    unit: row.unit,
+    price: Number(row.price),
+    costPerUnit: row.costPerUnit === null ? null : Number(row.costPerUnit),
+    saleItem: row.saleItem
+  }))
+  const reportObservations = observations(reportRows)
+  const shrinkStart = startDate
+  const shrinkEnd = endDate
+
   return {
     availableYears: yearRows.map(row => row.year),
     reportingPeriod,
@@ -256,10 +299,15 @@ export default defineEventHandler(async (event) => {
           : String(item.lastPurchasedOn).slice(0, 10),
         averageChangePercent,
         netChangePercent,
+        priceSeries: (item.priceSeries || []).map(Number),
         stability: priceStability(item.priceObservations, averageChangePercent),
         trend: priceTrend(netChangePercent)
       }
     }),
-    monthlySpend
+    monthlySpend,
+    priceIndex: priceIndex(reportObservations),
+    spendChanges: spendChanges(reportObservations),
+    shrinkflation: shrinkflation(observations(shrinkRows)).filter(entry =>
+      (!shrinkStart || entry.purchasedOn >= shrinkStart) && (!shrinkEnd || entry.purchasedOn < shrinkEnd))
   }
 })

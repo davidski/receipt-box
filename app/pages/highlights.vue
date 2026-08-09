@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { sparklinePoints } from '../../shared/utils/highlight-reports'
+
 type HighlightEntry = {
   id: string
   purchasedOn: string
@@ -34,8 +36,26 @@ type Highlights = {
     netChangePercent: number | null
     stability: 'limited' | 'stable' | 'steady' | 'changing' | 'volatile'
     trend: 'flat' | 'up' | 'down' | 'unknown'
+    priceSeries: number[]
   }[]
   monthlySpend: { month: string, totalSpent: number }[]
+  priceIndex: { month: string, value: number | null, matchedItems: number }[]
+  spendChanges: { month: string, totalSpent: number, change: number | null, priceEffect: number | null, basketEffect: number | null, matchedItems: number }[]
+  shrinkflation: {
+    item: string
+    previousPurchasedOn: string
+    purchasedOn: string
+    previousSize: number
+    size: number
+    unit: string
+    previousPrice: number
+    price: number
+    previousUnitPrice: number
+    unitPrice: number
+    unitPriceLabel: string
+    sizeChangePercent: number
+    unitCostChangePercent: number
+  }[]
 }
 
 const { apiUrl } = useApi()
@@ -77,6 +97,40 @@ function monthLabel(value: string, compact = false) {
 
 const monthlySpendTotal = computed(() => (data.value?.monthlySpend || []).reduce((total, month) => total + month.totalSpent, 0))
 const selectedMonthlySpend = computed(() => data.value?.monthlySpend.find(month => month.month === selectedSpendMonth.value) || null)
+const selectedSpendChange = computed(() => data.value?.spendChanges.find(month => month.month === selectedSpendMonth.value)
+  || data.value?.spendChanges.at(-1) || null)
+type ShrinkflationSort = 'item' | 'package' | 'price' | 'impact'
+const shrinkflationSort = ref<ShrinkflationSort>('impact')
+const shrinkflationDirection = ref<'asc' | 'desc'>('desc')
+
+function setShrinkflationSort(column: ShrinkflationSort) {
+  if (shrinkflationSort.value === column) {
+    shrinkflationDirection.value = shrinkflationDirection.value === 'asc' ? 'desc' : 'asc'
+    return
+  }
+  shrinkflationSort.value = column
+  shrinkflationDirection.value = column === 'item' ? 'asc' : 'desc'
+}
+
+function shrinkflationSortIcon(column: ShrinkflationSort) {
+  if (shrinkflationSort.value !== column) return 'i-lucide-chevrons-up-down'
+  return shrinkflationDirection.value === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'
+}
+
+function shrinkflationAriaSort(column: ShrinkflationSort) {
+  if (shrinkflationSort.value !== column) return 'none' as const
+  return shrinkflationDirection.value === 'asc' ? 'ascending' as const : 'descending' as const
+}
+
+const sortedShrinkflation = computed(() => [...(data.value?.shrinkflation || [])].sort((left, right) => {
+  let comparison = 0
+  if (shrinkflationSort.value === 'item') comparison = left.item.localeCompare(right.item)
+  if (shrinkflationSort.value === 'package') comparison = left.sizeChangePercent - right.sizeChangePercent
+  if (shrinkflationSort.value === 'price') comparison = (left.price - left.previousPrice) - (right.price - right.previousPrice)
+  if (shrinkflationSort.value === 'impact') comparison = left.unitCostChangePercent - right.unitCostChangePercent
+  if (comparison === 0) comparison = left.purchasedOn.localeCompare(right.purchasedOn) || left.item.localeCompare(right.item)
+  return shrinkflationDirection.value === 'asc' ? comparison : -comparison
+}))
 const monthlySpendContainer = ref<HTMLElement | null>(null)
 const monthlySpendWidth = ref(720)
 let monthlySpendResizeObserver: ResizeObserver | null = null
@@ -141,6 +195,74 @@ const monthlySpendChart = computed(() => {
   return { width, height, plot, bars, ticks, plotBottom: plot.top + plotHeight }
 })
 
+const priceIndexContainer = ref<HTMLElement | null>(null)
+const priceIndexWidth = ref(720)
+let priceIndexResizeObserver: ResizeObserver | null = null
+
+watch(priceIndexContainer, (element) => {
+  priceIndexResizeObserver?.disconnect()
+  priceIndexResizeObserver = null
+  if (!element || typeof ResizeObserver === 'undefined') return
+  const setWidth = (width: number) => { priceIndexWidth.value = Math.max(280, Math.floor(width)) }
+  setWidth(element.clientWidth)
+  priceIndexResizeObserver = new ResizeObserver(([entry]) => { if (entry) setWidth(entry.contentRect.width) })
+  priceIndexResizeObserver.observe(element)
+}, { flush: 'post' })
+
+onBeforeUnmount(() => priceIndexResizeObserver?.disconnect())
+
+const priceIndexChart = computed(() => {
+  const points = data.value?.priceIndex || []
+  const validPoints = points.filter((point): point is typeof point & { value: number } => point.value !== null)
+  if (validPoints.length < 2) return null
+  const width = priceIndexWidth.value
+  const height = 260
+  const plot = { left: 62, right: 18, top: 20, bottom: 44 }
+  const values = validPoints.map(point => point.value)
+  const rawMin = Math.min(...values, 100)
+  const rawMax = Math.max(...values, 100)
+  const roughStep = Math.max((rawMax - rawMin) / 4, 1)
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep))
+  const normalizedStep = roughStep / magnitude
+  const step = (normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10) * magnitude
+  let min = Math.floor(rawMin / step) * step
+  let max = Math.ceil(rawMax / step) * step
+  if (min === max) {
+    min -= step * 2
+    max += step * 2
+  }
+  const xRange = width - plot.left - plot.right
+  const yRange = height - plot.top - plot.bottom
+  const positioned = points.map((point, index) => ({
+    ...point,
+    x: plot.left + (index / (points.length - 1)) * xRange,
+    y: point.value === null ? null : plot.top + ((max - point.value) / (max - min)) * yRange,
+    showLabel: index === 0 || index === points.length - 1 || index % Math.max(1, Math.ceil(points.length / 6)) === 0
+  }))
+  const tickCount = Math.round((max - min) / step) + 1
+  const ticks = Array.from({ length: tickCount }, (_, index) => ({ value: max - step * index, y: plot.top + (yRange * index) / (tickCount - 1) }))
+  const segments: string[] = []
+  let segment: string[] = []
+  for (const point of positioned) {
+    if (point.y === null) {
+      if (segment.length > 1) segments.push(segment.join(' '))
+      segment = []
+    } else {
+      segment.push(`${point.x},${point.y}`)
+    }
+  }
+  if (segment.length > 1) segments.push(segment.join(' '))
+  return { width, height, plot, positioned, ticks, segments }
+})
+
+const priceIndexSummary = computed(() => {
+  const points = (data.value?.priceIndex || []).filter((point): point is typeof point & { value: number } => point.value !== null)
+  const first = points[0]
+  const latest = points.at(-1)
+  if (!first || !latest || points.length < 2) return null
+  return { change: latest.value - first.value, latest }
+})
+
 function shortDate(value: string | null) {
   const date = parseCalendarDate(value)
   return date ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date) : '—'
@@ -179,6 +301,19 @@ function changeLabel(value: number | null) {
   if (value === null) return '—'
   return `${value > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`
 }
+
+function wholeChangeLabel(value: number) {
+  return `${value > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)}%`
+}
+
+function signedCurrency(value: number | null) {
+  if (value === null) return '—'
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${wholeCurrency(Math.abs(value))}`
+}
+
+function unitCurrency(value: number) {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value)
+}
 </script>
 
 <template>
@@ -211,6 +346,52 @@ function changeLabel(value: number | null) {
         <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-dollar-sign" /><strong>{{ wholeNumber(monthlySpendTotal) }}</strong><span>total spend</span></UCard>
       </section>
+
+      <UCard class="price-index-panel highlight-panel">
+        <div class="monthly-spend-heading">
+          <div>
+            <p class="eyebrow">Same-item prices</p>
+            <div class="price-index-title">
+              <h2>Regular purchase price index</h2>
+              <UPopover>
+                <UButton type="button" icon="i-lucide-circle-help" color="neutral" variant="ghost" size="sm" aria-label="How the price index is calculated" title="How the price index is calculated" />
+                <template #content>
+                  <div class="price-index-help">
+                    <strong>How the index is calculated</strong>
+                    <ol>
+                      <li>Find items purchased in both the current and previous month.</li>
+                      <li>Compare each item using its normalized, non-sale price.</li>
+                      <li>Calculate the percentage price movement for each item.</li>
+                      <li>Weight each movement by spending on that item in the previous month.</li>
+                      <li>Combine the movements using a weighted geometric mean.</li>
+                    </ol>
+                  </div>
+                </template>
+              </UPopover>
+            </div>
+            <p>Month-to-month price movement for recurring, comparable non-sale items, weighted by prior-month spending. The first month is 100.</p>
+          </div>
+          <UBadge v-if="priceIndexSummary" :label="`${changeLabel(priceIndexSummary.change)} overall`" :color="priceIndexSummary.change > 0 ? 'error' : priceIndexSummary.change < 0 ? 'success' : 'neutral'" variant="soft" />
+        </div>
+        <div v-if="priceIndexChart" ref="priceIndexContainer" class="price-index-chart">
+          <svg :viewBox="`0 0 ${priceIndexChart.width} ${priceIndexChart.height}`" role="img" aria-label="Same-item regular purchase price index over time">
+            <title>Regular purchase price index</title>
+            <g class="price-index-grid">
+              <g v-for="tick in priceIndexChart.ticks" :key="tick.y">
+                <line :x1="priceIndexChart.plot.left" :x2="priceIndexChart.width - priceIndexChart.plot.right" :y1="tick.y" :y2="tick.y" />
+                <text :x="priceIndexChart.plot.left - 10" :y="tick.y + 4" text-anchor="end">{{ tick.value.toFixed(0) }}</text>
+              </g>
+            </g>
+            <polyline v-for="segment in priceIndexChart.segments" :key="segment" class="price-index-line" :points="segment" />
+            <g v-for="point in priceIndexChart.positioned" :key="point.month">
+              <circle v-if="point.y !== null && point.value !== null" class="price-index-point" :cx="point.x" :cy="point.y" r="4"><title>{{ monthLabel(point.month) }} · {{ point.value.toFixed(1) }} · {{ point.matchedItems }} matched items</title></circle>
+              <text v-if="point.showLabel" class="price-index-month" :x="point.x" :y="priceIndexChart.height - 16" :text-anchor="point.x < priceIndexChart.plot.left + 20 ? 'start' : point.x > priceIndexChart.width - priceIndexChart.plot.right - 20 ? 'end' : 'middle'">{{ monthLabel(point.month, true) }}</text>
+            </g>
+          </svg>
+        </div>
+        <div v-else class="chart-empty">At least three matched regular items across consecutive months are needed.</div>
+        <p v-if="priceIndexSummary" class="index-coverage">Latest month uses {{ priceIndexSummary.latest.matchedItems }} matched {{ priceIndexSummary.latest.matchedItems === 1 ? 'item' : 'items' }}.</p>
+      </UCard>
 
       <UCard class="monthly-spend-panel highlight-panel">
         <div class="monthly-spend-heading">
@@ -264,9 +445,14 @@ function changeLabel(value: number | null) {
           </svg>
         </div>
         <div v-else class="chart-empty">No purchases in this period.</div>
-        <div v-if="selectedMonthlySpend" class="monthly-spend-detail" aria-live="polite">
-          <strong>{{ monthLabel(selectedMonthlySpend.month) }}</strong>
-          <span>{{ wholeCurrency(selectedMonthlySpend.totalSpent) }} spent</span>
+        <div v-if="selectedSpendChange" class="spend-explanation" aria-live="polite">
+          <div><strong>{{ monthLabel(selectedSpendChange.month) }}</strong><span>{{ wholeCurrency(selectedSpendChange.totalSpent) }} spent</span></div>
+          <template v-if="selectedSpendChange.change !== null">
+            <div><span>Change from prior month</span><strong>{{ signedCurrency(selectedSpendChange.change) }}</strong></div>
+            <div><span>Same-package price effect</span><strong>{{ signedCurrency(selectedSpendChange.priceEffect) }}</strong></div>
+            <div><span>Different/additional purchases</span><strong>{{ signedCurrency(selectedSpendChange.basketEffect) }}</strong></div>
+            <small>Price effect uses {{ selectedSpendChange.matchedItems }} matched {{ selectedSpendChange.matchedItems === 1 ? 'item' : 'items' }}; the remainder reflects basket composition and shopping frequency.</small>
+          </template>
         </div>
       </UCard>
 
@@ -281,7 +467,7 @@ function changeLabel(value: number | null) {
         <div v-if="data.coreItems.length" class="core-items-table-wrap">
           <table class="core-items-table text-sm [&_th]:text-[11px]">
             <thead>
-              <tr><th>Item</th><th>Regularity</th><th>Price behavior</th><th>Net change</th></tr>
+              <tr><th>Item</th><th>Regularity</th><th>Price behavior</th><th>Trend</th><th>Net change</th></tr>
             </thead>
             <tbody>
               <tr v-for="item in data.coreItems" :key="item.name">
@@ -297,6 +483,12 @@ function changeLabel(value: number | null) {
                     <span class="text-xs">{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
                   </div>
                 </td>
+                <td data-label="Trend">
+                  <svg v-if="item.priceSeries.length > 1" class="core-sparkline" viewBox="0 0 120 32" role="img" :aria-label="`${item.name} regular price trend`">
+                    <polyline :points="sparklinePoints(item.priceSeries)" />
+                  </svg>
+                  <span v-else class="sparkline-empty">—</span>
+                </td>
                 <td data-label="Net change" class="core-item-change">
                   <UBadge
                     :label="changeLabel(item.netChangePercent)"
@@ -310,6 +502,43 @@ function changeLabel(value: number | null) {
           </table>
         </div>
         <p v-else class="panel-empty">Not enough repeat purchases in this period yet.</p>
+      </UCard>
+
+      <UCard class="shrinkflation-panel highlight-panel" aria-labelledby="shrinkflation-heading">
+        <div class="section-heading core-items-heading">
+          <div>
+            <p class="eyebrow">Package changes</p>
+            <h2 id="shrinkflation-heading">Possible shrinkflation</h2>
+            <p>Smaller packaged goods whose shelf price stayed the same or increased. Variable-weight and per-item purchases are excluded.</p>
+          </div>
+        </div>
+        <div v-if="data.shrinkflation.length" class="shrinkflation-table-wrap">
+          <table class="shrinkflation-table text-sm [&_th]:text-[11px]">
+            <thead>
+              <tr>
+                <th :aria-sort="shrinkflationAriaSort('item')"><UButton label="Item" :icon="shrinkflationSortIcon('item')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('item')" /></th>
+                <th :aria-sort="shrinkflationAriaSort('package')"><UButton label="Package change" :icon="shrinkflationSortIcon('package')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('package')" /></th>
+                <th :aria-sort="shrinkflationAriaSort('price')"><UButton label="Shelf price" :icon="shrinkflationSortIcon('price')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('price')" /></th>
+                <th :aria-sort="shrinkflationAriaSort('impact')"><UButton label="Unit-cost impact" :icon="shrinkflationSortIcon('impact')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('impact')" /></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="entry in sortedShrinkflation" :key="`${entry.item}-${entry.purchasedOn}`">
+                <td data-label="Item"><NuxtLink :to="itemPath(entry.item)" class="item-history-link"><strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" /></NuxtLink><span>{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</span></td>
+                <td data-label="Package change"><strong>{{ entry.previousSize }} → {{ entry.size }} {{ entry.unit }}</strong><span>{{ changeLabel(entry.sizeChangePercent) }}</span></td>
+                <td data-label="Shelf price"><strong>{{ wholeCurrency(entry.previousPrice) }} → {{ wholeCurrency(entry.price) }}</strong></td>
+                <td data-label="Unit-cost impact">
+                  <div class="shrinkflation-impact">
+                    <strong>{{ unitCurrency(entry.previousUnitPrice) }} → {{ unitCurrency(entry.unitPrice) }}</strong>
+                    <span>{{ entry.unitPriceLabel }}</span>
+                    <UBadge :label="wholeChangeLabel(entry.unitCostChangePercent)" color="error" variant="soft" />
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="panel-empty">No smaller same-price packages found in this period.</p>
       </UCard>
 
       <div class="highlights-grid">
@@ -354,7 +583,7 @@ function changeLabel(value: number | null) {
             </div>
             <ul v-if="data.topStores.length" class="store-rank-list">
               <li v-for="store in data.topStores" :key="store.name">
-                <strong>{{ store.name }}</strong>
+                <strong class="store-name-label" :title="store.name">{{ store.name }}</strong>
                 <div class="store-spend-visual">
                   <span class="store-spend-value text-xs" :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }">{{ wholeCurrency(store.totalSpent) }}</span>
                   <span class="store-bar"><i :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }" /></span>
