@@ -8,6 +8,7 @@ const oidcHandler = defineOAuthOidcEventHandler({
     await setUserSession(event, {
       user: {
         sub: user.sub,
+        givenName: user.given_name,
         name: user.name,
         email: user.email,
         preferredUsername: user.preferred_username

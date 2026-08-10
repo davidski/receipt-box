@@ -29,7 +29,9 @@ export function addedReceiptMessage(submittedCount: number, saved: ReceiptSaveSu
 
 export function receiptLineIsComplete(line: AutosaveReceiptLine) {
   const price = Number(line.price)
-  return Boolean(line.item.trim()) && line.price !== '' && Number.isFinite(price) && price >= 0
+  const size = Number(line.size)
+  const validSize = line.size === '' || (Number.isFinite(size) && size > 0)
+  return Boolean(line.item.trim()) && line.price !== '' && Number.isFinite(price) && price >= 0 && validSize
 }
 
 export function shouldLoadMatchingReceipt(currentReceiptId: string | null, enteredLineCount: number) {

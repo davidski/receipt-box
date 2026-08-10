@@ -42,6 +42,10 @@ describe('receipt row autosave state', () => {
     assert.equal(receiptLineIsComplete({ ...line, price: '' }), false)
     assert.equal(receiptLineIsComplete({ ...line, price: '-1' }), false)
     assert.equal(receiptLineIsComplete({ ...line, price: 'not-a-price' }), false)
+    assert.equal(receiptLineIsComplete({ ...line, size: '0' }), false)
+    assert.equal(receiptLineIsComplete({ ...line, size: '-1' }), false)
+    assert.equal(receiptLineIsComplete({ ...line, size: 'not-a-size' }), false)
+    assert.equal(receiptLineIsComplete({ ...line, size: '' }), true)
   })
 
   test('tracks receipt metadata and every persisted row field', () => {

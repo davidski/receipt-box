@@ -63,6 +63,9 @@ export function normalizeEntry(input: Record<string, unknown>): EntryInput {
   if (!Number.isFinite(price) || price < 0) {
     throw createError({ statusCode: 400, statusMessage: 'Price must be zero or greater' })
   }
+  if (size !== null && size <= 0) {
+    throw createError({ statusCode: 400, statusMessage: 'Size must be greater than zero' })
+  }
 
   return {
     purchasedOn,

@@ -7,6 +7,7 @@ const history = await readFile(new URL('../app/pages/history.vue', import.meta.u
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 const header = await readFile(new URL('../app/components/AppHeader.vue', import.meta.url), 'utf8')
 const matchApi = await readFile(new URL('../server/api/receipts/match.get.ts', import.meta.url), 'utf8')
+const unitInput = await readFile(new URL('../app/components/UnitInput.vue', import.meta.url), 'utf8')
 
 test('receipt entry warns before in-app navigation and page unload when dirty', () => {
   assert.match(form, /onBeforeRouteLeave\(\(\) => confirmDiscardChanges\(\)\)/)
@@ -14,7 +15,7 @@ test('receipt entry warns before in-app navigation and page unload when dirty', 
   assert.match(form, /if \(!hasUnsavedChanges\.value\) return/)
 })
 
-test('completed rows autosave and saved rows delete immediately', () => {
+test('completed rows autosave and confirmed saved rows delete through the API', () => {
   assert.match(form, /setTimeout\(\(\) => saveCompletedRows\(\), 600\)/)
   assert.match(form, /apiUrl\(line\.id \? `\/entries\/\$\{line\.id\}` : '\/entries'\)/)
   assert.match(form, /method: line\.id \? 'PUT' : 'POST'/)
@@ -77,9 +78,35 @@ test('enter follows the row fields and finishes at unit', () => {
   assert.match(form, /<UnitInput[^>]+v-model="line\.unit"[^>]+@commit="finishLine\(line\)"/)
 })
 
+test('tabbing past unit reaches the sale and details controls', () => {
+  assert.match(unitInput, /@keydown\.tab\.exact="advanceOnTab"/)
+  assert.match(unitInput, /open\.value = false[\s\S]+emit\('tabNext'\)/)
+  assert.match(form, /<UnitInput[^>]+@tab-next="focusLineSale\(line\)"/)
+  assert.match(form, /function focusLineSale[\s\S]+`\[data-line-sale="\$\{line\.key\}"\]`/)
+  assert.match(form, /:data-line-sale="line\.key"[^>]+@keydown\.tab\.exact\.prevent="focusLineDetails\(line\)"/)
+  assert.match(form, /function focusLineDetails[\s\S]+`\[data-line-details="\$\{line\.key\}"\]`/)
+  assert.match(form, /:data-line-details="line\.key"[^>]+@keydown\.tab\.exact\.prevent="advanceFromLineDetails\(line\)"/)
+  assert.match(form, /function advanceFromLineDetails[\s\S]+data-line-notes/)
+  assert.match(form, /:data-line-notes="line\.key"[^>]+@keydown\.tab\.exact\.prevent="focusLineNonGrocery\(line\)"/)
+  assert.match(form, /:data-line-non-grocery="line\.key"[^>]+@keydown\.tab\.exact\.prevent="finishLine\(line\)"/)
+})
+
+test('command/control-shift-enter adds or focuses a row and reveals it without losing the sticky total', () => {
+  assert.match(form, /function handleAddLineShortcut\(event: KeyboardEvent\)/)
+  assert.match(form, /!event\.shiftKey[\s\S]+\(!event\.metaKey && !event\.ctrlKey\)/)
+  assert.match(form, /window\.addEventListener\('keydown', handleAddLineShortcut, \{ capture: true \}\)/)
+  assert.match(form, /window\.removeEventListener\('keydown', handleAddLineShortcut, \{ capture: true \}\)/)
+  assert.doesNotMatch(form, /keydown\.alt\.n/)
+  assert.match(form, /:data-receipt-line="line\.key"/)
+  assert.match(form, /item\?\.focus\(\{ preventScroll: reveal \}\)/)
+  assert.match(form, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
+  assert.match(stylesheet, /\.receipt-entry-form \{ overflow: clip;/)
+  assert.match(stylesheet, /\.receipt-entry-footer \{ position: sticky; bottom: 0;/)
+})
+
 test('command-enter or control-enter finishes from every row field', () => {
-  assert.equal((form.match(/@keydown\.meta\.enter\.prevent="finishLine\(line\)"/g) || []).length, 4)
-  assert.equal((form.match(/@keydown\.ctrl\.enter\.prevent="finishLine\(line\)"/g) || []).length, 4)
+  assert.equal((form.match(/@keydown\.meta\.enter\.exact\.prevent="finishLine\(line\)"/g) || []).length, 4)
+  assert.equal((form.match(/@keydown\.ctrl\.enter\.exact\.prevent="finishLine\(line\)"/g) || []).length, 4)
 })
 
 test('enter advances only after the required item and price are complete', () => {
@@ -92,6 +119,22 @@ test('selecting or creating an item advances focus to its price', () => {
   assert.match(form, /function createItem[\s\S]+line\.itemMenuOpen = false[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
   assert.match(form, /v-model="line\.price"[^>]+@focus="closeItemMenu\(line\)"/)
   assert.doesNotMatch(form, /Enter a price to complete this row/)
+})
+
+test('editing an item preserves existing dimensions and saved-row removal confirms first', () => {
+  assert.match(form, /if \(!line\.id \|\| line\.size === ''\) line\.size = compactNumber/)
+  assert.match(form, /if \(!line\.id \|\| !line\.unit\.trim\(\)\) line\.unit = suggestion\.unit/)
+  assert.match(form, /function requestRemoveLine[\s\S]+line\.confirmingRemove = true/)
+  assert.match(form, /v-if="line\.confirmingRemove"[^>]+role="alert"/)
+  assert.match(form, /label="Keep item"/)
+  assert.match(form, /label="Remove item"/)
+})
+
+test('a failed autosave waits for an edit or explicit retry', () => {
+  assert.match(form, /attemptKey === failedAutosaveKey\.value\) return/)
+  assert.match(form, /failedAutosaveKey\.value = autosaveAttemptKey\(\)/)
+  assert.match(form, /function retryAutosave\(\)[\s\S]+saveCompletedRows\(\)/)
+  assert.match(form, /v-if="autosaveFailed"[^>]+label="Retry"/)
 })
 
 test('new dimensions offer to backfill earlier purchases without overwriting values', () => {

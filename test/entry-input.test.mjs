@@ -91,7 +91,9 @@ describe('normalizeEntry', () => {
       [{ ...validEntry, item: '   ' }, 'Item is required'],
       [{ ...validEntry, location: '' }, 'Store is required'],
       [{ ...validEntry, price: -0.01 }, 'Price must be zero or greater'],
-      [{ ...validEntry, price: 'not-a-number' }, 'Price must be zero or greater']
+      [{ ...validEntry, price: 'not-a-number' }, 'Price must be zero or greater'],
+      [{ ...validEntry, size: 0 }, 'Size must be greater than zero'],
+      [{ ...validEntry, size: -1 }, 'Size must be greater than zero']
     ]
     for (const [input, message] of cases) {
       assert.throws(

@@ -27,6 +27,7 @@ type ReceiptLine = {
   nonGrocery: boolean
   notes: string
   expanded: boolean
+  confirmingRemove: boolean
   itemMenuOpen: boolean
   searchTerm: string
   suggestions: Suggestion[]
@@ -93,6 +94,7 @@ const backfillBusy = ref(false)
 const backfillSizeSelected = ref(false)
 const backfillUnitSelected = ref(false)
 const savedLineSnapshots = reactive(new Map<number, string>())
+const failedAutosaveKey = ref('')
 let nextKey = 1
 let matchRequest = 0
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
@@ -120,7 +122,7 @@ function initialPurchasedOn() {
 function blankLine(): ReceiptLine {
   return {
     key: nextKey++, item: '', price: '', size: '', unit: '', saleItem: false,
-    nonGrocery: false, notes: '', expanded: false, itemMenuOpen: false, searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false
+    nonGrocery: false, notes: '', expanded: false, confirmingRemove: false, itemMenuOpen: false, searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false
   }
 }
 
@@ -142,6 +144,7 @@ function lineFromEntry(entry: EditableReceipt['entries'][number]): ReceiptLine {
     nonGrocery: entry.nonGrocery,
     notes: entry.notes ?? '',
     expanded: Boolean(entry.notes || entry.nonGrocery),
+    confirmingRemove: false,
     itemMenuOpen: false,
     searchTerm: '',
     suggestions: [],
@@ -208,8 +211,10 @@ const storeError = computed(() => !form.location.trim() && enteredLines.value.le
   ? 'Select a store to save this receipt'
   : undefined)
 const receiptTotal = computed(() => completeLines.value.reduce((sum, line) => sum + Number(line.price), 0))
+const autosaveFailed = computed(() => Boolean(failedAutosaveKey.value) && failedAutosaveKey.value === autosaveAttemptKey())
 const autosaveStatus = computed(() => {
   if (saving.value) return 'Saving changes…'
+  if (autosaveFailed.value) return 'Changes could not be saved'
   if (incompleteLines.value.length) {
     return `${incompleteLines.value.length} unsaved ${incompleteLines.value.length === 1 ? 'row' : 'rows'} in progress`
   }
@@ -232,6 +237,7 @@ function loadReceipt(receipt: EditableReceipt) {
     total: receipt.total
   }
   confirmedReceiptKey.value = { purchasedOn: receipt.purchasedOn, location: receipt.location }
+  failedAutosaveKey.value = ''
   savedLineSnapshots.clear()
   for (const line of form.lines) {
     if (line.id) savedLineSnapshots.set(line.key, lineSnapshot(line))
@@ -248,6 +254,7 @@ watch(() => [props.initialDate, props.initialLocation] as const, ([initialDate, 
   currentReceiptId.value = null
   lastSavedSummary.value = null
   confirmedReceiptKey.value = null
+  failedAutosaveKey.value = ''
   errorMessage.value = ''
   confirmingDelete.value = false
 }, { immediate: true })
@@ -376,16 +383,42 @@ function handleBeforeUnload(event: BeforeUnloadEvent) {
   event.returnValue = ''
 }
 
+function handleAddLineShortcut(event: KeyboardEvent) {
+  if (
+    event.key !== 'Enter'
+    || !event.shiftKey
+    || (!event.metaKey && !event.ctrlKey)
+    || event.altKey
+    || event.repeat
+  ) return
+  event.preventDefault()
+  event.stopPropagation()
+  addLine()
+}
+
+function handleCancelRemoveShortcut(event: KeyboardEvent) {
+  if (event.key !== 'Escape') return
+  const line = form.lines.find(candidate => candidate.confirmingRemove)
+  if (!line) return
+  event.preventDefault()
+  event.stopPropagation()
+  cancelRemoveLine(line)
+}
+
 onBeforeRouteLeave(() => confirmDiscardChanges())
 
 onMounted(() => {
   loadLocations()
   window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('keydown', handleAddLineShortcut, { capture: true })
+  window.addEventListener('keydown', handleCancelRemoveShortcut, { capture: true })
 })
 
 onBeforeUnmount(() => {
   clearTimeout(autosaveTimer)
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  window.removeEventListener('keydown', handleAddLineShortcut, { capture: true })
+  window.removeEventListener('keydown', handleCancelRemoveShortcut, { capture: true })
   form.lines.forEach(line => clearTimeout(line.timer))
 })
 
@@ -412,8 +445,8 @@ function searchItems(line: ReceiptLine, value: string) {
 
 function chooseItem(line: ReceiptLine, suggestion: Suggestion) {
   line.item = suggestion.value
-  line.size = compactNumber(suggestion.size)
-  line.unit = suggestion.unit ?? ''
+  if (!line.id || line.size === '') line.size = compactNumber(suggestion.size)
+  if (!line.id || !line.unit.trim()) line.unit = suggestion.unit ?? ''
   line.itemMenuOpen = false
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-price="${line.key}"]`)?.focus())
 }
@@ -434,15 +467,26 @@ function formatPrice(line: ReceiptLine) {
   if (Number.isFinite(price) && price >= 0) line.price = price.toFixed(2)
 }
 
+function focusLineItem(line: ReceiptLine, reveal = false) {
+  requestAnimationFrame(() => {
+    const item = document.querySelector<HTMLInputElement>(`[data-line-item="${line.key}"]`)
+    item?.focus({ preventScroll: reveal })
+    if (reveal) {
+      document.querySelector<HTMLElement>(`[data-receipt-line="${line.key}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  })
+}
+
 function addLine(focus = true) {
   const existingBlank = form.lines.find(line => !lineHasContent(line))
   if (existingBlank) {
-    if (focus) requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-item="${existingBlank.key}"]`)?.focus())
+    if (focus) focusLineItem(existingBlank, true)
     return
   }
   const line = blankLine()
   form.lines.push(line)
-  if (focus) requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-item="${line.key}"]`)?.focus())
+  if (focus) focusLineItem(line, true)
 }
 
 function finishLine(line: ReceiptLine) {
@@ -452,7 +496,8 @@ function finishLine(line: ReceiptLine) {
     return
   }
   if (!receiptLineIsComplete(line)) {
-    requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-price="${line.key}"]`)?.focus())
+    const field = line.price === '' || !Number.isFinite(Number(line.price)) || Number(line.price) < 0 ? 'price' : 'size'
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-${field}="${line.key}"]`)?.focus())
     return
   }
   const index = form.lines.indexOf(line)
@@ -469,6 +514,26 @@ function focusLineUnit(line: ReceiptLine) {
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-unit="${line.key}"]`)?.focus())
 }
 
+function focusLineSale(line: ReceiptLine) {
+  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-line-sale="${line.key}"]`)?.focus())
+}
+
+function focusLineDetails(line: ReceiptLine) {
+  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-line-details="${line.key}"]`)?.focus())
+}
+
+function advanceFromLineDetails(line: ReceiptLine) {
+  if (!line.expanded) {
+    finishLine(line)
+    return
+  }
+  requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-notes="${line.key}"]`)?.focus())
+}
+
+function focusLineNonGrocery(line: ReceiptLine) {
+  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-line-non-grocery="${line.key}"]`)?.focus())
+}
+
 function entryBody(line: ReceiptLine) {
   return {
     purchasedOn: form.purchasedOn,
@@ -483,13 +548,24 @@ function entryBody(line: ReceiptLine) {
   }
 }
 
+function autosaveAttemptKey() {
+  const rows = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
+  return rows.length ? JSON.stringify(rows.map(line => [line.key, lineSnapshot(line)])) : ''
+}
+
 function scheduleAutosave() {
   clearTimeout(autosaveTimer)
   if (saving.value || checkingReceiptMatch.value || pendingBackfill.value) return
   const validHeader = /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) && Boolean(form.location.trim())
-  const dirtyCompleteLines = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
-  if (!validHeader || !dirtyCompleteLines.length) return
+  const attemptKey = autosaveAttemptKey()
+  if (!validHeader || !attemptKey || attemptKey === failedAutosaveKey.value) return
+  failedAutosaveKey.value = ''
   autosaveTimer = setTimeout(() => saveCompletedRows(), 600)
+}
+
+function retryAutosave() {
+  failedAutosaveKey.value = ''
+  saveCompletedRows()
 }
 
 async function offerItemBackfill(line: ReceiptLine) {
@@ -617,8 +693,10 @@ async function saveCompletedRows() {
     }
 
     confirmedReceiptKey.value = { purchasedOn: form.purchasedOn, location: form.location }
+    failedAutosaveKey.value = ''
     await loadCurrentReceiptSummary()
   } catch (error: any) {
+    failedAutosaveKey.value = autosaveAttemptKey()
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not save these changes'
   } finally {
     saving.value = false
@@ -652,10 +730,26 @@ async function removeLine(line: ReceiptLine) {
     currentReceiptId.value = null
     lastSavedSummary.value = null
     confirmedReceiptKey.value = null
+    failedAutosaveKey.value = ''
   } else {
     await loadCurrentReceiptSummary()
   }
   scheduleAutosave()
+}
+
+function requestRemoveLine(line: ReceiptLine) {
+  if (line.id) {
+    form.lines.forEach(candidate => { candidate.confirmingRemove = false })
+    line.confirmingRemove = true
+    requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-line-keep="${line.key}"]`)?.focus())
+    return
+  }
+  removeLine(line)
+}
+
+function cancelRemoveLine(line: ReceiptLine) {
+  line.confirmingRemove = false
+  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-line-remove="${line.key}"]`)?.focus())
 }
 
 async function deleteReceipt() {
@@ -668,6 +762,7 @@ async function deleteReceipt() {
     currentReceiptId.value = null
     lastSavedSummary.value = null
     form.lines = [blankLine()]
+    failedAutosaveKey.value = ''
     confirmingDelete.value = false
   } catch (error: any) {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not delete this receipt'
@@ -703,6 +798,8 @@ async function deleteReceipt() {
           <div class="receipt-keyboard-help">
             <strong>Keyboard entry</strong>
             <p><kbd>Enter</kbd> accepts an item, then moves through Price, Size, and Unit. From Unit, it starts the next row.</p>
+            <p><kbd>Tab</kbd> from Unit moves through Sale and Details. Expanded details are included before the next row.</p>
+            <p><kbd>⌘ Shift Enter</kbd> on Mac or <kbd>Ctrl Shift Enter</kbd> elsewhere adds or moves to a new item row.</p>
             <p><kbd>⌘ Enter</kbd> on Mac or <kbd>Ctrl Enter</kbd> elsewhere finishes the row from any field.</p>
             <p>Item and Price are required. Size and Unit are optional.</p>
           </div>
@@ -711,7 +808,7 @@ async function deleteReceipt() {
     </div>
 
     <ol v-if="canEnterLines" class="receipt-entry-lines">
-      <li v-for="(line, index) in form.lines" :key="line.key" class="receipt-entry-line">
+      <li v-for="(line, index) in form.lines" :key="line.key" :data-receipt-line="line.key" class="receipt-entry-line">
         <span class="receipt-line-number" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
         <UFormField :name="`item-${line.key}`" class="field receipt-line-item">
           <span class="mobile-field-label">Item</span>
@@ -727,45 +824,52 @@ async function deleteReceipt() {
             placeholder="Start typing an item…"
             @update:search-term="searchItems(line, $event)"
             @create="createItem(line, $event)"
-            @keydown.meta.enter.prevent="finishLine(line)"
-            @keydown.ctrl.enter.prevent="finishLine(line)"
+            @keydown.meta.enter.exact.prevent="finishLine(line)"
+            @keydown.ctrl.enter.exact.prevent="finishLine(line)"
           />
         </UFormField>
         <UFormField :name="`price-${line.key}`" class="field receipt-line-price-input">
           <span class="mobile-field-label">Price</span>
-          <UInput :data-line-price="line.key" v-model="line.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" @focus="closeItemMenu(line)" @blur="formatPrice(line)" @keydown.enter.exact.prevent="focusLineSize(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
+          <UInput :data-line-price="line.key" v-model="line.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" @focus="closeItemMenu(line)" @blur="formatPrice(line)" @keydown.enter.exact.prevent="focusLineSize(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" />
         </UFormField>
         <UFormField :name="`size-${line.key}`" class="field receipt-line-size">
           <span class="mobile-field-label">Size</span>
-          <UInput :data-line-size="line.key" v-model="line.size" type="number" min="0" step="any" inputmode="decimal" placeholder="—" @keydown.enter.exact.prevent="focusLineUnit(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
+          <UInput :data-line-size="line.key" v-model="line.size" type="number" min="0.000001" step="any" inputmode="decimal" placeholder="—" @keydown.enter.exact.prevent="focusLineUnit(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" />
         </UFormField>
         <UFormField :name="`unit-${line.key}`" class="field receipt-line-unit">
           <span class="mobile-field-label">Unit</span>
-          <UnitInput :data-line-unit="line.key" v-model="line.unit" @blur="checkItemBackfillOnUnitExit(line)" @commit="finishLine(line)" @keydown.meta.enter.prevent="finishLine(line)" @keydown.ctrl.enter.prevent="finishLine(line)" />
+          <UnitInput :data-line-unit="line.key" v-model="line.unit" @blur="checkItemBackfillOnUnitExit(line)" @commit="finishLine(line)" @tab-next="focusLineSale(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" />
         </UFormField>
         <div class="receipt-line-options">
           <UButton
             type="button"
+            :data-line-sale="line.key"
             icon="i-lucide-tag"
             :aria-label="line.saleItem ? 'Remove sale-price flag' : 'Mark as purchased at a sale price'"
             :title="line.saleItem ? 'Purchased at a sale price. Click to remove.' : 'Mark as purchased at a sale price.'"
             :color="line.saleItem ? 'warning' : 'neutral'"
             :variant="line.saleItem ? 'soft' : 'ghost'"
+            @keydown.tab.exact.prevent="focusLineDetails(line)"
             @click="line.saleItem = !line.saleItem"
           />
-          <UButton type="button" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @click="line.expanded = !line.expanded" />
+          <UButton type="button" :data-line-details="line.key" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @keydown.tab.exact.prevent="advanceFromLineDetails(line)" @click="line.expanded = !line.expanded" />
         </div>
-        <UButton class="receipt-line-remove" type="button" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" :disabled="saving" @click="removeLine(line)" />
+        <UButton class="receipt-line-remove" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" :disabled="saving" @click="requestRemoveLine(line)" />
         <div v-if="line.expanded" class="receipt-line-details">
           <UFormField label="Notes" :name="`notes-${line.key}`" class="field">
-            <UInput v-model="line.notes" placeholder="Optional note" />
+            <UInput :data-line-notes="line.key" v-model="line.notes" placeholder="Optional note" @keydown.tab.exact.prevent="focusLineNonGrocery(line)" />
           </UFormField>
-          <USwitch v-model="line.nonGrocery" label="Non-grocery" />
+          <USwitch :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" @keydown.tab.exact.prevent="finishLine(line)" />
+        </div>
+        <div v-if="line.confirmingRemove" class="receipt-line-remove-confirmation" role="alert">
+          <span><strong>Remove {{ line.item }}?</strong> This saved entry will be permanently deleted.</span>
+          <UButton type="button" :data-line-keep="line.key" label="Keep item" color="neutral" variant="outline" :disabled="saving" @click="cancelRemoveLine(line)" />
+          <UButton type="button" label="Remove item" color="error" :loading="saving" @click="removeLine(line)" />
         </div>
       </li>
     </ol>
 
-    <UButton v-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line" :disabled="hasBlankLine" @click="addLine()" />
+    <UButton v-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line" title="Add another line (Command/Control+Shift+Enter)" :disabled="hasBlankLine" @click="addLine()" />
 
     <div v-else class="receipt-store-prompt">
       <UIcon name="i-lucide-store" class="receipt-store-prompt-icon" aria-hidden="true" />
@@ -789,6 +893,7 @@ async function deleteReceipt() {
         <div class="receipt-autosave-status" role="status" aria-live="polite">
           <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ spinning: saving || checkingReceiptMatch }" aria-hidden="true" />
           <span>{{ autosaveStatus }}</span>
+          <UButton v-if="autosaveFailed" type="button" label="Retry" size="xs" color="error" variant="soft" @click="retryAutosave" />
         </div>
         <div>
           <span>{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>

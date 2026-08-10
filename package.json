@@ -8,8 +8,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "start": "node .output/server/index.mjs",
-    "test": "NODE_OPTIONS= VSCODE_INSPECTOR_OPTIONS= node --test",
-    "test:coverage": "NODE_OPTIONS= VSCODE_INSPECTOR_OPTIONS= node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=85 --test-coverage-functions=100",
+    "test": "NODE_OPTIONS= VSCODE_INSPECTOR_OPTIONS= node --test test/*.test.mjs && CI=true vitest run",
+    "test:coverage": "NODE_OPTIONS= VSCODE_INSPECTOR_OPTIONS= node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=85 --test-coverage-functions=100 test/*.test.mjs",
+    "test:component": "CI=true vitest run",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
@@ -23,7 +24,11 @@
     "vue-router": "5.2.0"
   },
   "devDependencies": {
+    "@nuxt/test-utils": "4.1.0",
+    "@vue/test-utils": "2.4.11",
+    "happy-dom": "20.11.2",
     "typescript": "5.9.3",
+    "vitest": "4.1.10",
     "vue-tsc": "3.3.9"
   },
   "packageManager": "pnpm@11.18.0",

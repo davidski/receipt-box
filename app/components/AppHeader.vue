@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { userDisplayName } from '#shared/utils/user-display-name'
+
 const route = useRoute()
 const brandIconURL = `${useRuntimeConfig().app.baseURL}favicon.svg`
 const { enabled: authEnabled } = useAuthMode()
-const { loggedIn, clear } = useUserSession()
+const { loggedIn, user, clear } = useUserSession()
+const displayName = computed(() => userDisplayName(user.value))
 
 const links = [
   { to: '/', label: 'Add/edit receipt', icon: 'i-lucide-receipt-text' },
@@ -35,6 +38,14 @@ async function logout() {
     </nav>
 
     <div class="header-actions">
+      <span
+        v-if="authEnabled && loggedIn && displayName"
+        class="signed-in-user"
+        :title="`Signed in as ${displayName}`"
+      >
+        <UIcon name="i-lucide-user-round" aria-hidden="true" />
+        {{ displayName }}
+      </span>
       <UButton
         v-if="authEnabled && loggedIn"
         icon="i-lucide-log-out"
