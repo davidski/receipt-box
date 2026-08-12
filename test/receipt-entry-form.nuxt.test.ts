@@ -155,6 +155,91 @@ afterEach(() => {
 })
 
 describe('receipt item entry interactions', () => {
+  it('asks for inline confirmation before accepting a new item', async () => {
+    const wrapper = await mountForm()
+    const itemMenu = wrapper.findAllComponents(UInputMenu)[1]!
+    await wrapper.get('[data-line-item]').setValue('Dragon fruit')
+
+    itemMenu.vm.$emit('create', 'Dragon fruit')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(wrapper.text()).toContain('Create “Dragon fruit” as a new item?')
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('')
+    expect(document.activeElement).toBe(wrapper.get('[data-confirm-item]').element)
+
+    await wrapper.findAll('button').find(button => button.text() === 'Cancel')!.trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wrapper.text()).not.toContain('Create “Dragon fruit” as a new item?')
+    expect(document.activeElement).toBe(wrapper.get('[data-line-item]').element)
+
+    await wrapper.get('[data-line-item]').setValue('Dragon fruit')
+    wrapper.findAllComponents(UInputMenu)[1]!.vm.$emit('create', { value: 'Dragon fruit' })
+    await vi.advanceTimersByTimeAsync(0)
+    await wrapper.get('[data-confirm-item]').trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Dragon fruit')
+    expect(document.activeElement).toBe(wrapper.get('[data-line-price]').element)
+  })
+
+  it('saves the current receipt, starts a blank one, and focuses Store', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    await flushPromises()
+
+    const addAnother = wrapper.findAll('button').find(button => button.text() === 'Save and add another')!
+    expect(addAnother.attributes('disabled')).toBeUndefined()
+    await addAnother.trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+
+    expect(entryAttempts).toBe(1)
+    expect((wrapper.get('[data-receipt-store]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
+    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).value).toBe('2026-08-10')
+    expect(document.activeElement).toBe(wrapper.get('[data-receipt-store]').element)
+    expect(wrapper.text()).toContain('Receipt saved. Ready for another receipt.')
+  })
+
+  it('supports the documented keyboard shortcut for saving and starting another receipt', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true
+    }))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+
+    expect(entryAttempts).toBe(1)
+    expect((wrapper.get('[data-receipt-store]').element as HTMLInputElement).value).toBe('')
+    expect(document.activeElement).toBe(wrapper.get('[data-receipt-store]').element)
+  })
+
+  it('keeps the current receipt visible when save-and-add-another fails', async () => {
+    failEntrySaves = true
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+
+    await wrapper.findAll('button').find(button => button.text() === 'Save and add another')!.trigger('click')
+    await flushPromises()
+
+    expect(entryAttempts).toBe(1)
+    expect((wrapper.get('[data-receipt-store]').element as HTMLInputElement).value).toBe('Test Store')
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+    expect(wrapper.text()).toContain('Changes could not be saved')
+    expect(wrapper.find('.notice').exists()).toBe(true)
+  })
+
   it('adds a row with Command+Shift+Enter from an item field', async () => {
     const wrapper = await mountForm()
     await wrapper.get('[data-line-item]').setValue('Coffee')

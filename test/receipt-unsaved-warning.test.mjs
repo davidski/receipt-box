@@ -69,7 +69,7 @@ test('receipt item entry preserves a new name while showing suggestions', () => 
   assert.match(form, /v-model:search-term="line\.searchTerm"/)
   assert.match(form, /:create-item="\{ when: 'always', position: 'top' \}"/)
   assert.match(form, /@update:search-term="searchItems\(line, \$event\)"/)
-  assert.match(form, /@create="createItem\(line, \$event\)"/)
+  assert.match(form, /@create="requestCreateItem\(line, \$event\)"/)
 })
 
 test('enter follows the row fields and finishes at unit', () => {
@@ -100,7 +100,7 @@ test('command/control-shift-enter adds or focuses a row and reveals it without l
   assert.match(form, /:data-receipt-line="line\.key"/)
   assert.match(form, /item\?\.focus\(\{ preventScroll: reveal \}\)/)
   assert.match(form, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
-  assert.match(stylesheet, /\.receipt-entry-form \{ overflow: clip;/)
+  assert.match(stylesheet, /\.receipt-entry-form \{ overflow: visible;/)
   assert.match(stylesheet, /\.receipt-entry-footer \{ position: sticky; bottom: 0;/)
 })
 
@@ -116,7 +116,7 @@ test('enter advances only after the required item and price are complete', () =>
 
 test('selecting or creating an item advances focus to its price', () => {
   assert.match(form, /function chooseItem[\s\S]+line\.itemMenuOpen = false[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
-  assert.match(form, /function createItem[\s\S]+line\.itemMenuOpen = false[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
+  assert.match(form, /function confirmCreateItem[\s\S]+line\.pendingItemCreation = ''[\s\S]+requestAnimationFrame\(\(\) => document\.querySelector<HTMLInputElement>\(`\[data-line-price="\$\{line\.key\}"\]`\)\?\.focus\(\)\)/)
   assert.match(form, /v-model="line\.price"[^>]+@focus="closeItemMenu\(line\)"/)
   assert.doesNotMatch(form, /Enter a price to complete this row/)
 })
@@ -153,7 +153,7 @@ test('new dimensions offer to backfill earlier purchases without overwriting val
   assert.match(form, /query: \{ item: line\.item\.trim\(\), excludeId: line\.id \}/)
   assert.match(form, /<UnitInput[^>]+@blur="checkItemBackfillOnUnitExit\(line\)"/)
   assert.match(form, /document\.activeElement\?\.matches\(`\[data-line-unit="\$\{line\.key\}"\]`\)/)
-  assert.match(form, /if \(!unitFieldIsFocused\(line\) && await offerItemBackfill\(line\)\) break/)
+  assert.match(form, /if \(!unitFieldIsFocused\(line\) && await offerItemBackfill\(line\)\) \{[\s\S]+savedAllRows = false[\s\S]+break/)
   assert.match(form, /backfillKey: '',[\s\S]+backfillChecking: false/)
   assert.match(form, /line\.backfillKey === key \|\| line\.backfillChecking \|\| pendingBackfill\.value/)
   assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
@@ -169,6 +169,8 @@ test('receipt entry provides keyboard workflow help', () => {
   assert.match(form, /Enter<\/kbd> accepts an item, then moves through Price, Size, and Unit/)
   assert.match(form, /From Unit, it starts the next row/)
   assert.match(form, /Item and Price are required\. Size and Unit are optional\./)
+  assert.match(form, /Ctrl Alt Enter<\/kbd> elsewhere saves the receipt and starts another/)
+  assert.match(form, /aria-keyshortcuts="Meta\+Alt\+Enter Control\+Alt\+Enter"/)
   assert.match(stylesheet, /\.receipt-keyboard-help \{[^}]+text-align: left;/)
   assert.match(stylesheet, /\.receipt-line-labels \{[^}]+align-items: center;/)
 })
@@ -180,6 +182,20 @@ test('a saved receipt can be exported for CSV reimport', () => {
   assert.match(form, /const rows = completeLines\.value\.map/)
   assert.match(form, /entryCsv\(rows\)/)
   assert.match(form, /receipt-box-\$\{form\.purchasedOn\}-\$\{store\}\.csv/)
+})
+
+test('receipt totals stay visible without clipping the item selector', () => {
+  assert.match(stylesheet, /\.receipt-entry-form \{ overflow: visible;/)
+  assert.match(stylesheet, /\.receipt-entry-footer \{ position: sticky; bottom: 0; z-index: 5;/)
+  assert.match(stylesheet, /\.receipt-entry-footer \{[^}]+env\(safe-area-inset-bottom\)/)
+  assert.match(form, /label="Save and add another"/)
+})
+
+test('new receipt items require inline confirmation', () => {
+  assert.match(form, /@create="requestCreateItem\(line, \$event\)"/)
+  assert.match(form, /v-if="line\.pendingItemCreation" class="receipt-item-create-confirmation" role="alert"/)
+  assert.match(form, /label="Create item"/)
+  assert.match(form, /label="Cancel"[^>]+@click="cancelCreateItem\(line\)"/)
 })
 
 test('receipt-key collisions require confirmation before autosave can merge', () => {

@@ -29,6 +29,8 @@ type ReceiptLine = {
   expanded: boolean
   confirmingRemove: boolean
   itemMenuOpen: boolean
+  pendingItemCreation: string
+  itemBeforeCreation: string
   searchTerm: string
   suggestions: Suggestion[]
   request: number
@@ -83,6 +85,7 @@ const { apiUrl } = useApi()
 const saving = ref(false)
 const confirmingDelete = ref(false)
 const errorMessage = ref('')
+const receiptSessionMessage = ref('')
 const locationSuggestions = ref<Suggestion[]>([])
 const matchingReceipt = ref<MatchingReceipt | null>(null)
 const checkingReceiptMatch = ref(false)
@@ -122,7 +125,8 @@ function initialPurchasedOn() {
 function blankLine(): ReceiptLine {
   return {
     key: nextKey++, item: '', price: '', size: '', unit: '', saleItem: false,
-    nonGrocery: false, notes: '', expanded: false, confirmingRemove: false, itemMenuOpen: false, searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false
+    nonGrocery: false, notes: '', expanded: false, confirmingRemove: false, itemMenuOpen: false,
+    pendingItemCreation: '', itemBeforeCreation: '', searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false
   }
 }
 
@@ -146,6 +150,8 @@ function lineFromEntry(entry: EditableReceipt['entries'][number]): ReceiptLine {
     expanded: Boolean(entry.notes || entry.nonGrocery),
     confirmingRemove: false,
     itemMenuOpen: false,
+    pendingItemCreation: '',
+    itemBeforeCreation: '',
     searchTerm: '',
     suggestions: [],
     request: 0,
@@ -211,6 +217,15 @@ const storeError = computed(() => !form.location.trim() && enteredLines.value.le
   ? 'Select a store to save this receipt'
   : undefined)
 const receiptTotal = computed(() => completeLines.value.reduce((sum, line) => sum + Number(line.price), 0))
+const canSaveAndAddAnother = computed(() => (
+  enteredLines.value.length > 0
+  && incompleteLines.value.length === 0
+  && /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn)
+  && Boolean(form.location.trim())
+  && !saving.value
+  && !checkingReceiptMatch.value
+  && !pendingBackfill.value
+))
 const autosaveFailed = computed(() => Boolean(failedAutosaveKey.value) && failedAutosaveKey.value === autosaveAttemptKey())
 const autosaveStatus = computed(() => {
   if (saving.value) return 'Saving changes…'
@@ -396,6 +411,20 @@ function handleAddLineShortcut(event: KeyboardEvent) {
   addLine()
 }
 
+function handleAddReceiptShortcut(event: KeyboardEvent) {
+  if (
+    event.key !== 'Enter'
+    || !event.altKey
+    || (!event.metaKey && !event.ctrlKey)
+    || event.shiftKey
+    || event.repeat
+    || !canSaveAndAddAnother.value
+  ) return
+  event.preventDefault()
+  event.stopPropagation()
+  saveAndAddAnotherReceipt()
+}
+
 function handleCancelRemoveShortcut(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
   const line = form.lines.find(candidate => candidate.confirmingRemove)
@@ -411,6 +440,7 @@ onMounted(() => {
   loadLocations()
   window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('keydown', handleAddLineShortcut, { capture: true })
+  window.addEventListener('keydown', handleAddReceiptShortcut, { capture: true })
   window.addEventListener('keydown', handleCancelRemoveShortcut, { capture: true })
 })
 
@@ -418,6 +448,7 @@ onBeforeUnmount(() => {
   clearTimeout(autosaveTimer)
   window.removeEventListener('beforeunload', handleBeforeUnload)
   window.removeEventListener('keydown', handleAddLineShortcut, { capture: true })
+  window.removeEventListener('keydown', handleAddReceiptShortcut, { capture: true })
   window.removeEventListener('keydown', handleCancelRemoveShortcut, { capture: true })
   form.lines.forEach(line => clearTimeout(line.timer))
 })
@@ -451,10 +482,30 @@ function chooseItem(line: ReceiptLine, suggestion: Suggestion) {
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-price="${line.key}"]`)?.focus())
 }
 
-function createItem(line: ReceiptLine, value: string | { value: string }) {
-  line.item = (typeof value === 'string' ? value : value.value).trim()
+function requestCreateItem(line: ReceiptLine, value: string | { value: string }) {
+  const item = (typeof value === 'string' ? value : value.value).trim()
+  if (!item) return
+  line.itemBeforeCreation = line.item === item ? '' : line.item
+  line.pendingItemCreation = item
+  line.item = ''
   line.itemMenuOpen = false
+  requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-confirm-item="${line.key}"]`)?.focus())
+}
+
+function confirmCreateItem(line: ReceiptLine) {
+  line.item = line.pendingItemCreation
+  line.searchTerm = line.pendingItemCreation
+  line.pendingItemCreation = ''
+  line.itemBeforeCreation = ''
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-price="${line.key}"]`)?.focus())
+}
+
+function cancelCreateItem(line: ReceiptLine) {
+  line.item = line.itemBeforeCreation
+  line.searchTerm = line.itemBeforeCreation
+  line.pendingItemCreation = ''
+  line.itemBeforeCreation = ''
+  requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-line-item="${line.key}"]`)?.focus())
 }
 
 function closeItemMenu(line: ReceiptLine) {
@@ -673,12 +724,14 @@ async function loadCurrentReceiptSummary() {
 }
 
 async function saveCompletedRows() {
-  if (saving.value) return
+  if (saving.value) return false
   const rows = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
-  if (!rows.length || !/^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) || !form.location.trim()) return
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) || !form.location.trim()) return false
+  if (!rows.length) return Boolean(currentReceiptId.value) && !hasUnsavedChanges.value
 
   saving.value = true
   errorMessage.value = ''
+  let savedAllRows = true
   try {
     for (const line of rows) {
       const snapshot = lineSnapshot(line)
@@ -689,19 +742,49 @@ async function saveCompletedRows() {
       line.id = saved.id
       currentReceiptId.value = saved.receiptId
       savedLineSnapshots.set(line.key, snapshot)
-      if (!unitFieldIsFocused(line) && await offerItemBackfill(line)) break
+      if (!unitFieldIsFocused(line) && await offerItemBackfill(line)) {
+        savedAllRows = false
+        break
+      }
     }
 
     confirmedReceiptKey.value = { purchasedOn: form.purchasedOn, location: form.location }
     failedAutosaveKey.value = ''
     await loadCurrentReceiptSummary()
   } catch (error: any) {
+    savedAllRows = false
     failedAutosaveKey.value = autosaveAttemptKey()
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not save these changes'
   } finally {
     saving.value = false
     scheduleAutosave()
   }
+  return savedAllRows && rows.every(line => savedLineSnapshots.get(line.key) === lineSnapshot(line))
+}
+
+async function saveAndAddAnotherReceipt() {
+  if (!canSaveAndAddAnother.value) return
+  clearTimeout(autosaveTimer)
+  receiptSessionMessage.value = ''
+  await saveCompletedRows()
+  const hasUnpersistedRows = completeLines.value.some(line => (
+    !line.id || savedLineSnapshots.get(line.key) !== lineSnapshot(line)
+  ))
+  if (!currentReceiptId.value || pendingBackfill.value || hasUnpersistedRows) return
+
+  form.lines.forEach(line => clearTimeout(line.timer))
+  savedLineSnapshots.clear()
+  form.location = ''
+  form.lines = [blankLine()]
+  currentReceiptId.value = null
+  lastSavedSummary.value = null
+  confirmedReceiptKey.value = null
+  failedAutosaveKey.value = ''
+  errorMessage.value = ''
+  confirmingDelete.value = false
+  receiptSessionMessage.value = 'Receipt saved. Ready for another receipt.'
+  await nextTick()
+  document.querySelector<HTMLInputElement>('[data-receipt-store]')?.focus()
 }
 
 async function removeLine(line: ReceiptLine) {
@@ -785,10 +868,12 @@ async function deleteReceipt() {
           <UInput v-model="form.purchasedOn" type="date" required size="lg" />
         </UFormField>
         <UFormField label="Store" name="location" required class="field receipt-store-field" :error="storeError">
-          <UInputMenu v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" @create="createLocation" />
+          <UInputMenu v-model="form.location" data-receipt-store :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" @create="createLocation" />
         </UFormField>
       </div>
     </header>
+
+    <p v-if="receiptSessionMessage" class="sr-only" role="status" aria-live="polite">{{ receiptSessionMessage }}</p>
 
     <div v-if="canEnterLines" class="receipt-line-labels">
       <span>Item</span><span>Price</span><span>Size</span><span>Unit</span><span>Options</span>
@@ -800,6 +885,7 @@ async function deleteReceipt() {
             <p><kbd>Enter</kbd> accepts an item, then moves through Price, Size, and Unit. From Unit, it starts the next row.</p>
             <p><kbd>Tab</kbd> from Unit moves through Sale and Details. Expanded details are included before the next row.</p>
             <p><kbd>⌘ Shift Enter</kbd> on Mac or <kbd>Ctrl Shift Enter</kbd> elsewhere adds or moves to a new item row.</p>
+            <p><kbd>⌘ Option Enter</kbd> on Mac or <kbd>Ctrl Alt Enter</kbd> elsewhere saves the receipt and starts another.</p>
             <p><kbd>⌘ Enter</kbd> on Mac or <kbd>Ctrl Enter</kbd> elsewhere finishes the row from any field.</p>
             <p>Item and Price are required. Size and Unit are optional.</p>
           </div>
@@ -823,7 +909,7 @@ async function deleteReceipt() {
             ignore-filter
             placeholder="Start typing an item…"
             @update:search-term="searchItems(line, $event)"
-            @create="createItem(line, $event)"
+            @create="requestCreateItem(line, $event)"
             @keydown.meta.enter.exact.prevent="finishLine(line)"
             @keydown.ctrl.enter.exact.prevent="finishLine(line)"
           />
@@ -855,6 +941,11 @@ async function deleteReceipt() {
           <UButton type="button" :data-line-details="line.key" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @keydown.tab.exact.prevent="advanceFromLineDetails(line)" @click="line.expanded = !line.expanded" />
         </div>
         <UButton class="receipt-line-remove" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" :disabled="saving" @click="requestRemoveLine(line)" />
+        <div v-if="line.pendingItemCreation" class="receipt-item-create-confirmation" role="alert">
+          <span>Create <strong>“{{ line.pendingItemCreation }}”</strong> as a new item?</span>
+          <UButton type="button" label="Cancel" color="neutral" variant="outline" @click="cancelCreateItem(line)" />
+          <UButton type="button" :data-confirm-item="line.key" label="Create item" icon="i-lucide-plus" @click="confirmCreateItem(line)" />
+        </div>
         <div v-if="line.expanded" class="receipt-line-details">
           <UFormField label="Notes" :name="`notes-${line.key}`" class="field">
             <UInput :data-line-notes="line.key" v-model="line.notes" placeholder="Optional note" @keydown.tab.exact.prevent="focusLineNonGrocery(line)" />
@@ -890,6 +981,7 @@ async function deleteReceipt() {
         <UButton v-if="hasReceipt" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
         <UButton v-if="hasReceipt" type="button" label="Export receipt" icon="i-lucide-download" color="neutral" variant="outline" :disabled="saving || !completeLines.length" @click="exportReceiptCsv" />
         <span v-if="hasReceipt" class="spacer" />
+        <UButton type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
         <div class="receipt-autosave-status" role="status" aria-live="polite">
           <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ spinning: saving || checkingReceiptMatch }" aria-hidden="true" />
           <span>{{ autosaveStatus }}</span>
