@@ -13,11 +13,16 @@ test('the Manage section uses the standard desktop content width', () => {
 
 test('the Manage section exposes a duplicate item review editor', () => {
   assert.match(managePage, /label="Items"/)
-  assert.match(managePage, /<h2>Review item names<\/h2>/)
+  assert.match(managePage, /<h2>Edit item history<\/h2>/)
   assert.match(managePage, /label="Merge variants"/)
   assert.match(managePage, /label="Hide suggestion"/)
   assert.match(managePage, /label="Unhide"/)
-  assert.match(managePage, /label="Rename all instances"/)
+  assert.match(managePage, /Also update package quantity and unit/)
+  assert.match(managePage, /New quantity/)
+  assert.match(managePage, /All entries for this item/)
+  assert.match(managePage, /v-if="dimensionScope === 'variant'"/)
+  assert.match(managePage, /<UnitInput v-model="replacementUnit"/)
+  assert.match(managePage, /apiUrl\('\/items\/dimensions'\)/)
   assert.match(managePage, /<USelectMenu/)
   assert.match(managePage, /:search-input="\{ placeholder: 'Search items…' \}"/)
   assert.match(managePage, /value-key="value"/)
@@ -27,8 +32,8 @@ test('the Manage section exposes a duplicate item review editor', () => {
   assert.match(managePage, /method: 'PATCH', body: \{ id: group\.id, hidden \}/)
   assert.match(managePage, /!duplicateItems\?\.groups\.length && !duplicateItems\?\.hiddenGroups\.length/)
   assert.match(stylesheet, /\.item-duplicate-list/)
-  assert.match(stylesheet, /\.item-rename > \[data-slot="base"\] \{ min-height: 52px; \}/)
-  assert.match(stylesheet, /\.item-rename \.field > \[data-slot="base"\] \{ min-height: 52px; \}/)
+  assert.match(stylesheet, /\.item-history-editor/)
+  assert.match(stylesheet, /\.item-package-editor/)
 })
 
 test('duplicate item suggestions load only after opening Items', () => {

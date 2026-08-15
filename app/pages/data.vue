@@ -21,6 +21,7 @@ type Store = { id: string, name: string, uses: number }
 type ItemVariant = { name: string, uses: number, lastUsed: string }
 type ItemDuplicateGroup = { id: string, variants: ItemVariant[], preferredTarget: string, reasons: string[] }
 type ItemReview = { items: ItemVariant[], groups: ItemDuplicateGroup[], hiddenGroups: ItemDuplicateGroup[] }
+type DimensionVariant = { size: string | null, unit: string | null, uses: number }
 
 const { apiUrl } = useApi()
 const file = ref<File | null>(null)
@@ -53,6 +54,13 @@ const showHiddenItemGroups = ref(false)
 const renameItemSource = ref('')
 const renameItemTarget = ref('')
 const itemRenameBusy = ref(false)
+const itemDimensions = ref<DimensionVariant[]>([])
+const itemDimensionsPending = ref(false)
+const editPackageDetails = ref(false)
+const dimensionScope = ref('')
+const dimensionVariant = ref('')
+const replacementSize = ref('')
+const replacementUnit = ref('')
 const visibleItemGroupCount = ref(30)
 const resetConfirmation = ref('')
 const resetConfirming = ref(false)
@@ -66,6 +74,43 @@ const renameItemOptions = computed(() => (duplicateItems.value?.items || []).map
   description: `${item.uses} ${item.uses === 1 ? 'entry' : 'entries'}`,
   value: item.name
 })))
+const selectedItemUses = computed(() => duplicateItems.value?.items.find(item => item.name === renameItemSource.value)?.uses || 0)
+const dimensionScopeOptions = computed(() => [
+  { label: 'One existing package variant', description: 'Update only entries with a specific quantity and unit.', value: 'variant' },
+  { label: 'Any missing package detail', description: `${missingDimensionUses.value} matching ${missingDimensionUses.value === 1 ? 'entry' : 'entries'}`, value: 'missing' },
+  { label: 'All entries for this item', description: `${selectedItemUses.value} matching ${selectedItemUses.value === 1 ? 'entry' : 'entries'}`, value: 'all' }
+])
+const dimensionVariantOptions = computed(() => itemDimensions.value.map((variant, index) => ({
+    label: packageVariantLabel(variant),
+    description: `${variant.uses} ${variant.uses === 1 ? 'entry' : 'entries'}`,
+    value: `variant:${index}`
+  })))
+const missingDimensionUses = computed(() => itemDimensions.value.filter(variant => variant.size === null || variant.unit === null).reduce((total, variant) => total + variant.uses, 0))
+const selectedDimensionVariant = computed(() => {
+  if (!dimensionVariant.value.startsWith('variant:')) return null
+  return itemDimensions.value[Number(dimensionVariant.value.slice(8))] || null
+})
+const packageUpdateCount = computed(() => {
+  if (dimensionScope.value === 'all') return selectedItemUses.value
+  if (dimensionScope.value === 'missing') return missingDimensionUses.value
+  if (dimensionScope.value === 'variant') return selectedDimensionVariant.value?.uses || 0
+  return 0
+})
+const nameWillChange = computed(() => Boolean(renameItemSource.value && renameItemTarget.value.trim() !== renameItemSource.value))
+const packageWillChange = computed(() => editPackageDetails.value && Boolean(dimensionScope.value && Number(replacementSize.value) > 0 && replacementUnit.value.trim() && packageUpdateCount.value))
+const itemEditButtonLabel = computed(() => {
+  if (nameWillChange.value && packageWillChange.value) return `Rename ${selectedItemUses.value} and update ${packageUpdateCount.value} entries`
+  if (nameWillChange.value) return `Rename ${selectedItemUses.value} ${selectedItemUses.value === 1 ? 'entry' : 'entries'}`
+  if (packageWillChange.value) return `Update ${packageUpdateCount.value} ${packageUpdateCount.value === 1 ? 'entry' : 'entries'}`
+  return 'Update item history'
+})
+
+function packageVariantLabel(variant: DimensionVariant) {
+  if (variant.size === null && variant.unit === null) return 'Package details missing'
+  if (variant.size === null) return `Quantity missing · ${variant.unit}`
+  if (variant.unit === null) return `${Number(variant.size).toLocaleString()} · unit missing`
+  return `${Number(variant.size).toLocaleString()} ${variant.unit}`
+}
 
 watch(duplicateItems, (value) => {
   for (const group of value?.groups || []) {
@@ -198,22 +243,60 @@ async function setItemGroupHidden(group: ItemDuplicateGroup, hidden: boolean) {
   }
 }
 
-watch(renameItemSource, source => renameItemTarget.value = source)
+watch(renameItemSource, async (source) => {
+  renameItemTarget.value = source
+  itemDimensions.value = []
+  editPackageDetails.value = false
+  dimensionScope.value = ''
+  dimensionVariant.value = ''
+  replacementSize.value = ''
+  replacementUnit.value = ''
+  if (!source) return
+  itemDimensionsPending.value = true
+  try {
+    itemDimensions.value = await $fetch<DimensionVariant[]>(apiUrl('/items/dimensions'), { query: { item: source } })
+  } catch (error: any) {
+    itemMergeError.value = storeErrorMessage(error, 'Could not load package details for this item')
+  } finally {
+    itemDimensionsPending.value = false
+  }
+})
+
+watch(selectedDimensionVariant, (variant) => {
+  if (!variant) return
+  replacementSize.value = variant.size ?? ''
+  replacementUnit.value = variant.unit ?? ''
+})
 
 async function renameItem() {
   const source = renameItemSource.value
   const target = renameItemTarget.value.trim()
-  if (!source || !target || source === target) return
+  if (!source || !target || (!nameWillChange.value && !packageWillChange.value)) return
   const uses = duplicateItems.value?.items.find(item => item.name === source)?.uses || 0
-  if (!confirm(`Rename all ${uses} ${uses === 1 ? 'instance' : 'instances'} of “${source}” to “${target}”?`)) return
+  const changes = [
+    nameWillChange.value ? `rename all ${uses} ${uses === 1 ? 'instance' : 'instances'} of “${source}” to “${target}”` : '',
+    packageWillChange.value ? `change ${packageUpdateCount.value} matching ${packageUpdateCount.value === 1 ? 'entry' : 'entries'} to ${replacementSize.value} ${replacementUnit.value.trim()}` : ''
+  ].filter(Boolean).join(' and ')
+  if (!confirm(`This will ${changes}. Continue?`)) return
   itemRenameBusy.value = true
   itemMergeError.value = ''
   itemMergeNotice.value = ''
   try {
-    const result = await $fetch<{ target: string, renamedEntries: number }>(apiUrl('/items/rename'), {
-      method: 'PATCH', body: { source, target }
+    const variant = selectedDimensionVariant.value
+    const dimensions = packageWillChange.value ? {
+      scope: dimensionScope.value,
+      matchSize: variant?.size === null ? null : variant?.size,
+      matchUnit: variant?.unit ?? null,
+      size: replacementSize.value,
+      unit: replacementUnit.value
+    } : undefined
+    const result = await $fetch<{ target: string, renamedEntries: number, updatedEntries: number }>(apiUrl('/items/rename'), {
+      method: 'PATCH', body: { source, target, dimensions }
     })
-    itemMergeNotice.value = `${result.renamedEntries} ${result.renamedEntries === 1 ? 'entry was' : 'entries were'} renamed to ${result.target}.`
+    itemMergeNotice.value = [
+      result.renamedEntries ? `${result.renamedEntries} ${result.renamedEntries === 1 ? 'entry was' : 'entries were'} renamed to ${result.target}` : '',
+      result.updatedEntries ? `${result.updatedEntries} ${result.updatedEntries === 1 ? 'entry was' : 'entries were'} updated to ${replacementSize.value} ${replacementUnit.value.trim()}` : ''
+    ].filter(Boolean).join('; ') + '.'
     renameItemSource.value = ''
     renameItemTarget.value = ''
     await refreshDuplicateItems()
@@ -507,12 +590,12 @@ async function exportXlsx() {
     <UCard v-else-if="activeSection === 'items'" class="data-card item-editor-card" :ui="{ body: 'contents' }">
       <div class="data-icon" aria-hidden="true"><UIcon name="i-lucide-package-search" /></div>
       <div>
-        <h2>Review item names</h2>
-        <p>Rename an item everywhere, or review likely duplicates and choose the name to keep.</p>
+        <h2>Edit item history</h2>
+        <p>Rename an item everywhere and, when needed, update package details for only the matching entries.</p>
 
-        <form class="item-rename" @submit.prevent="renameItem">
+        <form class="item-history-editor" @submit.prevent="renameItem">
           <label class="field">
-            <span>Item to rename</span>
+            <span>Item to edit</span>
             <USelectMenu
               v-model="renameItemSource"
               :items="renameItemOptions"
@@ -526,11 +609,68 @@ async function exportXlsx() {
             />
           </label>
           <label class="field">
-            <span>New name</span>
-            <input v-model="renameItemTarget" aria-label="New item name" :disabled="!renameItemSource">
+            <span>Item name</span>
+            <UInput v-model="renameItemTarget" aria-label="Item name" :disabled="!renameItemSource" size="xl" />
           </label>
-          <UButton type="submit" label="Rename all instances" icon="i-lucide-pencil" :loading="itemRenameBusy" :disabled="!renameItemSource || !renameItemTarget.trim() || renameItemSource === renameItemTarget.trim()" />
+
+          <div v-if="renameItemSource" class="item-package-toggle">
+            <UCheckbox v-model="editPackageDetails" label="Also update package quantity and unit" description="Choose exactly which historical package variant should change." />
+          </div>
+
+          <div v-if="editPackageDetails" class="item-package-editor">
+            <label class="field">
+              <span>Update scope</span>
+              <USelectMenu
+                v-model="dimensionScope"
+                :items="dimensionScopeOptions"
+                value-key="value"
+                label-key="label"
+                description-key="description"
+                placeholder="Choose which entries to update"
+                :loading="itemDimensionsPending"
+                size="xl"
+              />
+            </label>
+            <label v-if="dimensionScope === 'variant'" class="field">
+              <span>Existing package variant</span>
+              <USelectMenu
+                v-model="dimensionVariant"
+                :items="dimensionVariantOptions"
+                value-key="value"
+                label-key="label"
+                description-key="description"
+                placeholder="Choose quantity and unit"
+                :loading="itemDimensionsPending"
+                size="xl"
+              />
+            </label>
+            <label class="field">
+              <span>New quantity</span>
+              <UInput v-model="replacementSize" type="number" min="0.001" step="any" inputmode="decimal" placeholder="5" size="xl" />
+            </label>
+            <UFormField label="New unit" class="field">
+              <UnitInput v-model="replacementUnit" />
+            </UFormField>
+          </div>
+
+          <div v-if="nameWillChange || packageWillChange" class="item-edit-preview">
+            <UIcon name="i-lucide-list-checks" />
+            <div>
+              <strong>Review this change</strong>
+              <span v-if="nameWillChange">Rename all {{ selectedItemUses }} {{ selectedItemUses === 1 ? 'entry' : 'entries' }} from “{{ renameItemSource }}” to “{{ renameItemTarget.trim() }}”.</span>
+              <span v-if="packageWillChange">Change {{ packageUpdateCount }} matching {{ packageUpdateCount === 1 ? 'entry' : 'entries' }} to {{ replacementSize }} {{ replacementUnit.trim() }}. Normalized prices will be recalculated.</span>
+            </div>
+          </div>
+
+          <div class="item-edit-action">
+            <UButton type="submit" :label="itemEditButtonLabel" icon="i-lucide-pencil" :loading="itemRenameBusy" :disabled="!renameItemSource || !renameItemTarget.trim() || (!nameWillChange && !packageWillChange)" />
+          </div>
         </form>
+
+        <div class="item-review-heading">
+          <h3>Review likely duplicate names</h3>
+          <p>Choose the name to keep for each suggested group.</p>
+        </div>
 
         <UAlert v-if="itemMergeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="itemMergeError" class="notice" />
         <UAlert v-if="itemMergeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="itemMergeNotice" class="notice" />
