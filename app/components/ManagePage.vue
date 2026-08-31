@@ -24,10 +24,20 @@ type ItemReview = { items: ItemVariant[], groups: ItemDuplicateGroup[], hiddenGr
 type DimensionVariant = { size: string | null, unit: string | null, uses: number }
 
 const { apiUrl } = useApi()
+const route = useRoute()
 const file = ref<File | null>(null)
 const importing = ref(false)
 const exporting = ref<'csv' | 'xlsx' | null>(null)
-const activeSection = ref<'stores' | 'items' | 'transfer' | 'maintenance'>('stores')
+type ManageSection = 'stores' | 'items' | 'transfer' | 'maintenance'
+const activeSection = computed<ManageSection>(() => {
+  switch (String(route.params.section || 'stores')) {
+    case 'items': return 'items'
+    case 'import-export':
+    case 'transfer': return 'transfer'
+    case 'maintenance': return 'maintenance'
+    default: return 'stores'
+  }
+})
 const result = ref<{ imported: number, skipped: number, errors: string[] } | null>(null)
 const errorMessage = ref('')
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
@@ -120,12 +130,11 @@ watch(duplicateItems, (value) => {
   }
 }, { immediate: true })
 
-function selectManageSection(section: typeof activeSection.value) {
-  activeSection.value = section
+watch(activeSection, (section) => {
   if (section === 'items' && duplicateItemsStatus.value === 'idle') {
     void loadDuplicateItems()
   }
-}
+}, { immediate: true })
 
 function storeErrorMessage(error: any, fallback: string) {
   return error?.data?.statusMessage || error?.statusMessage || error?.message || fallback
@@ -507,52 +516,48 @@ async function exportXlsx() {
 </script>
 
 <template>
-  <div class="content-page">
-    <header class="page-heading">
-      <p class="eyebrow">Receipt Box settings</p>
+  <div class="w-full max-w-[1200px] mx-auto">
+    <header class="page-heading my-[15px] mb-8">
+      <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Receipt Box settings</p>
       <h1>Manage Receipt Box</h1>
     </header>
 
     <nav class="manage-sections" aria-label="Receipt Box management sections">
       <UButton
-        type="button"
+        to="/data/stores"
         label="Stores"
         icon="i-lucide-store"
         size="lg"
         :variant="activeSection === 'stores' ? 'solid' : 'ghost'"
         :color="activeSection === 'stores' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'stores' ? 'page' : undefined"
-        @click="activeSection = 'stores'"
       />
       <UButton
-        type="button"
+        to="/data/items"
         label="Items"
         icon="i-lucide-package-search"
         size="lg"
         :variant="activeSection === 'items' ? 'solid' : 'ghost'"
         :color="activeSection === 'items' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'items' ? 'page' : undefined"
-        @click="selectManageSection('items')"
       />
       <UButton
-        type="button"
+        to="/data/import-export"
         label="Import & export"
         icon="i-lucide-arrow-left-right"
         size="lg"
         :variant="activeSection === 'transfer' ? 'solid' : 'ghost'"
         :color="activeSection === 'transfer' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'transfer' ? 'page' : undefined"
-        @click="activeSection = 'transfer'"
       />
       <UButton
-        type="button"
+        to="/data/maintenance"
         label="Maintenance"
         icon="i-lucide-wrench"
         size="lg"
         :variant="activeSection === 'maintenance' ? 'solid' : 'ghost'"
         :color="activeSection === 'maintenance' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'maintenance' ? 'page' : undefined"
-        @click="activeSection = 'maintenance'"
       />
     </nav>
 

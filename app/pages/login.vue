@@ -12,7 +12,7 @@ if (!enabled.value || loggedIn.value) await navigateTo('/')
 <template>
   <section class="login-panel">
     <UIcon name="i-lucide-lock-keyhole" class="login-icon" aria-hidden="true" />
-    <p class="eyebrow">Private application</p>
+    <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Private application</p>
     <h1>Sign in to Receipt Box</h1>
     <p>Continue through your organization’s identity provider.</p>
     <p v-if="route.query.error === 'oidc'" class="notice error" role="alert">

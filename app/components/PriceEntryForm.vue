@@ -170,7 +170,7 @@ async function save() {
   <UForm :state="form" class="entry-form" @submit="save">
     <div class="form-heading">
       <div>
-        <p class="eyebrow">New price</p>
+        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">New price</p>
         <h1>Add a purchase</h1>
       </div>
       <UFormField label="Date" name="purchasedOn" required class="date-field">
@@ -203,7 +203,7 @@ async function save() {
       <span v-if="selectedHistory.lastUsed"> on {{ String(selectedHistory.lastUsed).slice(0, 10) }}</span>.
     </p>
 
-    <div class="form-grid two-up">
+    <div class="form-grid grid gap-4 mt-5 grid-cols-2">
       <UFormField label="Store" name="location" required class="field">
         <UInputMenu id="location" v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required />
       </UFormField>
@@ -212,7 +212,7 @@ async function save() {
       </UFormField>
     </div>
 
-    <div class="form-grid size-grid">
+    <div class="form-grid grid gap-4 mt-5 size-grid">
       <UFormField label="Package size" name="size" class="field">
         <UInput id="size" v-model="form.size" type="number" min="0" step="any" inputmode="decimal" />
       </UFormField>
@@ -233,7 +233,7 @@ async function save() {
     <UCollapsible class="more-fields">
       <UButton class="touch-target" label="More details" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" size="sm" />
       <template #content>
-        <div class="form-grid details-grid">
+        <div class="form-grid grid gap-4 mt-5 details-grid">
           <UFormField label="Notes" name="notes" class="field">
             <UInput id="notes" v-model="form.notes" type="text" placeholder="Optional" />
           </UFormField>

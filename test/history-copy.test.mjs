@@ -2,14 +2,23 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 
-const page = await readFile(new URL('../app/pages/history.vue', import.meta.url), 'utf8')
+const page = await readFile(new URL('../app/components/HistoryPage.vue', import.meta.url), 'utf8')
+const indexRoute = await readFile(new URL('../app/pages/history/index.vue', import.meta.url), 'utf8')
+const viewRoute = await readFile(new URL('../app/pages/history/[...view].vue', import.meta.url), 'utf8')
+const middleware = await readFile(new URL('../app/middleware/history.ts', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('History keeps its page heading stable across views', () => {
-  assert.match(page, /<p class="eyebrow">Purchase records<\/p>/)
+  assert.match(page, /Purchase records<\/p>/)
   assert.match(page, /<h1>History<\/h1>/)
   assert.match(page, /<p>Browse receipts or individual purchase entries\.<\/p>/)
-  assert.match(page, /class="history-view-summary" aria-live="polite"/)
+  assert.match(page, /class="page-heading my-\[15px\] mb-8 history-heading">[\s\S]*class="history-view-switcher" aria-label="History view"/)
+  assert.doesNotMatch(page, /history-view-summary/)
+  assert.match(viewRoute, /middleware: 'history'/)
+  assert.match(middleware, /to\.path === '\/history'/)
+  assert.match(middleware, /entries.*receipts\/calendar.*receipts\/list/s)
+  assert.match(page, /to="\/history\/receipts\/calendar"/)
+  assert.match(page, /to="\/history\/entries"/)
   assert.match(page, /label="Calendar" icon="i-lucide-calendar-days"/)
   assert.match(page, /label="List" icon="i-lucide-list"/)
   assert.match(page, /<th scope="col">Date<\/th><th scope="col">Store<\/th><th scope="col">Items<\/th><th scope="col">Total<\/th>/)

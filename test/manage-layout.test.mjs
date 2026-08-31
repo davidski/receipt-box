@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const managePage = await readFile(new URL('../app/pages/data.vue', import.meta.url), 'utf8')
+const managePage = await readFile(new URL('../app/components/ManagePage.vue', import.meta.url), 'utf8')
+const manageRoute = await readFile(new URL('../app/pages/data/[section].vue', import.meta.url), 'utf8')
+const manageMiddleware = await readFile(new URL('../app/middleware/manage.ts', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('the Manage section uses the standard desktop content width', () => {
-  assert.match(managePage, /<div class="content-page">/)
+  assert.match(managePage, /<div class="w-full max-w-\[1200px\] mx-auto">/)
   assert.doesNotMatch(managePage, /narrow-page/)
-  assert.match(stylesheet, /\.content-page \{ width: min\(1200px, 100%\); margin: 0 auto; \}/)
 })
 
 test('the Manage section exposes a duplicate item review editor', () => {
@@ -39,5 +40,9 @@ test('the Manage section exposes a duplicate item review editor', () => {
 test('duplicate item suggestions load only after opening Items', () => {
   assert.match(managePage, /\{ immediate: false, server: false \}/)
   assert.match(managePage, /duplicateItemsStatus\.value === 'idle'/)
-  assert.match(managePage, /@click="selectManageSection\('items'\)"/)
+  assert.match(managePage, /to="\/data\/items"/)
+  assert.match(managePage, /to="\/data\/import-export"/)
+  assert.match(managePage, /to="\/data\/maintenance"/)
+  assert.match(manageRoute, /middleware: 'manage'/)
+  assert.match(manageMiddleware, /import-export.*transfer.*maintenance/)
 })

@@ -317,10 +317,10 @@ function unitCurrency(value: number) {
 </script>
 
 <template>
-  <div class="content-page highlights-page">
-    <header class="page-heading highlights-heading">
+  <div class="w-full max-w-[1200px] mx-auto highlights-page">
+    <header class="page-heading my-[15px] mb-8 highlights-heading">
       <div>
-        <p class="eyebrow">At a glance</p>
+        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">At a glance</p>
         <h1>Price highlights</h1>
         <p>Recent activity and notable price movement.</p>
       </div>
@@ -331,8 +331,8 @@ function unitCurrency(value: number) {
       </div>
     </header>
 
-    <div v-if="pending" class="empty-state">Loading highlights…</div>
-    <div v-else-if="error" class="empty-state error-state">
+    <div v-if="pending" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Loading highlights…</div>
+    <div v-else-if="error" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)] error-state">
       <strong>Could not load highlights</strong>
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
@@ -350,7 +350,7 @@ function unitCurrency(value: number) {
       <UCard class="price-index-panel highlight-panel">
         <div class="monthly-spend-heading">
           <div>
-            <p class="eyebrow">Same-item prices</p>
+            <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Same-item prices</p>
             <div class="price-index-title">
               <h2>Regular purchase price index</h2>
               <UPopover>
@@ -395,7 +395,7 @@ function unitCurrency(value: number) {
 
       <UCard class="monthly-spend-panel highlight-panel">
         <div class="monthly-spend-heading">
-          <div><p class="eyebrow">Monthly spending</p><h2>Purchases by month</h2></div>
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Monthly spending</p><h2>Purchases by month</h2></div>
         </div>
         <div v-if="monthlySpendChart" ref="monthlySpendContainer" class="monthly-spend-scroll">
           <svg
@@ -457,9 +457,9 @@ function unitCurrency(value: number) {
       </UCard>
 
       <UCard class="core-items-panel highlight-panel" aria-labelledby="core-items-heading">
-        <div class="section-heading core-items-heading">
+        <div class="flex items-end justify-between gap-5 pb-5 mb-2 core-items-heading">
           <div>
-            <p class="eyebrow">Regular purchases</p>
+            <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Regular purchases</p>
             <h2 id="core-items-heading">Core item price stability</h2>
             <p>Items bought on 3+ receipts across 2+ months; velocity compares non-sale prices.</p>
           </div>
@@ -505,9 +505,9 @@ function unitCurrency(value: number) {
       </UCard>
 
       <UCard class="shrinkflation-panel highlight-panel" aria-labelledby="shrinkflation-heading">
-        <div class="section-heading core-items-heading">
+        <div class="flex items-end justify-between gap-5 pb-5 mb-2 core-items-heading">
           <div>
-            <p class="eyebrow">Package changes</p>
+            <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Package changes</p>
             <h2 id="shrinkflation-heading">Possible shrinkflation</h2>
             <p>Smaller packaged goods whose shelf price stayed the same or increased. Variable-weight and per-item purchases are excluded.</p>
           </div>
@@ -543,8 +543,8 @@ function unitCurrency(value: number) {
 
       <div class="highlights-grid">
         <UCard class="highlight-panel movers-panel" aria-labelledby="movers-heading">
-            <div class="section-heading">
-              <div><p class="eyebrow">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
+            <div class="flex items-end justify-between gap-5 pb-5 mb-2">
+              <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
             </div>
             <div v-if="data.movers.length" class="movers-table-wrap">
               <table class="movers-table text-sm [&_th]:text-[11px]">
@@ -577,9 +577,9 @@ function unitCurrency(value: number) {
         </UCard>
 
         <UCard class="highlight-panel stores-panel">
-            <div class="section-heading">
-              <div><p class="eyebrow">Highest spending</p><h2>Top stores</h2></div>
-              <UButton to="/data" label="Manage stores" icon="i-lucide-settings-2" color="neutral" variant="outline" size="sm" />
+            <div class="flex items-end justify-between gap-5 pb-5 mb-2">
+              <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Highest spending</p><h2>Top stores</h2></div>
+              <UButton to="/data/stores" label="Manage stores" icon="i-lucide-settings-2" color="neutral" variant="outline" size="sm" />
             </div>
             <ul v-if="data.topStores.length" class="store-rank-list">
               <li v-for="store in data.topStores" :key="store.name">

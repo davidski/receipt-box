@@ -859,7 +859,7 @@ async function deleteReceipt() {
   <form class="receipt-entry-form" @submit.prevent>
     <header class="receipt-entry-heading">
       <div>
-        <p class="eyebrow">Shopping trip editor</p>
+        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Shopping trip editor</p>
         <h1>Add or edit a receipt</h1>
         <p>Select an existing date and store to edit.</p>
       </div>
@@ -980,7 +980,7 @@ async function deleteReceipt() {
       <template v-else>
         <UButton v-if="hasReceipt" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
         <UButton v-if="hasReceipt" type="button" label="Export receipt" icon="i-lucide-download" color="neutral" variant="outline" :disabled="saving || !completeLines.length" @click="exportReceiptCsv" />
-        <span v-if="hasReceipt" class="spacer" />
+        <span v-if="hasReceipt" class="flex-1" />
         <UButton type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
         <div class="receipt-autosave-status" role="status" aria-live="polite">
           <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ spinning: saving || checkingReceiptMatch }" aria-hidden="true" />

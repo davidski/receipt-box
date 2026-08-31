@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 const form = await readFile(new URL('../app/components/ReceiptEntryForm.vue', import.meta.url), 'utf8')
-const history = await readFile(new URL('../app/pages/history.vue', import.meta.url), 'utf8')
+const history = await readFile(new URL('../app/components/HistoryPage.vue', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 const header = await readFile(new URL('../app/components/AppHeader.vue', import.meta.url), 'utf8')
 const matchApi = await readFile(new URL('../server/api/receipts/match.get.ts', import.meta.url), 'utf8')

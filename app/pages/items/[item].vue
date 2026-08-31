@@ -201,18 +201,18 @@ function packageLabel(entry: HistoryEntry) {
 </script>
 
 <template>
-  <div class="content-page item-history-page">
-    <header class="page-heading item-history-heading">
+  <div class="w-full max-w-[1200px] mx-auto item-history-page">
+    <header class="page-heading my-[15px] mb-8 item-history-heading">
       <div>
-        <p class="eyebrow">Normalized price history</p>
+        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Normalized price history</p>
         <h1>{{ data?.item || routeItem }}</h1>
         <p v-if="data">{{ data.entries.length.toLocaleString() }} recorded {{ data.entries.length === 1 ? 'purchase' : 'purchases' }}</p>
       </div>
-      <UButton to="/history" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
+      <UButton to="/history/receipts/calendar" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
     </header>
 
-    <div v-if="pending" class="empty-state">Loading item history…</div>
-    <div v-else-if="error" class="empty-state error-state">
+    <div v-if="pending" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Loading item history…</div>
+    <div v-else-if="error" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)] error-state">
       <strong>Could not load this item’s history</strong>
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
@@ -248,7 +248,7 @@ function packageLabel(entry: HistoryEntry) {
 
       <UCard v-if="chart" class="price-chart-card">
         <div class="chart-heading">
-          <div><p class="eyebrow">Price trend</p><h2>{{ visiblePoints[0]?.basisLabel }}</h2></div>
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Price trend</p><h2>{{ visiblePoints[0]?.basisLabel }}</h2></div>
           <div class="chart-legend"><span><i />Regular</span><span><i class="sale" />Sale</span></div>
         </div>
         <div v-if="chartPoints.length < 2" class="chart-empty">Add another comparable purchase to draw a trend line.</div>
@@ -296,7 +296,7 @@ function packageLabel(entry: HistoryEntry) {
       </UCard>
 
       <UCard class="item-purchases-card">
-        <div class="section-heading"><div><p class="eyebrow">Source purchases</p><h2>Comparable history</h2></div></div>
+        <div class="flex items-end justify-between gap-5 pb-5 mb-2"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Source purchases</p><h2>Comparable history</h2></div></div>
         <div v-if="!newestFirst.length" class="chart-empty">No entries have enough information to calculate a normalized price.</div>
         <div v-else class="item-purchases-table-wrap">
           <table class="item-purchases-table">
@@ -310,7 +310,7 @@ function packageLabel(entry: HistoryEntry) {
                 <td data-label="Normalized"><strong>{{ currency(point.normalizedPrice) }}</strong> <span>{{ point.basisLabel }}</span></td>
                 <td class="item-purchase-action">
                   <UButton
-                    :to="{ path: '/history', query: { edit: point.id } }"
+                    :to="{ path: '/history/entries', query: { edit: point.id } }"
                     label="Edit"
                     icon="i-lucide-pencil"
                     color="neutral"
