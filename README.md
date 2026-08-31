@@ -8,9 +8,9 @@ Receipt Box is a vibe-coded personal project, developed iteratively with AI assi
 
 ## Overview
 
-The interface is a client-rendered Nuxt application built with Nuxt UI. Its route shells and assets are generated as static files at build time, so opening or navigating between pages does not invoke PostgreSQL or server-side rendering.
+The interface is a client-rendered Nuxt application built with Nuxt UI.
 
-A small Nitro API handles only the operations that require the server:
+A small Nitro API handles data server operations:
 
 - entry list, create, edit, and delete
 - item, store, and unit suggestions
@@ -101,7 +101,7 @@ The production Compose file does not publish a host port. It joins an existing e
 
 ### Optional OIDC authentication
 
-Receipt Box can require authentication from an OpenID Connect provider such as authentik. OIDC is optional and disabled by default; the same container image can be switched between modes at runtime.
+Receipt Box can require authentication from an OpenID Connect provider such as Pocket ID. OIDC is optional and disabled by default; the same container image can be switched between modes at runtime.
 
 Set these variables on the application container:
 
@@ -111,12 +111,12 @@ NUXT_SESSION_PASSWORD=replace-with-at-least-32-random-characters
 NUXT_OAUTH_OIDC_CLIENT_ID=receipt-box
 NUXT_OAUTH_OIDC_CLIENT_SECRET=replace-with-the-oidc-client-secret
 NUXT_OAUTH_OIDC_OPENID_CONFIG=https://auth.example.com/application/o/receipt-box/.well-known/openid-configuration
-NUXT_OAUTH_OIDC_REDIRECT_URL=https://pricebook.example.com/pricebook/auth/oidc
+NUXT_OAUTH_OIDC_REDIRECT_URL=https://receiptbox.example.com/receiptbox/auth/oidc
 ```
 
-Register the exact redirect URL with the OIDC provider. For authentik's default per-provider issuer mode, the discovery URL contains the application slug as shown above. Receipt Box requests the `openid`, `profile`, and `email` scopes.
+Register the exact redirect URL with the OIDC provider. Receipt Box requests the `openid`, `profile`, and `email` scopes.
 
-When OIDC mode is enabled, all Receipt Box data API routes require a sealed application session. The OIDC callback, session-management endpoint, authentication-status endpoint, and `/api/health` remain unauthenticated so login, logout, and container health checks can function. Protect the entire public `/pricebook` prefix at the reverse proxy if the health endpoint should not be externally visible.
+When OIDC mode is enabled, all Receipt Box data API routes require a sealed application session. The OIDC callback, session-management endpoint, authentication-status endpoint, and `/api/health` remain unauthenticated so login, logout, and container health checks can function. Protect the entire public `/receipt-box` prefix at the reverse proxy if the health endpoint should not be externally visible.
 
 If `AUTH_MODE=oidc` is set without the required session password, client ID, client secret, or discovery URL, the application exits during startup with a configuration error. Set `AUTH_MODE=disabled` or omit it to retain the default unauthenticated behavior.
 
@@ -126,9 +126,9 @@ When the image will not be pushed to a registry, build it on the same Docker hos
 
 ```sh
 docker build \
-  --tag pantry-pricebook:latest \
-  --build-arg NUXT_APP_BASE_URL=/pricebook/ \
-  --build-arg NUXT_PUBLIC_API_BASE=/pricebook/api \
+  --tag receipt-box:latest \
+  --build-arg NUXT_APP_BASE_URL=/receipt-box/ \
+  --build-arg NUXT_PUBLIC_API_BASE=/receipt-box/api \
   .
 ```
 
@@ -164,8 +164,8 @@ services:
       traefik.enable: "false"
     restart: unless-stopped
 
-  pricebook:
-    image: pantry-pricebook:latest
+  receiptbox:
+    image: receipt-box:latest
     pull_policy: never
     restart: unless-stopped
     environment:
@@ -182,7 +182,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.pricebook.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.http.routers.pricebook.rule=Host(`${EXT_HOSTNAME}`) && PathPrefix(`/pricebook`)"
+      - "traefik.http.routers.pricebook.rule=Host(`${EXT_HOSTNAME}`) && PathPrefix(`/receipt-box`)"
       - "traefik.http.routers.pricebook.tls=true"
       - "traefik.http.routers.pricebook.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myResolver}"
       - "traefik.http.routers.pricebook.service=pricebook"
@@ -210,14 +210,7 @@ For an update:
 1. Build the new source on the managed Docker host with a new tag, such as `pantry-pricebook:2026-08-05-3`.
 2. Change the stack's `image` value to the new tag.
 3. Redeploy the stack.
-4. Remove old images only after confirming the new container works.
 
-Every Docker node that might run the service must have the tagged image. If the image is built on another computer, transfer it to the managed host and load it before deploying:
-
-```sh
-docker save pantry-pricebook:2026-08-05-2 | gzip > pantry-pricebook-2026-08-05-2.tar.gz
-gunzip -c pantry-pricebook-2026-08-05-2.tar.gz | docker load
-```
 
 The repository's `compose.yaml` contains a `build` section for command-line Compose. For the Portainer no-registry workflow, use the image-only stack pattern above so that `pull_policy: never` and the prebuilt tag are explicit.
 
@@ -246,22 +239,22 @@ The application uses these settings:
 For a typical subpath deployment, use:
 
 ```dotenv
-NUXT_APP_BASE_URL=/pricebook/
-NUXT_PUBLIC_API_BASE=/pricebook/api
+NUXT_APP_BASE_URL=/receipt-box/
+NUXT_PUBLIC_API_BASE=/receipt-box/api
 ```
 
 Nuxt embeds both public URL values in the client at build time. Changing either one requires rebuilding the image; changing only the running container environment will not update the static client.
 
-In the normal single-container deployment, Nuxt mounts both the generated app and Nitro beneath `/pricebook/`. Forward the reverse proxy's `/pricebook/*` location to the container without stripping the prefix. If `NUXT_PUBLIC_API_BASE` is omitted, the build derives it from `NUXT_APP_BASE_URL`.
+In the normal single-container deployment, Nuxt mounts both the generated app and Nitro beneath `/receipt-box/`. Forward the reverse proxy's `/receipt-box/*` location to the container without stripping the prefix. If `NUXT_PUBLIC_API_BASE` is omitted, the build derives it from `NUXT_APP_BASE_URL`.
 
 If the reverse proxy exposes the API at the origin root, use:
 
 ```dotenv
-NUXT_APP_BASE_URL=/pricebook/
+NUXT_APP_BASE_URL=/receipt-box/
 NUXT_PUBLIC_API_BASE=/api
 ```
 
-Then forward public `/api/*` requests to the container's `/pricebook/api/*`. To use another API origin, provide a full URL and allow the app origin in that API proxy's CORS policy.
+Then forward public `/api/*` requests to the container's `/receipt-box/api/*`. To use another API origin, provide a full URL and allow the app origin in that API proxy's CORS policy.
 
 ## Importing existing Numbers history
 
@@ -283,8 +276,6 @@ Legacy `Unit_Price` columns are ignored. Import adds rows and never deletes exis
 `purchase_date`, `item`, `store`, `package_size`, `package_unit`, `price`, `normalized_price`, `normalized_basis`, `on_sale`, `non_grocery`, and `notes`.
 
 Dates use `YYYY-MM-DD`, flags use true/false values, and `normalized_basis` identifies values such as `Per 100 g`, `Per 100 mL`, or `Each`. The importer also accepts these headings.
-
-PostgreSQL remains the source of truth. Include the database in the host's regular backup routine rather than treating spreadsheet exports as the only backup.
 
 ## Development commands
 
