@@ -16,6 +16,40 @@ export default defineEventHandler(async (event) => {
   const sql = db()
   const dateFilter = purchasedOn ? sql`WHERE purchased_on = ${purchasedOn}` : sql``
 
+  if (String(query.summary ?? '') === 'true') {
+    const [rows, countRows] = await Promise.all([
+      sql<{ id: string, purchasedOn: string | Date, location: string, receiptTotal: string, receiptItemCount: number }[]>`
+        SELECT receipts.id::text, receipts.purchased_on, receipts.location,
+          sum(entries.price)::text AS receipt_total,
+          count(entries.id)::int AS receipt_item_count
+        FROM grocery_receipts receipts
+        INNER JOIN grocery_entries entries ON entries.receipt_id = receipts.id
+        ${purchasedOn ? sql`WHERE receipts.purchased_on = ${purchasedOn}` : sql``}
+        GROUP BY receipts.id, receipts.purchased_on, receipts.location
+        ORDER BY receipts.purchased_on DESC, lower(receipts.location), receipts.location, receipts.id DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+      sql<{ count: string }[]>`
+        SELECT count(DISTINCT receipts.id)::text AS count
+        FROM grocery_receipts receipts
+        INNER JOIN grocery_entries entries ON entries.receipt_id = receipts.id
+        ${purchasedOn ? sql`WHERE receipts.purchased_on = ${purchasedOn}` : sql``}
+      `
+    ])
+
+    return {
+      receipts: rows.map(row => ({
+        id: row.id,
+        purchasedOn: row.purchasedOn instanceof Date ? row.purchasedOn.toISOString().slice(0, 10) : String(row.purchasedOn).slice(0, 10),
+        location: row.location,
+        total: row.receiptTotal,
+        itemCount: row.receiptItemCount,
+        entries: []
+      })),
+      total: Number(countRows[0]?.count ?? 0)
+    }
+  }
+
   const [rows, countRows] = await Promise.all([
     sql<ReceiptRow[]>`
       WITH selected_receipts AS (

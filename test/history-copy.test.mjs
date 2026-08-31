@@ -10,6 +10,11 @@ test('History keeps its page heading stable across views', () => {
   assert.match(page, /<h1>History<\/h1>/)
   assert.match(page, /<p>Browse receipts or individual purchase entries\.<\/p>/)
   assert.match(page, /class="history-view-summary" aria-live="polite"/)
+  assert.match(page, /label="Calendar" icon="i-lucide-calendar-days"/)
+  assert.match(page, /label="List" icon="i-lucide-list"/)
+  assert.match(page, /<th scope="col">Date<\/th><th scope="col">Store<\/th><th scope="col">Items<\/th><th scope="col">Total<\/th>/)
+  assert.match(page, /Receipt date, store, and total/)
+  assert.equal((page.match(/aria-label="Receipt list pagination"/g) || []).length, 2)
   assert.doesNotMatch(page, /view === 'receipts' \? 'Shopping trips'/)
   assert.doesNotMatch(page, /The full pricebook/)
 })
@@ -18,4 +23,13 @@ test('Purchase editor uses consistent spacing between form rows', () => {
   assert.match(stylesheet, /\.edit-dialog \.form-grid, \.edit-dialog \.quick-toggles \{ margin-top: 16px; \}/)
   assert.match(stylesheet, /\.edit-dialog \.form-grid \+ \.field, \.edit-dialog \.quick-toggles \+ \.field \{ margin-top: 16px; \}/)
   assert.match(stylesheet, /\.edit-dialog \.form-grid \.field \+ \.field \{ margin-top: 0; \}/)
+})
+
+test('Calendar receipt store headings keep wrapped lines compact', () => {
+  assert.match(stylesheet, /\.receipt-heading h2 \{ font-size: 23px; line-height: 1\.05; \}/)
+  assert.match(stylesheet, /\.receipt-heading > button, \.receipt-heading > a \{ align-self: flex-start; \}/)
+})
+
+test('Page content reserves the scrollbar gutter', () => {
+  assert.match(stylesheet, /html \{ min-height: 100%; background: var\(--bg\); scrollbar-gutter: stable; \}/)
 })

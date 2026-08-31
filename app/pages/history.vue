@@ -36,6 +36,8 @@ const { apiUrl } = useApi()
 const route = useRoute()
 const router = useRouter()
 const view = ref<'receipts' | 'entries'>('receipts')
+const receiptMode = ref<'calendar' | 'list'>('calendar')
+const receiptListOffset = ref(0)
 const location = ref(allLocationsValue)
 const sortBy = ref<SortKey>('purchasedOn')
 const sortDirection = ref<'asc' | 'desc'>('desc')
@@ -63,8 +65,10 @@ const query = computed(() => ({
 }))
 const { data, pending, error, refresh } = await useFetch<EntryList>(apiUrl('/entries'), { query })
 const receiptQuery = computed(() => ({
-  date: selectedDate.value,
-  limit: 50
+  date: receiptMode.value === 'calendar' ? selectedDate.value : '',
+  summary: receiptMode.value === 'list' ? 'true' : undefined,
+  limit: 50,
+  offset: receiptMode.value === 'list' ? receiptListOffset.value : 0
 }))
 const { data: receiptData, pending: receiptsPending, error: receiptsError, refresh: refreshReceipts } = await useFetch<ReceiptList>(apiUrl('/receipts'), { query: receiptQuery })
 const { data: receiptDates, refresh: refreshReceiptDates } = await useFetch<ReceiptDates>(apiUrl('/receipts/dates'))
@@ -154,6 +158,11 @@ function selectReceiptDateValue(value: string) {
 
 function selectReceiptDate(day: CalendarDay) {
   if (day.receiptCount) selectReceiptDateValue(day.date)
+}
+
+function selectReceiptMode(mode: 'calendar' | 'list') {
+  receiptMode.value = mode
+  if (mode === 'list') receiptListOffset.value = 0
 }
 
 function toggleSort(column: SortKey) {
@@ -328,6 +337,12 @@ async function removeEntry() {
     <template v-if="view === 'receipts'">
       <div v-if="!receiptDates?.dates.length" class="empty-state">No receipt dates yet.</div>
       <div v-else class="receipt-browser">
+        <div class="receipt-mode-switcher" aria-label="Receipt display">
+          <span>Display</span>
+          <UButton type="button" label="Calendar" icon="i-lucide-calendar-days" :color="receiptMode === 'calendar' ? 'primary' : 'neutral'" :variant="receiptMode === 'calendar' ? 'soft' : 'ghost'" :aria-pressed="receiptMode === 'calendar'" @click="selectReceiptMode('calendar')" />
+          <UButton type="button" label="List" icon="i-lucide-list" :color="receiptMode === 'list' ? 'primary' : 'neutral'" :variant="receiptMode === 'list' ? 'soft' : 'ghost'" :aria-pressed="receiptMode === 'list'" @click="selectReceiptMode('list')" />
+        </div>
+        <template v-if="receiptMode === 'calendar'">
         <aside class="receipt-calendar-panel" aria-label="Choose a receipt date">
           <div class="calendar-heading">
             <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" :disabled="!canMoveToPreviousMonth" @click="moveCalendarMonth(-1)" />
@@ -429,6 +444,43 @@ async function removeEntry() {
             </footer>
           </article>
           </div>
+        </section>
+        </template>
+        <section v-else class="receipt-list-panel" aria-labelledby="receipt-list-heading">
+          <header class="receipt-list-heading">
+            <div><p class="eyebrow">All receipts</p><h2 id="receipt-list-heading">Shopping history</h2></div>
+            <span v-if="receiptData" class="receipt-list-count">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
+          </header>
+          <div v-if="receiptData && receiptData.total > 50" class="pagination receipt-list-pagination receipt-list-pagination-top" aria-label="Receipt list pagination">
+            <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="receiptListOffset === 0" @click="receiptListOffset = Math.max(0, receiptListOffset - 50)" />
+            <span>{{ receiptListOffset + 1 }}–{{ Math.min(receiptListOffset + 50, receiptData.total) }} of {{ receiptData.total }}</span>
+            <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="receiptListOffset + 50 >= receiptData.total" @click="receiptListOffset += 50" />
+          </div>
+          <div v-if="receiptsPending" class="empty-state">Gathering receipts…</div>
+          <div v-else-if="receiptsError" class="empty-state error-state">Could not load the receipt list.</div>
+          <div v-else-if="!receiptData?.receipts.length" class="empty-state">No receipts recorded yet.</div>
+          <template v-else>
+            <div class="receipt-list-wrap">
+              <table class="receipt-list">
+                <caption class="sr-only">Receipt date, store, and total</caption>
+                <thead><tr><th scope="col">Date</th><th scope="col">Store</th><th scope="col">Items</th><th scope="col">Total</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                <tbody>
+                  <tr v-for="receipt in receiptData.receipts" :key="receipt.id">
+                    <td data-label="Date"><strong>{{ dateLabel(receipt.purchasedOn) }}</strong></td>
+                    <td data-label="Store"><span class="receipt-list-store"><UIcon name="i-lucide-store" aria-hidden="true" />{{ receipt.location }}</span></td>
+                    <td data-label="Items" class="receipt-list-items">{{ receipt.itemCount }}</td>
+                    <td data-label="Total" class="receipt-list-total">{{ currency(receipt.total) }}</td>
+                    <td class="receipt-list-action"><NuxtLink :to="{ path: '/', query: { date: receipt.purchasedOn, location: receipt.location } }" :aria-label="`Edit ${receipt.location} receipt from ${dateLabel(receipt.purchasedOn)}`">Edit <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="receiptData.total > 50" class="pagination receipt-list-pagination" aria-label="Receipt list pagination">
+              <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="receiptListOffset === 0" @click="receiptListOffset = Math.max(0, receiptListOffset - 50)" />
+              <span>{{ receiptListOffset + 1 }}–{{ Math.min(receiptListOffset + 50, receiptData.total) }} of {{ receiptData.total }}</span>
+              <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="receiptListOffset + 50 >= receiptData.total" @click="receiptListOffset += 50" />
+            </div>
+          </template>
         </section>
       </div>
     </template>
