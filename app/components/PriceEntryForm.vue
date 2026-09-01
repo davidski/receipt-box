@@ -171,7 +171,7 @@ async function save() {
     <div class="form-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">New price</p>
-        <h1>Add a purchase</h1>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Add a purchase</h1>
       </div>
       <UFormField label="Date" name="purchasedOn" required class="date-field">
         <UInput v-model="form.purchasedOn" type="date" required size="lg" />

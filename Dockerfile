@@ -1,4 +1,4 @@
-FROM node:26-bookworm-slim AS base
+FROM node:26-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN npm install --global pnpm@11.18.0
@@ -16,7 +16,7 @@ ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE
 COPY . .
 RUN pnpm build
 
-FROM node:26-bookworm-slim AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000

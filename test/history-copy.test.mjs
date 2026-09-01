@@ -10,7 +10,7 @@ const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.m
 
 test('History keeps its page heading stable across views', () => {
   assert.match(page, /Purchase records<\/p>/)
-  assert.match(page, /<h1>History<\/h1>/)
+  assert.match(page, /<h1 class="text-\[clamp\(34px,3\.5vw,42px\)\] leading-\[1\.04\]">History<\/h1>/)
   assert.match(page, /<p>Browse receipts or individual purchase entries\.<\/p>/)
   assert.match(page, /class="page-heading my-\[15px\] mb-8 history-heading">[\s\S]*class="history-view-switcher" aria-label="History view"/)
   assert.doesNotMatch(page, /history-view-summary/)
@@ -40,5 +40,29 @@ test('Calendar receipt store headings keep wrapped lines compact', () => {
 })
 
 test('Page content reserves the scrollbar gutter', () => {
-  assert.match(stylesheet, /html \{ min-height: 100%; background: var\(--bg\); scrollbar-gutter: stable; \}/)
+  assert.match(stylesheet, /html \{ min-height: 100%; background: var\(--bg\); overflow-y: scroll; scrollbar-gutter: stable both-edges; \}/)
+})
+
+test('History filters keep the store selector from widening the filter bar', () => {
+  assert.match(stylesheet, /\.filter-bar \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 220px\)/)
+  assert.match(stylesheet, /\.store-filter-control, \.store-filter-control > \[data-slot="base"\] \{ min-width: 0; \}/)
+})
+
+test('History store filtering does not lock the page scroll', () => {
+  assert.match(page, /:content="\{ bodyLock: false \}"/)
+})
+
+test('History preserves navigation state in the URL and uses Nuxt UI controls', () => {
+  assert.match(page, /route\.query\.search/)
+  assert.match(page, /query\.store = location\.value !== allLocationsValue/)
+  assert.match(page, /query\.filter = changeFilter\.value !== 'all'/)
+  assert.match(page, /query\.sort = sortBy\.value !== 'purchasedOn'/)
+  assert.match(page, /query\.page =/)
+  assert.match(page, /query\.date = view\.value === 'receipts'/)
+  assert.match(page, /query\.month = view\.value === 'receipts'/)
+  assert.doesNotMatch(page, /<select /)
+  assert.doesNotMatch(page, /<button type="button" @click="toggleSort/)
+  assert.match(page, /<UModal :open="Boolean\(editing\)" title="Edit purchase"/)
+  assert.match(page, /<ConfirmModal[\s\S]+title="Delete purchase\?"/)
+  assert.doesNotMatch(page, /confirm\(/)
 })

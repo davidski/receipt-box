@@ -10,6 +10,7 @@ test('the Highlights period field accommodates its longest option without overfl
   assert.match(stylesheet, /\.period-field \{ width: 240px; \}/)
   assert.match(stylesheet, /\.period-field \[data-slot="base"\] \{ width: 100%; \}/)
   assert.match(stylesheet, /\.period-field \{ width: min\(240px, 100%\); \}/)
+  assert.match(page, /:content="\{ bodyLock: false \}"/)
 })
 
 test('the monthly spending chart stays within its card and compresses wide ranges', () => {

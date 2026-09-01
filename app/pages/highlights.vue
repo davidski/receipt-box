@@ -321,12 +321,12 @@ function unitCurrency(value: number) {
     <header class="page-heading my-[15px] mb-8 highlights-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">At a glance</p>
-        <h1>Price highlights</h1>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Price highlights</h1>
         <p>Recent activity and notable price movement.</p>
       </div>
       <div class="highlights-actions">
         <UFormField label="Period" class="period-field">
-          <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" />
+          <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" :content="{ bodyLock: false }" />
         </UFormField>
       </div>
     </header>

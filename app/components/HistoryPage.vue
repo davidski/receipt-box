@@ -31,11 +31,15 @@ type SortKey = 'purchasedOn' | 'item' | 'location' | 'size' | 'price' | 'costPer
 type ChangeFilter = 'all' | 'changed' | 'higher' | 'lower' | 'sale'
 
 const allLocationsValue = '__all_locations__'
-const search = ref('')
 const { apiUrl } = useApi()
 const route = useRoute()
 const router = useRouter()
 type HistoryView = 'receipts-calendar' | 'receipts-list' | 'entries'
+const queryValue = (value: unknown) => Array.isArray(value) ? String(value[0] || '') : String(value || '')
+const validSortKeys: SortKey[] = ['purchasedOn', 'item', 'location', 'size', 'price', 'costPerUnit']
+const validChangeFilters: ChangeFilter[] = ['all', 'changed', 'higher', 'lower', 'sale']
+const initialPage = Math.max(1, Number.parseInt(queryValue(route.query.page), 10) || 1)
+const search = ref(queryValue(route.query.search))
 
 const routeSegments = computed(() => {
   const value = route.params.view
@@ -49,11 +53,11 @@ const historyView = computed<HistoryView>(() => {
 })
 const view = computed(() => historyView.value === 'entries' ? 'entries' : 'receipts')
 const receiptMode = computed(() => historyView.value === 'receipts-list' ? 'list' : 'calendar')
-const receiptListOffset = ref(0)
-const location = ref(allLocationsValue)
-const sortBy = ref<SortKey>('purchasedOn')
-const sortDirection = ref<'asc' | 'desc'>('desc')
-const changeFilter = ref<ChangeFilter>('all')
+const receiptListOffset = ref((initialPage - 1) * 50)
+const location = ref(queryValue(route.query.store) || allLocationsValue)
+const sortBy = ref<SortKey>(validSortKeys.includes(queryValue(route.query.sort) as SortKey) ? queryValue(route.query.sort) as SortKey : 'purchasedOn')
+const sortDirection = ref<'asc' | 'desc'>(queryValue(route.query.direction) === 'asc' ? 'asc' : 'desc')
+const changeFilter = ref<ChangeFilter>(validChangeFilters.includes(queryValue(route.query.filter) as ChangeFilter) ? queryValue(route.query.filter) as ChangeFilter : 'all')
 const changeFilters: { label: string, value: ChangeFilter, icon: string, activeColor: 'primary' | 'error' | 'success' }[] = [
   { label: 'All', value: 'all', icon: 'i-lucide-list', activeColor: 'primary' },
   { label: 'Price changed', value: 'changed', icon: 'i-lucide-arrow-left-right', activeColor: 'primary' },
@@ -61,11 +65,14 @@ const changeFilters: { label: string, value: ChangeFilter, icon: string, activeC
   { label: 'Down 10%+', value: 'lower', icon: 'i-lucide-trending-down', activeColor: 'success' },
   { label: 'On sale', value: 'sale', icon: 'i-lucide-tag', activeColor: 'primary' }
 ]
-const offset = ref(0)
+const offset = ref((initialPage - 1) * 50)
 const limit = 50
-const selectedDate = ref('')
+const selectedDate = ref(queryValue(route.query.date))
 const today = new Date()
-const visibleMonth = ref(new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)))
+const initialMonth = queryValue(route.query.month)
+const visibleMonth = ref(/^\d{4}-\d{2}$/.test(initialMonth)
+  ? new Date(`${initialMonth}-01T00:00:00Z`)
+  : new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)))
 const query = computed(() => ({
   search: search.value,
   location: location.value === allLocationsValue ? '' : location.value,
@@ -89,10 +96,55 @@ const editing = ref<EditableEntry | null>(null)
 const editError = ref('')
 const saving = ref(false)
 const linkedEditError = ref('')
+const deleteConfirmOpen = ref(false)
+const editingSize = computed({
+  get: () => editing.value?.size ?? '',
+  set: (value: string | undefined) => { if (editing.value) editing.value.size = value || null }
+})
+const editingNotes = computed({
+  get: () => editing.value?.notes ?? '',
+  set: (value: string | undefined) => { if (editing.value) editing.value.notes = value || null }
+})
 
 watch([search, location, changeFilter], () => {
   offset.value = 0
 })
+
+function syncHistoryQuery() {
+  const query = { ...route.query } as Record<string, string | string[] | undefined>
+  query.search = search.value || undefined
+  query.store = location.value !== allLocationsValue ? location.value : undefined
+  query.filter = changeFilter.value !== 'all' ? changeFilter.value : undefined
+  query.sort = sortBy.value !== 'purchasedOn' ? sortBy.value : undefined
+  query.direction = sortDirection.value !== 'desc' ? sortDirection.value : undefined
+  query.page = (view.value === 'entries' ? offset.value : receiptListOffset.value) > 0
+    ? String(Math.floor((view.value === 'entries' ? offset.value : receiptListOffset.value) / 50) + 1)
+    : undefined
+  query.date = view.value === 'receipts' && receiptMode.value === 'calendar' ? selectedDate.value || undefined : undefined
+  query.month = view.value === 'receipts' && receiptMode.value === 'calendar' ? selectedCalendarMonth.value : undefined
+  void router.replace({ query })
+}
+
+watch([search, location, sortBy, sortDirection, changeFilter, offset, receiptListOffset, selectedDate, () => selectedCalendarMonth.value, view, receiptMode], syncHistoryQuery)
+
+watch(() => route.query, (query) => {
+  const nextSearch = queryValue(query.search)
+  const nextLocation = queryValue(query.store) || allLocationsValue
+  const nextFilter = queryValue(query.filter)
+  const nextSort = queryValue(query.sort)
+  const nextDirection = queryValue(query.direction)
+  const nextPage = Math.max(1, Number.parseInt(queryValue(query.page), 10) || 1)
+  search.value = nextSearch
+  location.value = nextLocation
+  changeFilter.value = validChangeFilters.includes(nextFilter as ChangeFilter) ? nextFilter as ChangeFilter : 'all'
+  sortBy.value = validSortKeys.includes(nextSort as SortKey) ? nextSort as SortKey : 'purchasedOn'
+  sortDirection.value = nextDirection === 'asc' ? 'asc' : 'desc'
+  offset.value = (view.value === 'entries' ? nextPage - 1 : 0) * 50
+  receiptListOffset.value = (view.value === 'receipts' && receiptMode.value === 'list' ? nextPage - 1 : 0) * 50
+  selectedDate.value = queryValue(query.date)
+  const month = queryValue(query.month)
+  if (/^\d{4}-\d{2}$/.test(month)) visibleMonth.value = new Date(`${month}-01T00:00:00Z`)
+}, { deep: true })
 
 const receiptDateMap = computed(() => new Map((receiptDates.value?.dates || []).map(date => [date.date, date])))
 const selectedReceiptDateIndex = computed(() => (receiptDates.value?.dates || []).findIndex(date => date.date === selectedDate.value))
@@ -278,7 +330,12 @@ async function saveEdit() {
 }
 
 async function removeEntry() {
-  if (!editing.value || !confirm(`Delete “${editing.value.item}” from ${editing.value.purchasedOn}?`)) return
+  if (!editing.value) return
+  deleteConfirmOpen.value = true
+}
+
+async function confirmRemoveEntry() {
+  if (!editing.value) return
   saving.value = true
   try {
     await $fetch(apiUrl(`/entries/${editing.value.id}`), { method: 'DELETE' })
@@ -288,6 +345,7 @@ async function removeEntry() {
     editError.value = error?.data?.statusMessage || error?.message || 'Could not delete entry'
   } finally {
     saving.value = false
+    deleteConfirmOpen.value = false
   }
 }
 </script>
@@ -297,7 +355,7 @@ async function removeEntry() {
     <header class="page-heading my-[15px] mb-8 history-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Purchase records</p>
-        <h1>History</h1>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">History</h1>
         <p>Browse receipts or individual purchase entries.</p>
       </div>
       <div class="history-view-switcher" aria-label="History view">
@@ -317,7 +375,7 @@ async function removeEntry() {
       </label>
       <label class="store-filter-control">
         <span class="sr-only">Filter by store</span>
-        <USelect v-model="location" :items="[{ label: 'All stores', value: allLocationsValue }, ...(stores || []).map(store => ({ label: store.name, value: store.name }))]" />
+        <USelect v-model="location" :items="[{ label: 'All stores', value: allLocationsValue }, ...(stores || []).map(store => ({ label: store.name, value: store.name }))]" :content="{ bodyLock: false }" />
       </label>
       <div class="quick-filter-row" aria-label="Quick history filters">
         <UButton
@@ -346,9 +404,7 @@ async function removeEntry() {
             <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" :disabled="!canMoveToPreviousMonth" @click="moveCalendarMonth(-1)" />
             <label>
               <span class="sr-only">Choose month</span>
-              <select v-model="selectedCalendarMonth" aria-live="polite">
-                <option v-for="month in calendarMonthOptions" :key="month.value" :value="month.value">{{ month.label }}</option>
-              </select>
+              <USelect v-model="selectedCalendarMonth" :items="calendarMonthOptions" aria-label="Choose month" size="sm" :content="{ bodyLock: false }" />
             </label>
             <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" :disabled="!canMoveToNextMonth" @click="moveCalendarMonth(1)" />
           </div>
@@ -509,12 +565,12 @@ async function removeEntry() {
       <table class="history-table">
         <thead>
           <tr>
-            <th :aria-sort="ariaSort('purchasedOn')"><button type="button" @click="toggleSort('purchasedOn')">Date <UIcon :name="sortBy === 'purchasedOn' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" /></button></th>
-            <th :aria-sort="ariaSort('item')"><button type="button" @click="toggleSort('item')">Item <UIcon :name="sortBy === 'item' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" /></button></th>
-            <th :aria-sort="ariaSort('location')"><button type="button" @click="toggleSort('location')">Store <UIcon :name="sortBy === 'location' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" /></button></th>
-            <th :aria-sort="ariaSort('size')"><button type="button" @click="toggleSort('size')">Size <UIcon :name="sortBy === 'size' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" /></button></th>
-            <th :aria-sort="ariaSort('price')"><button type="button" @click="toggleSort('price')">Price <UIcon :name="sortBy === 'price' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" /></button></th>
-            <th :aria-sort="ariaSort('costPerUnit')"><button type="button" @click="toggleSort('costPerUnit')">Normalized <UIcon :name="sortBy === 'costPerUnit' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" /></button></th>
+            <th :aria-sort="ariaSort('purchasedOn')"><UButton type="button" label="Date" :icon="sortBy === 'purchasedOn' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('purchasedOn')" /></th>
+            <th :aria-sort="ariaSort('item')"><UButton type="button" label="Item" :icon="sortBy === 'item' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('item')" /></th>
+            <th :aria-sort="ariaSort('location')"><UButton type="button" label="Store" :icon="sortBy === 'location' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('location')" /></th>
+            <th :aria-sort="ariaSort('size')"><UButton type="button" label="Size" :icon="sortBy === 'size' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('size')" /></th>
+            <th :aria-sort="ariaSort('price')"><UButton type="button" label="Price" :icon="sortBy === 'price' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('price')" /></th>
+            <th :aria-sort="ariaSort('costPerUnit')"><UButton type="button" label="Normalized" :icon="sortBy === 'costPerUnit' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('costPerUnit')" /></th>
             <th><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -566,38 +622,58 @@ async function removeEntry() {
       </div>
     </template>
 
-    <div v-if="editing" class="modal-backdrop" role="presentation" @mousedown.self="closeEdit">
-      <form class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-title" @submit.prevent="saveEdit">
-        <div class="dialog-heading">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Correct a record</p><h2 id="edit-title">Edit purchase</h2></div>
-          <button class="icon-button" type="button" aria-label="Close" @click="closeEdit">×</button>
-        </div>
-          <div class="form-grid grid gap-4 mt-5 grid-cols-2">
-          <div class="field"><label for="edit-date">Date</label><input id="edit-date" v-model="editing.purchasedOn" type="date" required></div>
-          <div class="field">
-            <label for="edit-store">Store</label>
-            <UInputMenu id="edit-store" v-model="editing.location" :items="(stores || []).map(store => store.name)" create-item placeholder="Choose or add a store…" required />
+    <UModal :open="Boolean(editing)" title="Edit purchase" :dismissible="!saving" :close="!saving" @update:open="!$event && closeEdit()">
+      <template #body>
+        <form v-if="editing" id="edit-purchase-form" class="edit-dialog" @submit.prevent="saveEdit">
+          <div class="form-grid grid gap-4 grid-cols-2">
+            <UFormField label="Date" name="edit-date" required class="field">
+              <UInput id="edit-date" v-model="editing.purchasedOn" type="date" required />
+            </UFormField>
+            <UFormField label="Store" name="edit-store" required class="field">
+              <UInputMenu id="edit-store" v-model="editing.location" :items="(stores || []).map(store => store.name)" create-item placeholder="Choose or add a store…" required />
+            </UFormField>
+          </div>
+          <UFormField label="Item" name="edit-item" required class="field">
+            <UInput id="edit-item" v-model="editing.item" type="text" required />
+          </UFormField>
+          <div class="form-grid grid gap-4 grid-cols-3">
+            <UFormField label="Size" name="edit-size" class="field">
+              <UInput id="edit-size" v-model="editingSize" type="number" step="any" />
+            </UFormField>
+            <UFormField label="Unit" name="edit-unit" class="field"><UnitInput id="edit-unit" v-model="editing.unit" /></UFormField>
+            <UFormField label="Price" name="edit-price" required class="field">
+              <UInput id="edit-price" v-model="editing.price" type="number" min="0" step="0.01" required />
+            </UFormField>
+          </div>
+          <div class="quick-toggles">
+            <UCheckbox v-model="editing.saleItem" label="Sale item" />
+            <UCheckbox v-model="editing.nonGrocery" label="Non-grocery" />
+          </div>
+          <UFormField label="Notes" name="edit-notes" class="field">
+            <UTextarea id="edit-notes" v-model="editingNotes" :rows="3" />
+          </UFormField>
+          <UAlert v-if="editError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="editError" />
+        </form>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-between gap-2">
+          <UButton type="button" label="Delete" color="error" variant="outline" :disabled="saving" @click="removeEntry" />
+          <div class="flex gap-2">
+            <UButton type="button" label="Cancel" color="neutral" variant="ghost" :disabled="saving" @click="closeEdit" />
+            <UButton form="edit-purchase-form" type="submit" label="Save changes" :loading="saving" />
           </div>
         </div>
-        <div class="field"><label for="edit-item">Item</label><input id="edit-item" v-model="editing.item" type="text" required></div>
-        <div class="form-grid grid gap-4 mt-5 grid-cols-3">
-          <div class="field"><label for="edit-size">Size</label><input id="edit-size" v-model="editing.size" type="number" step="any"></div>
-          <div class="field"><label for="edit-unit">Unit</label><UnitInput id="edit-unit" v-model="editing.unit" /></div>
-          <div class="field"><label for="edit-price">Price</label><input id="edit-price" v-model="editing.price" type="number" min="0" step="0.01" required></div>
-        </div>
-        <div class="quick-toggles">
-          <label><input v-model="editing.saleItem" type="checkbox"><span>Sale item</span></label>
-          <label><input v-model="editing.nonGrocery" type="checkbox"><span>Non-grocery</span></label>
-        </div>
-        <div class="field"><label for="edit-notes">Notes</label><textarea id="edit-notes" v-model="editing.notes" rows="3" /></div>
-        <p v-if="editError" class="notice error" role="alert">{{ editError }}</p>
-        <div class="dialog-actions">
-          <button class="danger-button" type="button" :disabled="saving" @click="removeEntry">Delete</button>
-          <span class="flex-1" />
-          <button class="secondary-button" type="button" @click="closeEdit">Cancel</button>
-          <button class="primary-button" type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save changes' }}</button>
-        </div>
-      </form>
-    </div>
+      </template>
+    </UModal>
+    <ConfirmModal
+      v-if="editing"
+      v-model:open="deleteConfirmOpen"
+      title="Delete purchase?"
+      :description="`Delete “${editing.item}” from ${editing.purchasedOn}? This cannot be undone.`"
+      confirm-label="Delete purchase"
+      confirm-color="error"
+      :loading="saving"
+      @confirm="confirmRemoveEntry"
+    />
   </div>
 </template>

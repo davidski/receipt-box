@@ -205,7 +205,7 @@ function packageLabel(entry: HistoryEntry) {
     <header class="page-heading my-[15px] mb-8 item-history-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Normalized price history</p>
-        <h1>{{ data?.item || routeItem }}</h1>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">{{ data?.item || routeItem }}</h1>
         <p v-if="data">{{ data.entries.length.toLocaleString() }} recorded {{ data.entries.length === 1 ? 'purchase' : 'purchases' }}</p>
       </div>
       <UButton to="/history/receipts/calendar" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />

@@ -98,6 +98,10 @@ const backfillSizeSelected = ref(false)
 const backfillUnitSelected = ref(false)
 const savedLineSnapshots = reactive(new Map<number, string>())
 const failedAutosaveKey = ref('')
+const discardConfirmOpen = ref(false)
+const discardTarget = ref<any>(null)
+const allowNavigationAfterDiscard = ref(false)
+const pendingDuplicateMerge = ref<{ receipt: MatchingReceipt, description: string } | null>(null)
 let nextKey = 1
 let matchRequest = 0
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
@@ -312,18 +316,10 @@ watch([
     if (request !== matchRequest) return
     if (result.receipt && receiptId) {
       const existingItems = `${result.receipt.itemCount} ${result.receipt.itemCount === 1 ? 'item' : 'items'}`
-      const mergeConfirmed = window.confirm(
-        `A receipt already exists for ${normalizedLocation} on ${purchasedOn} with ${existingItems}. Merge this receipt into it?`
-      )
-      if (!mergeConfirmed) {
-        const confirmedKey = confirmedReceiptKey.value
-        if (confirmedKey) {
-          form.purchasedOn = confirmedKey.purchasedOn
-          form.location = confirmedKey.location
-        }
-        return
+      pendingDuplicateMerge.value = {
+        receipt: result.receipt,
+        description: `A receipt already exists for ${normalizedLocation} on ${purchasedOn} with ${existingItems}. Merge this receipt into it?`
       }
-      matchingReceipt.value = result.receipt
     } else if (result.receipt && shouldLoadMatchingReceipt(currentReceiptId.value, enteredLines.value.length)) {
       loadReceipt(result.receipt)
       matchingReceipt.value = null
@@ -388,8 +384,40 @@ function createLocation(value: string | { value: string }) {
   form.location = (typeof value === 'string' ? value : value.value).trim()
 }
 
-function confirmDiscardChanges() {
-  return !hasUnsavedChanges.value || window.confirm('Discard this unsaved receipt? Your changes will be lost.')
+function confirmDiscardNavigation(to: any) {
+  if (allowNavigationAfterDiscard.value) {
+    allowNavigationAfterDiscard.value = false
+    return true
+  }
+  if (!hasUnsavedChanges.value) return true
+  discardTarget.value = to
+  discardConfirmOpen.value = true
+  return false
+}
+
+async function discardChanges() {
+  const target = discardTarget.value
+  discardConfirmOpen.value = false
+  discardTarget.value = null
+  if (!target) return
+  // The guard is bypassed once the destination navigation is explicitly confirmed.
+  allowNavigationAfterDiscard.value = true
+  await navigateTo(target)
+}
+
+function resolveDuplicateMerge(confirmed: boolean) {
+  const pending = pendingDuplicateMerge.value
+  pendingDuplicateMerge.value = null
+  if (confirmed && pending) {
+    matchingReceipt.value = pending.receipt
+    scheduleAutosave()
+    return
+  }
+  const confirmedKey = confirmedReceiptKey.value
+  if (confirmedKey) {
+    form.purchasedOn = confirmedKey.purchasedOn
+    form.location = confirmedKey.location
+  }
 }
 
 function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -434,7 +462,7 @@ function handleCancelRemoveShortcut(event: KeyboardEvent) {
   cancelRemoveLine(line)
 }
 
-onBeforeRouteLeave(() => confirmDiscardChanges())
+onBeforeRouteLeave(to => confirmDiscardNavigation(to))
 
 onMounted(() => {
   loadLocations()
@@ -860,7 +888,7 @@ async function deleteReceipt() {
     <header class="receipt-entry-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Shopping trip editor</p>
-        <h1>Add or edit a receipt</h1>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Add or edit a receipt</h1>
         <p>Select an existing date and store to edit.</p>
       </div>
       <div class="receipt-meta-fields">
@@ -1044,4 +1072,22 @@ async function deleteReceipt() {
       </div>
     </template>
   </UModal>
+  <ConfirmModal
+    v-model:open="discardConfirmOpen"
+    title="Discard unsaved receipt?"
+    description="Your unsaved changes will be lost."
+    confirm-label="Discard changes"
+    confirm-color="error"
+    @confirm="discardChanges"
+  />
+  <ConfirmModal
+    v-if="pendingDuplicateMerge"
+    :open="Boolean(pendingDuplicateMerge)"
+    title="Merge duplicate receipt?"
+    :description="pendingDuplicateMerge.description"
+    confirm-label="Merge receipts"
+    confirm-color="warning"
+    @update:open="!$event && resolveDuplicateMerge(false)"
+    @confirm="resolveDuplicateMerge(true)"
+  />
 </template>

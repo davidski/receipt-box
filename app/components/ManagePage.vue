@@ -77,6 +77,8 @@ const resetConfirming = ref(false)
 const resetBusy = ref(false)
 const resetError = ref('')
 const resetComplete = ref(false)
+const pendingConfirmation = ref<{ title: string, description: string, confirmLabel: string, confirmColor: 'primary' | 'error' | 'warning', action: () => Promise<void> } | null>(null)
+const confirmationBusy = ref(false)
 const visibleDuplicateItemGroups = computed(() => (duplicateItems.value?.groups || []).slice(0, visibleItemGroupCount.value))
 const displayedHiddenItemGroups = computed(() => showHiddenItemGroups.value ? (duplicateItems.value?.hiddenGroups || []) : [])
 const renameItemOptions = computed(() => (duplicateItems.value?.items || []).map(item => ({
@@ -172,17 +174,43 @@ function storeMergeTarget(store: Store) {
   return (stores.value || []).find(candidate => candidate.id !== store.id && storeNameKey(candidate.name) === key) || null
 }
 
+function requestConfirmation(confirmation: NonNullable<typeof pendingConfirmation.value>) {
+  pendingConfirmation.value = confirmation
+}
+
+async function confirmPendingAction() {
+  const confirmation = pendingConfirmation.value
+  if (!confirmation || confirmationBusy.value) return
+  confirmationBusy.value = true
+  try {
+    await confirmation.action()
+  } finally {
+    confirmationBusy.value = false
+    pendingConfirmation.value = null
+  }
+}
+
 async function saveStore(store: Store) {
   const name = editingStoreName.value.trim()
   if (!name) return
-  storeBusy.value = true
   storeError.value = ''
   storeNotice.value = ''
   const mergeTarget = storeMergeTarget(store)
-  if (mergeTarget && !confirm(`Merge “${store.name}” into “${mergeTarget.name}”? Receipts from the same dates will be combined and all line items will be kept.`)) {
-    storeBusy.value = false
+  if (mergeTarget) {
+    requestConfirmation({
+      title: 'Merge stores?',
+      description: `Merge “${store.name}” into “${mergeTarget.name}”? Receipts from the same dates will be combined and all line items will be kept.`,
+      confirmLabel: 'Merge stores',
+      confirmColor: 'warning',
+      action: () => saveStoreConfirmed(store, name)
+    })
     return
   }
+  return saveStoreConfirmed(store, name)
+}
+
+async function saveStoreConfirmed(store: Store, name: string) {
+  storeBusy.value = true
   try {
     const saved = await $fetch<{ name: string, merged: boolean }>(apiUrl(`/stores/${store.id}`), { method: 'PATCH', body: { name } })
     storeNotice.value = saved.merged
@@ -198,7 +226,17 @@ async function saveStore(store: Store) {
 }
 
 async function deleteStore(store: Store) {
-  if (store.uses > 0 || !confirm(`Delete “${store.name}” from the store list?`)) return
+  if (store.uses > 0) return
+  requestConfirmation({
+    title: 'Delete store?',
+    description: `Delete “${store.name}” from the store list? This cannot be undone.`,
+    confirmLabel: 'Delete store',
+    confirmColor: 'error',
+    action: () => deleteStoreConfirmed(store)
+  })
+}
+
+async function deleteStoreConfirmed(store: Store) {
   storeBusy.value = true
   storeError.value = ''
   try {
@@ -218,7 +256,16 @@ async function mergeItemGroup(group: ItemDuplicateGroup) {
   const affectedEntries = group.variants
     .filter(variant => sources.includes(variant.name))
     .reduce((total, variant) => total + variant.uses, 0)
-  if (!confirm(`Merge ${sources.map(source => `“${source}”`).join(', ')} into “${target}”? This will rename ${affectedEntries} historical ${affectedEntries === 1 ? 'entry' : 'entries'}.`)) return
+  requestConfirmation({
+    title: 'Merge item variants?',
+    description: `Merge ${sources.map(source => `“${source}”`).join(', ')} into “${target}”? This will rename ${affectedEntries} historical ${affectedEntries === 1 ? 'entry' : 'entries'}.`,
+    confirmLabel: 'Merge variants',
+    confirmColor: 'warning',
+    action: () => mergeItemGroupConfirmed(group, target, sources)
+  })
+}
+
+async function mergeItemGroupConfirmed(group: ItemDuplicateGroup, target: string, sources: string[]) {
 
   itemMergeBusy.value = group.id
   itemMergeError.value = ''
@@ -286,7 +333,16 @@ async function renameItem() {
     nameWillChange.value ? `rename all ${uses} ${uses === 1 ? 'instance' : 'instances'} of “${source}” to “${target}”` : '',
     packageWillChange.value ? `change ${packageUpdateCount.value} matching ${packageUpdateCount.value === 1 ? 'entry' : 'entries'} to ${replacementSize.value} ${replacementUnit.value.trim()}` : ''
   ].filter(Boolean).join(' and ')
-  if (!confirm(`This will ${changes}. Continue?`)) return
+  requestConfirmation({
+    title: 'Apply item changes?',
+    description: `This will ${changes}. This cannot be undone.`,
+    confirmLabel: 'Apply changes',
+    confirmColor: 'warning',
+    action: () => renameItemConfirmed(source, target)
+  })
+}
+
+async function renameItemConfirmed(source: string, target: string) {
   itemRenameBusy.value = true
   itemMergeError.value = ''
   itemMergeNotice.value = ''
@@ -519,7 +575,7 @@ async function exportXlsx() {
   <div class="w-full max-w-[1200px] mx-auto">
     <header class="page-heading my-[15px] mb-8">
       <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Receipt Box settings</p>
-      <h1>Manage Receipt Box</h1>
+      <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Manage Receipt Box</h1>
     </header>
 
     <nav class="manage-sections" aria-label="Receipt Box management sections">
@@ -795,5 +851,16 @@ async function exportXlsx() {
       </UCard>
     </section>
 
+    <ConfirmModal
+      v-if="pendingConfirmation"
+      :open="Boolean(pendingConfirmation)"
+      :title="pendingConfirmation.title"
+      :description="pendingConfirmation.description"
+      :confirm-label="pendingConfirmation.confirmLabel"
+      :confirm-color="pendingConfirmation.confirmColor"
+      :loading="confirmationBusy"
+      @update:open="!$event && (pendingConfirmation = null)"
+      @confirm="confirmPendingAction"
+    />
   </div>
 </template>

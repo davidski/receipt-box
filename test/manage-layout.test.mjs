@@ -46,3 +46,9 @@ test('duplicate item suggestions load only after opening Items', () => {
   assert.match(manageRoute, /middleware: 'manage'/)
   assert.match(manageMiddleware, /import-export.*transfer.*maintenance/)
 })
+
+test('Manage destructive actions use an accessible confirmation modal', () => {
+  assert.match(managePage, /<ConfirmModal/)
+  assert.match(managePage, /confirmPendingAction/)
+  assert.doesNotMatch(managePage, /confirm\(/)
+})

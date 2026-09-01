@@ -42,7 +42,7 @@
 }
 
 * { box-sizing: border-box; }
-html { min-height: 100%; background: var(--bg); scrollbar-gutter: stable; }
+html { min-height: 100%; background: var(--bg); overflow-y: scroll; scrollbar-gutter: stable both-edges; }
 body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 16px; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -153,7 +153,6 @@ a { color: inherit; }
 .entry-form { padding: clamp(22px, 3vw, 36px); }
 .form-heading, .history-heading, .dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 h1, h2 { margin: 0; font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
-h1 { font-size: clamp(34px, 4vw, 48px); line-height: 1.04; }
 h2 { font-size: clamp(27px, 3vw, 34px); }
 .date-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .date-field input { min-height: 42px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-strong); color: var(--ink); }
@@ -351,11 +350,12 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .file-picker span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .history-heading { align-items: end; }
 .history-view-switcher { display: flex; width: max-content; gap: 5px; margin: 0; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
-.filter-bar { position: sticky; top: 87px; z-index: 15; display: grid; grid-template-columns: 1fr 220px; gap: 12px; margin-bottom: 20px; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--bg), transparent 5%); backdrop-filter: blur(16px); }
+.filter-bar { position: sticky; top: 87px; z-index: 15; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); gap: 12px; margin-bottom: 20px; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--bg), transparent 5%); backdrop-filter: blur(16px); }
 .quick-filter-row { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 5px; padding-top: 2px; border-top: 1px solid color-mix(in srgb, var(--line), transparent 35%); }
 .search-control { position: relative; }
 .search-control > [data-slot="root"], .store-filter-control > [data-slot="base"] { width: 100%; }
-.store-filter-control > [data-slot="base"] { min-height: 52px; padding-inline: 14px 42px; }
+.store-filter-control, .store-filter-control > [data-slot="base"] { min-width: 0; }
+.store-filter-control > [data-slot="base"] { min-height: 52px; width: 100%; padding-inline: 14px 42px; }
 .search-control > span:not(.sr-only) { position: absolute; left: 16px; top: 50%; z-index: 1; transform: translateY(-50%); color: var(--muted); font-size: 20px; }
 .search-control input { padding-left: 44px; }
 .history-table-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
@@ -382,9 +382,7 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .receipt-mode-switcher > span { margin: 0 5px 0 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .receipt-calendar-panel { position: sticky; top: 96px; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
 .calendar-heading { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; }
-.calendar-heading select { width: 100%; min-height: 40px; padding: 0 26px 0 8px; border: 0; border-radius: 9px; outline: none; background: transparent; color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 600; text-align: center; text-align-last: center; cursor: pointer; }
-.calendar-heading select:hover { background: var(--surface-muted); }
-.calendar-heading select:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.calendar-heading [data-slot="root"] { width: 100%; min-width: 0; }
 .receipt-calendar { width: 100%; margin-top: 12px; table-layout: fixed; border-collapse: separate; border-spacing: 3px; }
 .receipt-calendar th { height: 28px; color: var(--muted); font-size: 11px; font-weight: 750; text-align: center; }
 .receipt-calendar td { padding: 0; }

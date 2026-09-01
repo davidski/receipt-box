@@ -10,9 +10,16 @@ const matchApi = await readFile(new URL('../server/api/receipts/match.get.ts', i
 const unitInput = await readFile(new URL('../app/components/UnitInput.vue', import.meta.url), 'utf8')
 
 test('receipt entry warns before in-app navigation and page unload when dirty', () => {
-  assert.match(form, /onBeforeRouteLeave\(\(\) => confirmDiscardChanges\(\)\)/)
+  assert.match(form, /onBeforeRouteLeave\(to => confirmDiscardNavigation\(to\)/)
+  assert.match(form, /title="Discard unsaved receipt\?"/)
   assert.match(form, /window\.addEventListener\('beforeunload', handleBeforeUnload\)/)
   assert.match(form, /if \(!hasUnsavedChanges\.value\) return/)
+})
+
+test('receipt duplicate and discard confirmations use Nuxt UI modals', () => {
+  assert.match(form, /title="Merge duplicate receipt\?"/)
+  assert.match(form, /resolveDuplicateMerge\(true\)/)
+  assert.doesNotMatch(form, /window\.confirm\(/)
 })
 
 test('completed rows autosave and confirmed saved rows delete through the API', () => {
@@ -200,7 +207,8 @@ test('new receipt items require inline confirmation', () => {
 
 test('receipt-key collisions require confirmation before autosave can merge', () => {
   assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
-  assert.match(form, /window\.confirm\(/)
+  assert.match(form, /pendingDuplicateMerge\.value =/)
+  assert.match(form, /title="Merge duplicate receipt\?"/)
   assert.match(form, /Merge this receipt into it\?/)
   assert.match(form, /form\.purchasedOn = confirmedKey\.purchasedOn/)
   assert.match(form, /form\.location = confirmedKey\.location/)
