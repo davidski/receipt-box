@@ -3,6 +3,7 @@
 ## Interface components
 
 - Prefer Nuxt UI components over native HTML controls or custom replacements when Nuxt UI provides a suitable element.
+- For reported interactive UI bugs, reproduce the exact flow end to end in a browser before declaring it fixed. If browser verification is unavailable, say so explicitly and label visual conclusions as source- or test-level inference.
 
 ## Tests and coverage
 
