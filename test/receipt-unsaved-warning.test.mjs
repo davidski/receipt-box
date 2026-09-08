@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 const form = await readFile(new URL('../app/components/ReceiptEntryForm.vue', import.meta.url), 'utf8')
+const managePage = await readFile(new URL('../app/components/ManagePage.vue', import.meta.url), 'utf8')
 const history = await readFile(new URL('../app/components/HistoryPage.vue', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 const header = await readFile(new URL('../app/components/AppHeader.vue', import.meta.url), 'utf8')
@@ -151,19 +152,29 @@ test('new dimensions offer to backfill earlier purchases without overwriting val
   assert.match(form, /<UCheckbox[\s\S]+label="Update missing units"/)
   assert.match(form, /label="Keep unchanged"/)
   assert.match(form, /`Update \$\{selectedBackfillCount\}/)
-  assert.match(form, /if \(!line\.id \|\| \(!size && !unit\)\) return false/)
+  assert.match(form, /if \(!backfillPromptsEnabled\.value \|\| !line\.id \|\| line\.backfillPrompted \|\| \(!size && !unit\)\) return false/)
   assert.match(form, /const size = String\(line\.size \?\? ''\)\.trim\(\)/)
   assert.match(form, /Boolean\(size\) && counts\.size > 0/)
   assert.match(form, /Boolean\(unit\) && counts\.unit > 0/)
   assert.match(form, /backfillSizeSelected\.value = Boolean\(size\) && counts\.size > 0/)
   assert.match(form, /backfillUnitSelected\.value = Boolean\(unit\) && counts\.unit > 0/)
   assert.match(form, /query: \{ item: line\.item\.trim\(\), excludeId: line\.id \}/)
+  assert.match(form, /backfillPrompted: boolean/)
+  assert.match(form, /if \(!backfillPromptsEnabled\.value \|\| !line\.id \|\| line\.backfillPrompted \|\| \(!size && !unit\)\) return false/)
+  assert.match(form, /line\.backfillPrompted = true/)
   assert.match(form, /<UnitInput[^>]+@blur="checkItemBackfillOnUnitExit\(line\)"/)
   assert.match(form, /document\.activeElement\?\.matches\(`\[data-line-unit="\$\{line\.key\}"\]`\)/)
   assert.match(form, /if \(!unitFieldIsFocused\(line\) && await offerItemBackfill\(line\)\) \{[\s\S]+savedAllRows = false[\s\S]+break/)
   assert.match(form, /backfillKey: '',[\s\S]+backfillChecking: false/)
   assert.match(form, /line\.backfillKey === key \|\| line\.backfillChecking \|\| pendingBackfill\.value/)
   assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
+})
+
+test('maintenance can disable receipt history prompts', () => {
+  assert.match(managePage, /label="Prompt before updating previous entries"/)
+  assert.match(managePage, /localStorage\.getItem\('pantry-pricebook:item-backfill-prompts'\) !== 'disabled'/)
+  assert.match(managePage, /localStorage\.setItem\('pantry-pricebook:item-backfill-prompts', enabled \? 'enabled' : 'disabled'\)/)
+  assert.match(form, /localStorage\.getItem\('pantry-pricebook:item-backfill-prompts'\) !== 'disabled'/)
 })
 
 test('receipt entry provides keyboard workflow help', () => {

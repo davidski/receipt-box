@@ -77,6 +77,7 @@ const resetConfirming = ref(false)
 const resetBusy = ref(false)
 const resetError = ref('')
 const resetComplete = ref(false)
+const backfillPromptsEnabled = ref(true)
 const pendingConfirmation = ref<{ title: string, description: string, confirmLabel: string, confirmColor: 'primary' | 'error' | 'warning', action: () => Promise<void> } | null>(null)
 const confirmationBusy = ref(false)
 const visibleDuplicateItemGroups = computed(() => (duplicateItems.value?.groups || []).slice(0, visibleItemGroupCount.value))
@@ -137,6 +138,23 @@ watch(activeSection, (section) => {
     void loadDuplicateItems()
   }
 }, { immediate: true })
+
+onMounted(() => {
+  try {
+    backfillPromptsEnabled.value = localStorage.getItem('pantry-pricebook:item-backfill-prompts') !== 'disabled'
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts.
+  }
+})
+
+watch(backfillPromptsEnabled, enabled => {
+  if (!import.meta.client) return
+  try {
+    localStorage.setItem('pantry-pricebook:item-backfill-prompts', enabled ? 'enabled' : 'disabled')
+  } catch {
+    // Keep the setting for this session when browser storage is unavailable.
+  }
+})
 
 function storeErrorMessage(error: any, fallback: string) {
   return error?.data?.statusMessage || error?.statusMessage || error?.message || fallback
@@ -827,6 +845,18 @@ async function exportXlsx() {
     </section>
 
     <section v-else class="transfer-section" aria-label="Maintenance tools">
+      <UCard class="data-card" :ui="{ body: 'contents' }">
+        <div class="data-icon" aria-hidden="true"><UIcon name="i-lucide-history" /></div>
+        <div>
+          <h2>Receipt entry prompts</h2>
+          <UCheckbox
+            v-model="backfillPromptsEnabled"
+            label="Prompt before updating previous entries"
+            description="Ask once per receipt line when a new quantity or unit can fill missing historical values."
+          />
+        </div>
+      </UCard>
+
       <UCard class="data-card maintenance-card" :ui="{ body: 'contents' }">
         <div class="data-icon danger-icon" aria-hidden="true"><UIcon name="i-lucide-database-zap" /></div>
         <div>

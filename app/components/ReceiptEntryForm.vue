@@ -36,6 +36,7 @@ type ReceiptLine = {
   request: number
   backfillKey: string
   backfillChecking: boolean
+  backfillPrompted: boolean
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -96,6 +97,7 @@ const pendingBackfill = ref<PendingBackfill | null>(null)
 const backfillBusy = ref(false)
 const backfillSizeSelected = ref(false)
 const backfillUnitSelected = ref(false)
+const backfillPromptsEnabled = ref(true)
 const savedLineSnapshots = reactive(new Map<number, string>())
 const failedAutosaveKey = ref('')
 const discardConfirmOpen = ref(false)
@@ -130,7 +132,7 @@ function blankLine(): ReceiptLine {
   return {
     key: nextKey++, item: '', price: '', size: '', unit: '', saleItem: false,
     nonGrocery: false, notes: '', expanded: false, confirmingRemove: false, itemMenuOpen: false,
-    pendingItemCreation: '', itemBeforeCreation: '', searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false
+    pendingItemCreation: '', itemBeforeCreation: '', searchTerm: '', suggestions: [], request: 0, backfillKey: '', backfillChecking: false, backfillPrompted: false
   }
 }
 
@@ -160,7 +162,8 @@ function lineFromEntry(entry: EditableReceipt['entries'][number]): ReceiptLine {
     suggestions: [],
     request: 0,
     backfillKey: '',
-    backfillChecking: false
+    backfillChecking: false,
+    backfillPrompted: false
   }
 }
 
@@ -466,6 +469,11 @@ onBeforeRouteLeave(to => confirmDiscardNavigation(to))
 
 onMounted(() => {
   loadLocations()
+  try {
+    backfillPromptsEnabled.value = localStorage.getItem('pantry-pricebook:item-backfill-prompts') !== 'disabled'
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts.
+  }
   window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('keydown', handleAddLineShortcut, { capture: true })
   window.addEventListener('keydown', handleAddReceiptShortcut, { capture: true })
@@ -650,7 +658,7 @@ function retryAutosave() {
 async function offerItemBackfill(line: ReceiptLine) {
   const size = String(line.size ?? '').trim()
   const unit = normalizeUnit(line.unit)
-  if (!line.id || (!size && !unit)) return false
+  if (!backfillPromptsEnabled.value || !line.id || line.backfillPrompted || (!size && !unit)) return false
   const key = dimensionBackfillKey(line.item, size, unit)
   if (line.backfillKey === key || line.backfillChecking || pendingBackfill.value) return false
   line.backfillChecking = true
@@ -661,6 +669,7 @@ async function offerItemBackfill(line: ReceiptLine) {
     line.backfillKey = key
     const hasEligibleEntries = (Boolean(size) && counts.size > 0) || (Boolean(unit) && counts.unit > 0)
     if (!hasEligibleEntries) return false
+    line.backfillPrompted = true
     backfillSizeSelected.value = Boolean(size) && counts.size > 0
     backfillUnitSelected.value = Boolean(unit) && counts.unit > 0
     pendingBackfill.value = {

@@ -61,7 +61,7 @@ const UFormField = defineComponent({ setup: (_, { slots }) => () => h('div', slo
 const UPopover = defineComponent({ setup: (_, { slots }) => () => h('div', [slots.default?.(), slots.content?.()]) })
 const UIcon = defineComponent({ setup: () => () => h('span') })
 const UAlert = defineComponent({ props: { description: String }, setup: props => () => h('div', props.description) })
-const UModal = defineComponent({ setup: (_, { slots }) => () => h('div', slots.body?.()) })
+const UModal = defineComponent({ setup: (_, { slots }) => () => h('div', [slots.body?.(), slots.footer?.()]) })
 const UCheckbox = UInput
 const USwitch = defineComponent({
   inheritAttrs: false,
@@ -78,6 +78,13 @@ const USwitch = defineComponent({
 })
 
 const stubs = { UInput, UInputMenu, UButton, UFormField, UPopover, UIcon, UAlert, UModal, UCheckbox, USwitch }
+const localStorageStub = {
+  values: new Map<string, string>(),
+  getItem(key: string) { return this.values.get(key) ?? null },
+  setItem(key: string, value: string) { this.values.set(key, value) },
+  removeItem(key: string) { this.values.delete(key) },
+  clear() { this.values.clear() }
+}
 
 function receipt() {
   return {
@@ -98,6 +105,7 @@ let entryAttempts: number
 let failEntrySaves: boolean
 let deleteAttempts: number
 let failDeletes: boolean
+let backfillChecks: number
 let suggestions: Array<{ value: string, size: string, unit: string, price: string }>
 
 async function mountForm(initialLocation = 'Test Store') {
@@ -114,6 +122,7 @@ async function mountForm(initialLocation = 'Test Store') {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.stubGlobal('localStorage', localStorageStub)
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     setTimeout(() => callback(0), 0)
     return 1
@@ -123,9 +132,15 @@ beforeEach(() => {
   failEntrySaves = false
   deleteAttempts = 0
   failDeletes = false
+  backfillChecks = 0
   suggestions = []
+  localStorageStub.clear()
   registerEndpoint('/api/receipts/match', () => ({ receipt: matchingReceipt }))
   registerEndpoint('/api/suggestions', () => suggestions)
+  registerEndpoint('/api/items/backfill', () => {
+    backfillChecks++
+    return { size: 1, unit: 1, either: 1 }
+  })
   registerEndpoint('/api/entries', {
     method: 'POST',
     handler: () => {
@@ -146,10 +161,18 @@ beforeEach(() => {
       return null
     }
   })
+  registerEndpoint('/api/entries/entry-new', {
+    method: 'PUT',
+    handler: () => ({
+      id: 'entry-new', receiptId: 'receipt-new', purchasedOn: '2026-08-10', location: 'Test Store',
+      item: 'Coffee', price: '4.99', size: '12', unit: 'oz', saleItem: false, nonGrocery: false, notes: null
+    })
+  })
 })
 
 afterEach(() => {
   document.body.innerHTML = ''
+  localStorageStub.clear()
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
@@ -384,5 +407,44 @@ describe('receipt item entry interactions', () => {
     expect((wrapper.get('[data-line-size]').element as HTMLInputElement).value).toBe('12')
     expect((wrapper.get('[data-line-unit]').element as HTMLInputElement).value).toBe('oz')
     expect((wrapper.get('[data-line-price]').element as HTMLInputElement).value).toBe('4.99')
+  })
+
+  it('offers historical backfill once per line and respects the maintenance setting', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+
+    await wrapper.get('[data-line-size]').setValue('12')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+    expect(wrapper.find('.item-backfill-summary').exists()).toBe(true)
+    expect(backfillChecks).toBe(1)
+
+    await wrapper.findAll('button').find(button => button.text() === 'Keep unchanged')!.trigger('click')
+    await wrapper.get('[data-line-unit]').setValue('oz')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    await wrapper.get('[data-line-unit]').trigger('blur')
+    await flushPromises()
+
+    expect(backfillChecks).toBe(1)
+    expect(wrapper.find('.item-backfill-summary').exists()).toBe(false)
+
+    localStorage.setItem('pantry-pricebook:item-backfill-prompts', 'disabled')
+    const disabledWrapper = await mountForm()
+    await disabledWrapper.get('[data-line-item]').setValue('Coffee')
+    await disabledWrapper.get('[data-line-price]').setValue('4.99')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    await disabledWrapper.get('[data-line-size]').setValue('12')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+
+    expect(backfillChecks).toBe(1)
+    expect(disabledWrapper.find('.item-backfill-summary').exists()).toBe(false)
   })
 })
