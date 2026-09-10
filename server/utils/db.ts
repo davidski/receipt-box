@@ -38,7 +38,13 @@ export async function migrate() {
         size NUMERIC(12, 3),
         unit TEXT,
         price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
-        cost_per_unit NUMERIC(12, 4),
+        cost_per_unit NUMERIC(12, 4) GENERATED ALWAYS AS (
+          CASE
+            WHEN size IS NULL OR size <= 0 THEN NULL
+            WHEN lower(unit) IN ('g', 'ml') THEN price / size * 100
+            ELSE price / size
+          END
+        ) STORED,
         sale_item BOOLEAN NOT NULL DEFAULT FALSE,
         non_grocery BOOLEAN NOT NULL DEFAULT FALSE,
         notes TEXT,
@@ -64,6 +70,26 @@ export async function migrate() {
       if (normalized && normalized !== unit) {
         await tx`UPDATE grocery_entries SET unit = ${normalized}, updated_at = now() WHERE unit = ${unit}`
       }
+    }
+    const [costPerUnitColumn] = await tx<{ isGenerated: string }[]>`
+      SELECT is_generated
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'grocery_entries'
+        AND column_name = 'cost_per_unit'
+    `
+    if (costPerUnitColumn?.isGenerated !== 'ALWAYS') {
+      await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS cost_per_unit`
+      await tx`
+        ALTER TABLE grocery_entries
+        ADD COLUMN cost_per_unit NUMERIC(12, 4) GENERATED ALWAYS AS (
+          CASE
+            WHEN size IS NULL OR size <= 0 THEN NULL
+            WHEN lower(unit) IN ('g', 'ml') THEN price / size * 100
+            ELSE price / size
+          END
+        ) STORED
+      `
     }
     await tx`
       CREATE TABLE IF NOT EXISTS grocery_stores (

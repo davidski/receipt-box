@@ -6,8 +6,7 @@ export default defineEventHandler(async (event) => {
   const entry = await insertEntry({
     ...input,
     size: input.size === null ? null : String(input.size),
-    price: String(input.price),
-    costPerUnit: input.costPerUnit === null ? null : String(input.costPerUnit)
+    price: String(input.price)
   })
   setResponseStatus(event, 201)
   return entry

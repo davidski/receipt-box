@@ -34,8 +34,8 @@ describe('normalizeEntry', () => {
     assert.equal(normalizeEntry({ ...validEntry, size: 750, unit: 'ml' }).costPerUnit, 0.6)
   })
 
-  test('respects an explicitly supplied cost per unit', () => {
-    assert.equal(normalizeEntry({ ...validEntry, costPerUnit: '9.99' }).costPerUnit, 9.99)
+  test('derives cost per unit instead of trusting an explicitly supplied value', () => {
+    assert.equal(normalizeEntry({ ...validEntry, costPerUnit: '9.99' }).costPerUnit, 2.25)
   })
 
   test('supports legacy import column names', () => {
@@ -46,7 +46,7 @@ describe('normalizeEntry', () => {
       Size: '3',
       Unit: 'LBS.',
       Price: '5.25',
-      Cost_Per_Unit: '1.75',
+      Cost_Per_Unit: '999.99',
       Sale_Item: 'yes',
       Non_Grocery: 'x',
       Notes: '  clearance  '

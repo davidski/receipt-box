@@ -50,12 +50,7 @@ export async function backfillItemDimensions(
   if (affectedIds.size) {
     await sql`
       UPDATE grocery_entries
-      SET cost_per_unit = CASE
-        WHEN size IS NULL OR size <= 0 THEN NULL
-        WHEN unit IN ('g', 'mL') THEN price / size * 100
-        ELSE price / size
-      END,
-      updated_at = now()
+      SET updated_at = now()
       WHERE id = ANY(${[...affectedIds]}::bigint[])
     `
   }

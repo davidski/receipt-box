@@ -34,7 +34,7 @@ test('returns the existing quantity and unit variants for an item', async () => 
   assert.match(queries[0].sql, /GROUP BY size, unit/)
 })
 
-test('updates only an exact package variant and recalculates normalized cost', async () => {
+test('updates only an exact package variant', async () => {
   const { tx, queries } = fakeTransaction([[{ id: '7' }, { id: '9' }], [{ id: '7' }, { id: '9' }]])
   const affected = await updateItemDimensions(tx, 'Flour', {
     scope: 'variant', matchSize: 5, matchUnit: 'lb', size: 80, unit: 'oz'
@@ -43,9 +43,8 @@ test('updates only an exact package variant and recalculates normalized cost', a
   assert.match(queries[0].sql, /size IS NOT DISTINCT FROM \?/)
   assert.match(queries[0].sql, /unit IS NOT DISTINCT FROM \?/)
   assert.deepEqual(queries[0].values, ['Flour', 5, 'lb'])
-  assert.match(queries[1].sql, /SET size = \?, unit = \?/)
-  assert.match(queries[1].sql, /WHEN \? IN \('g', 'mL'\) THEN price \/ \? \* 100/)
-  assert.deepEqual(queries[1].values, [80, 'oz', 'oz', 80, 80, ['7', '9']])
+  assert.match(queries[1].sql, /SET size = \?, unit = \?, updated_at = now\(\)/)
+  assert.deepEqual(queries[1].values, [80, 'oz', ['7', '9']])
 })
 
 test('supports missing and all scopes', async () => {

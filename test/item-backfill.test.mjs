@@ -23,7 +23,7 @@ test('returns empty counts if the database returns no aggregate row', async () =
   assert.deepEqual(await itemBackfillCounts(sql, 'Rice', '42'), { size: 0, unit: 0, either: 0 })
 })
 
-test('backfills both missing dimensions, recalculates normalized cost, and counts unique entries', async () => {
+test('backfills both missing dimensions and counts unique entries', async () => {
   const { sql, queries } = fakeSql([
     [{ id: '1' }, { id: '2' }],
     [{ id: '2' }, { id: '3' }],
@@ -33,7 +33,7 @@ test('backfills both missing dimensions, recalculates normalized cost, and count
   assert.equal(queries.length, 3)
   assert.match(queries[0].sql, /AND size IS NULL/)
   assert.match(queries[1].sql, /AND unit IS NULL/)
-  assert.match(queries[2].sql, /SET cost_per_unit = CASE/)
+  assert.match(queries[2].sql, /SET updated_at = now\(\)/)
   assert.deepEqual(queries[2].values, [['1', '2', '3']])
 })
 

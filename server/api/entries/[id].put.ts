@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     const [updated] = await tx<GroceryEntry[]>`
       UPDATE grocery_entries SET
         item = ${input.item}, size = ${input.size}, unit = ${input.unit}, price = ${input.price},
-        cost_per_unit = ${input.costPerUnit}, sale_item = ${input.saleItem},
+        sale_item = ${input.saleItem},
         non_grocery = ${input.nonGrocery}, notes = ${input.notes},
         updated_at = now()
       WHERE id = ${id}

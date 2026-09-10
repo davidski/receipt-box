@@ -49,12 +49,7 @@ export async function updateItemDimensions(tx: Transaction, item: string, update
   const ids = rows.map(row => row.id)
   const updated = await tx<{ id: string }[]>`
     UPDATE grocery_entries
-    SET size = ${update.size}, unit = ${update.unit},
-        cost_per_unit = CASE
-          WHEN ${update.unit} IN ('g', 'mL') THEN price / ${update.size} * 100
-          ELSE price / ${update.size}
-        END,
-        updated_at = now()
+    SET size = ${update.size}, unit = ${update.unit}, updated_at = now()
     WHERE id = ANY(${ids}::bigint[])
     RETURNING id::text
   `

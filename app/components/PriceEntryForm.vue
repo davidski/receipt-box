@@ -141,8 +141,7 @@ async function save() {
         ...form,
         unit: normalizedUnit.value,
         size: form.size || null,
-        price: Number(form.price),
-        costPerUnit: normalizedCost.value
+        price: Number(form.price)
       }
     })
     const savedItem = form.item

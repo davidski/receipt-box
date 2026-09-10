@@ -73,18 +73,18 @@ export default defineEventHandler(async (event) => {
           UPDATE grocery_entries SET
             purchased_on = ${entry.purchasedOn}, item = ${entry.item}, location = ${entry.location},
             size = ${entry.size}, unit = ${entry.unit}, price = ${entry.price},
-            cost_per_unit = ${entry.costPerUnit}, sale_item = ${entry.saleItem},
+            sale_item = ${entry.saleItem},
             non_grocery = ${entry.nonGrocery}, notes = ${entry.notes}, updated_at = now()
           WHERE id = ${entryId} AND receipt_id = ${id}
         `
       } else {
         await tx`
           INSERT INTO grocery_entries (
-            receipt_id, purchased_on, item, location, size, unit, price, cost_per_unit,
+            receipt_id, purchased_on, item, location, size, unit, price,
             sale_item, non_grocery, notes
           ) VALUES (
             ${id}, ${entry.purchasedOn}, ${entry.item}, ${entry.location}, ${entry.size},
-            ${entry.unit}, ${entry.price}, ${entry.costPerUnit}, ${entry.saleItem},
+            ${entry.unit}, ${entry.price}, ${entry.saleItem},
             ${entry.nonGrocery}, ${entry.notes}
           )
         `

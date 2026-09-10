@@ -47,13 +47,11 @@ export function normalizeEntry(input: Record<string, unknown>): EntryInput {
   const price = Number(input.price ?? input.Price)
   const size = optionalNumber(input.size ?? input.Size)
   const unit = normalizeUnit(input.unit ?? input.Unit)
-  let costPerUnit = optionalNumber(input.costPerUnit ?? input.Cost_Per_Unit)
-
-  if (costPerUnit === null && size && price >= 0) {
-    costPerUnit = ['g', 'mL'].includes(unit || '')
+  const costPerUnit = size && price >= 0
+    ? ['g', 'mL'].includes(unit || '')
       ? (price / size) * 100
       : price / size
-  }
+    : null
 
   if (!isCalendarDate(purchasedOn)) {
     throw createError({ statusCode: 400, statusMessage: 'A valid purchase date is required' })

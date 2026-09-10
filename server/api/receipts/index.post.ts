@@ -49,7 +49,6 @@ export default defineEventHandler(async (event) => {
       size: entry.size,
       unit: entry.unit,
       price: entry.price,
-      cost_per_unit: entry.costPerUnit,
       sale_item: entry.saleItem,
       non_grocery: entry.nonGrocery,
       notes: entry.notes

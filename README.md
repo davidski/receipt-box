@@ -263,11 +263,11 @@ Then forward public `/api/*` requests to the container's `/receipt-box/api/*`. T
 3. Select **One Per Table** when Numbers asks how to organize the export.
 4. Open **Manage → Import & export** in Receipt Box and import the `.xlsx` file.
 
-The importer recognizes the original columns:
+The importer recognizes the original columns (and derives normalized price from `Size`, `Unit`, and `Price`):
 
-`food_Date`, `Item`, `Location`, `Size`, `Unit`, `Price`, `Cost_Per_Unit`, `Sale_Item`, `Non_Grocery`, and `Notes`.
+`food_Date`, `Item`, `Location`, `Size`, `Unit`, `Price`, `Sale_Item`, `Non_Grocery`, and `Notes`.
 
-Legacy `Unit_Price` columns are ignored. Import adds rows and never deletes existing data. Rows for the same store and date are appended to one receipt, but importing the same workbook twice still duplicates its line items.
+Legacy `Unit_Price` and `Cost_Per_Unit` columns are ignored. Import adds rows and never deletes existing data. Rows for the same store and date are appended to one receipt, but importing the same workbook twice still duplicates its line items.
 
 ## Export and backup
 
