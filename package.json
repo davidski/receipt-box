@@ -28,7 +28,7 @@
     "@vue/test-utils": "2.4.11",
     "happy-dom": "20.11.2",
     "typescript": "5.9.3",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "vue-tsc": "3.3.9"
   },
   "packageManager": "pnpm@11.18.0",
