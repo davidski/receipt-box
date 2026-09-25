@@ -1,0 +1,19 @@
+{
+  "name": "Receipt Box",
+  "short_name": "Receipt Box",
+  "description": "A private receipt tracker with grocery price history.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f4f0e6",
+  "theme_color": "#295c3b",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+name: receipt-box
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: receiptbox
+      POSTGRES_USER: receiptbox
+      POSTGRES_PASSWORD: local-receipt-box-only
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - receipt-box-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U receiptbox -d receiptbox"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  receiptbox:
+    build:
+      context: .
+      args:
+        NUXT_APP_BASE_URL: ${NUXT_APP_BASE_URL:-/}
+        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
+    image: receipt-box:local
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://receiptbox:local-receipt-box-only@postgres:5432/receiptbox
+      AUTH_MODE: ${AUTH_MODE:-disabled}
+      NUXT_SESSION_PASSWORD: ${NUXT_SESSION_PASSWORD:-}
+      NUXT_OAUTH_OIDC_CLIENT_ID: ${NUXT_OAUTH_OIDC_CLIENT_ID:-}
+      NUXT_OAUTH_OIDC_CLIENT_SECRET: ${NUXT_OAUTH_OIDC_CLIENT_SECRET:-}
+      NUXT_OAUTH_OIDC_OPENID_CONFIG: ${NUXT_OAUTH_OIDC_OPENID_CONFIG:-}
+      NUXT_OAUTH_OIDC_REDIRECT_URL: ${NUXT_OAUTH_OIDC_REDIRECT_URL:-}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000${NUXT_APP_BASE_URL:-/}api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  receipt-box-postgres:
+    name: receipt-box-postgres
