@@ -103,6 +103,15 @@ const receiptQuery = computed(() => ({
   offset: receiptMode.value === 'list' ? receiptListOffset.value : 0
 }))
 const { data: receiptData, pending: receiptsPending, error: receiptsError, refresh: refreshReceipts } = await useFetch<ReceiptList>(apiUrl('/receipts'), { query: receiptQuery })
+const receiptsLoadingVisible = ref(false)
+watch(receiptsPending, (isPending, _previous, onCleanup) => {
+  if (!isPending) {
+    receiptsLoadingVisible.value = false
+    return
+  }
+  const timer = setTimeout(() => { receiptsLoadingVisible.value = true }, 150)
+  onCleanup(() => clearTimeout(timer))
+}, { immediate: true })
 const { data: receiptDates, refresh: refreshReceiptDates } = await useFetch<ReceiptDates>(apiUrl('/receipts/dates'))
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
 const { data: categories } = await useFetch<string[]>(apiUrl('/categories'))
@@ -455,7 +464,7 @@ async function confirmRemoveEntry() {
               <UButton :to="{ path: '/receipts/new', query: { date: selectedDate } }" label="Add receipt" icon="i-lucide-plus" color="primary" class="receipt-add-button" />
             </div>
           </header>
-          <div v-if="receiptsPending" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Gathering receipts…</div>
+          <div v-if="receiptsLoadingVisible" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Gathering receipts…</div>
           <div v-else-if="receiptsError" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)] error-state">Could not load receipts for this date.</div>
           <div v-else-if="!receiptData?.receipts.length" class="receipt-empty-state"><UIcon name="i-lucide-receipt-text" aria-hidden="true" /><strong>No receipts for this date</strong><span>Add the first receipt for {{ dateLabel(selectedDate) }}.</span></div>
           <div v-else class="receipt-grid">
@@ -506,7 +515,7 @@ async function confirmRemoveEntry() {
             <span>{{ receiptListOffset + 1 }}–{{ Math.min(receiptListOffset + 50, receiptData.total) }} of {{ receiptData.total }}</span>
             <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="receiptListOffset + 50 >= receiptData.total" @click="receiptListOffset += 50" />
           </div>
-          <div v-if="receiptsPending" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Gathering receipts…</div>
+          <div v-if="receiptsLoadingVisible" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Gathering receipts…</div>
           <div v-else-if="receiptsError" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)] error-state">Could not load the receipt list.</div>
           <div v-else-if="!receiptData?.receipts.length" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">No receipts recorded yet.</div>
           <template v-else>

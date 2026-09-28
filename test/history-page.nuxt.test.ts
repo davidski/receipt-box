@@ -20,6 +20,8 @@ const UIcon = defineComponent({ setup: () => () => h('span') })
 const mounted: Array<{ unmount: () => void }> = []
 let includeReceipt = false
 let includeEntry = false
+let holdReceiptResponse = false
+let releaseReceiptResponse: (() => void) | undefined
 const entry = {
   id: '23', purchasedOn: '2026-09-26', item: 'Apples', category: null, location: 'Test Store', size: '1', unit: 'lb',
   price: '2.00', costPerUnit: '2.00', saleItem: false, nonGrocery: false, notes: null,
@@ -29,13 +31,18 @@ const entry = {
 beforeEach(() => {
   includeReceipt = false
   includeEntry = false
+  holdReceiptResponse = false
+  releaseReceiptResponse = undefined
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
   registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [entry] : [], total: includeEntry ? 1 : 0 }))
   registerEndpoint('/api/receipts/dates', () => ({ dates: [{ date: '2026-09-26', receiptCount: 1, itemCount: 0 }] }))
   registerEndpoint('/api/stores', () => [])
   registerEndpoint('/api/categories', () => [])
-  registerEndpoint('/api/receipts', (event) => {
+  registerEndpoint('/api/receipts', async (event) => {
     const query = getQuery(event)
+    if (holdReceiptResponse && query.date === '2026-09-25') {
+      await new Promise<void>(resolve => { releaseReceiptResponse = resolve })
+    }
     const receipts = includeReceipt && (query.date === '2026-09-26' || query.summary === 'true')
       ? [{ id: '17', purchasedOn: '2026-09-26', location: 'Test Store', total: '0.00', itemCount: 0, entries: [] }]
       : []
@@ -43,7 +50,13 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => mounted.splice(0).forEach(wrapper => wrapper.unmount()))
+afterEach(async () => {
+  mounted.splice(0).forEach(wrapper => wrapper.unmount())
+  releaseReceiptResponse?.()
+  releaseReceiptResponse = undefined
+  vi.useRealTimers()
+  await flushPromises()
+})
 
 async function mountBrowser(route = '/') {
   const wrapper = await mountSuspended(HistoryPage, { route, global: { stubs: { UButton, UIcon } } })
@@ -85,6 +98,28 @@ describe('Receipts home', () => {
     await newer.trigger('click')
     await flushPromises()
     expect(wrapper.findAll('a').find(link => link.text() === 'Edit receipt')!.attributes('href')).toBe('/receipts/17')
+  })
+
+  it('waits 150ms before showing the receipt loading message', async () => {
+    const wrapper = await mountBrowser('/?date=2026-09-26')
+    vi.useFakeTimers()
+    holdReceiptResponse = true
+    await wrapper.findAll('.receipt-calendar button').find(button => button.text() === '25')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Gathering receipts…')
+    await vi.advanceTimersByTimeAsync(149)
+    expect(wrapper.text()).not.toContain('Gathering receipts…')
+    await vi.advanceTimersByTimeAsync(1)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Gathering receipts…')
+
+    vi.useRealTimers()
+    releaseReceiptResponse?.()
+    await flushPromises()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Gathering receipts…')
   })
 
   it('focuses a receipt row on click and opens its editor on double-click', async () => {
