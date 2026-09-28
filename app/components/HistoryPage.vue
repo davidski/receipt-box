@@ -266,6 +266,22 @@ function startEdit(entry: Entry | ReceiptEntry) {
   editError.value = ''
 }
 
+function focusHistoryRow(event: MouseEvent) {
+  if ((event.target as HTMLElement).closest('a, button, input, select, textarea')) return
+  const row = event.currentTarget as HTMLElement
+  row.focus()
+}
+
+function openReceipt(receipt: Receipt, event: MouseEvent) {
+  if ((event.target as HTMLElement).closest('a, button')) return
+  void router.push(`/receipts/${receipt.id}`)
+}
+
+function editEntryFromRow(entry: Entry, event: MouseEvent) {
+  if ((event.target as HTMLElement).closest('a, button')) return
+  startEdit(entry)
+}
+
 async function openLinkedEdit(value: unknown) {
   const id = Array.isArray(value) ? String(value[0] || '') : String(value || '')
   if (!/^\d+$/.test(id)) return
@@ -499,7 +515,7 @@ async function confirmRemoveEntry() {
                 <caption class="sr-only">Receipt date, store, and total</caption>
                 <thead><tr><th scope="col">Date</th><th scope="col">Store</th><th scope="col">Items</th><th scope="col">Total</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
                 <tbody>
-                  <tr v-for="receipt in receiptData.receipts" :key="receipt.id">
+                  <tr v-for="receipt in receiptData.receipts" :key="receipt.id" tabindex="0" @click="focusHistoryRow" @dblclick="openReceipt(receipt, $event)">
                     <td data-label="Date"><strong>{{ dateLabel(receipt.purchasedOn) }}</strong></td>
                     <td data-label="Store"><span class="receipt-list-store"><UIcon name="i-lucide-store" aria-hidden="true" />{{ receipt.location }}</span></td>
                     <td data-label="Items" class="receipt-list-items">{{ receipt.itemCount }}</td>
@@ -543,7 +559,7 @@ async function confirmRemoveEntry() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="entry in data.entries" :key="entry.id">
+          <tr v-for="entry in data.entries" :key="entry.id" tabindex="0" @click="focusHistoryRow" @dblclick="editEntryFromRow(entry, $event)">
             <td data-label="Date">{{ dateLabel(entry.purchasedOn) }}</td>
             <td data-label="Item">
               <NuxtLink :to="itemPath(entry.item)" class="item-history-link" :aria-label="`View normalized price history for ${entry.item}`">

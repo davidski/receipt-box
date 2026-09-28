@@ -392,6 +392,7 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .history-table th:nth-last-child(-n+3), .history-table td.numeric { text-align: right; }
 .history-table td { padding: 15px; border-top: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
 .history-table tbody tr:hover { background: color-mix(in srgb, var(--surface-muted), transparent 45%); }
+.history-table tbody tr:focus, .receipt-list tbody tr:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 .row-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .row-action { text-align: right; }
 .pagination-top { margin: -4px 0 16px; }

@@ -2,7 +2,7 @@ import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { getQuery } from 'h3'
 import { defineComponent, h } from 'vue'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HistoryPage from '../app/components/HistoryPage.vue'
 
 const UButton = defineComponent({
@@ -19,16 +19,24 @@ const UButton = defineComponent({
 const UIcon = defineComponent({ setup: () => () => h('span') })
 const mounted: Array<{ unmount: () => void }> = []
 let includeReceipt = false
+let includeEntry = false
+const entry = {
+  id: '23', purchasedOn: '2026-09-26', item: 'Apples', category: null, location: 'Test Store', size: '1', unit: 'lb',
+  price: '2.00', costPerUnit: '2.00', saleItem: false, nonGrocery: false, notes: null,
+  previousPrice: null, previousCostPerUnit: null, previousPurchasedOn: null, priceChangePercent: null, comparisonBasis: null
+}
 
 beforeEach(() => {
   includeReceipt = false
+  includeEntry = false
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
-  registerEndpoint('/api/entries', () => ({ entries: [], total: 0 }))
+  registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [entry] : [], total: includeEntry ? 1 : 0 }))
   registerEndpoint('/api/receipts/dates', () => ({ dates: [{ date: '2026-09-26', receiptCount: 1, itemCount: 0 }] }))
   registerEndpoint('/api/stores', () => [])
   registerEndpoint('/api/categories', () => [])
   registerEndpoint('/api/receipts', (event) => {
-    const receipts = includeReceipt && getQuery(event).date === '2026-09-26'
+    const query = getQuery(event)
+    const receipts = includeReceipt && (query.date === '2026-09-26' || query.summary === 'true')
       ? [{ id: '17', purchasedOn: '2026-09-26', location: 'Test Store', total: '0.00', itemCount: 0, entries: [] }]
       : []
     return { receipts, total: receipts.length }
@@ -77,5 +85,34 @@ describe('Receipts home', () => {
     await newer.trigger('click')
     await flushPromises()
     expect(wrapper.findAll('a').find(link => link.text() === 'Edit receipt')!.attributes('href')).toBe('/receipts/17')
+  })
+
+  it('focuses a receipt row on click and opens its editor on double-click', async () => {
+    includeReceipt = true
+    const wrapper = await mountBrowser('/history/receipts/list')
+    const row = wrapper.find('.receipt-list tbody tr')
+    expect(row.attributes('tabindex')).toBe('0')
+    const focus = vi.spyOn(row.element, 'focus')
+    await row.trigger('click')
+    expect(focus).toHaveBeenCalledOnce()
+    const push = vi.spyOn(wrapper.vm.$router, 'push')
+    await wrapper.find('.receipt-list tbody tr').trigger('dblclick')
+    await flushPromises()
+    expect(push).toHaveBeenCalledWith('/receipts/17')
+    expect(wrapper.find('a[aria-label="Edit Test Store receipt from Sep 26, 2026"]').exists()).toBe(true)
+  })
+
+  it('focuses an item entry row on click and opens its editor on double-click', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries')
+    const row = wrapper.find('.history-table tbody tr')
+    expect(row.attributes('tabindex')).toBe('0')
+    const focus = vi.spyOn(row.element, 'focus')
+    await row.trigger('click')
+    expect(focus).toHaveBeenCalledOnce()
+    await wrapper.find('.history-table tbody tr').trigger('dblclick')
+    await flushPromises()
+    expect(document.querySelector('.edit-dialog')).not.toBeNull()
+    expect((document.getElementById('edit-item') as HTMLInputElement).value).toBe('Apples')
   })
 })
