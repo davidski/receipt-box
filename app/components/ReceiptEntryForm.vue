@@ -249,7 +249,7 @@ const hasUnsavedChanges = computed(() => enteredLines.value.some(line => (
   !receiptLineIsComplete(line) || savedLineSnapshots.get(line.key) !== lineSnapshot(line)
 )))
 const canEnterLines = computed(() => Boolean(form.location.trim()) && (
-  !checkingReceiptMatch.value || hasReceipt.value || enteredLines.value.length > 0
+  hasReceipt.value || (!checkingReceiptMatch.value && !receiptMatchFailed.value && !matchingReceipt.value)
 ))
 const storeError = computed(() => !form.location.trim() && enteredLines.value.length > 0
   ? 'Select a store to save this receipt'
@@ -754,7 +754,7 @@ function autosaveAttemptKey() {
 
 function scheduleAutosave() {
   clearTimeout(autosaveTimer)
-  if (saving.value || checkingReceiptMatch.value || receiptMatchFailed.value || pendingDuplicateMerge.value || pendingBackfill.value) return
+  if (saving.value || checkingReceiptMatch.value || receiptMatchFailed.value || matchingReceipt.value || pendingDuplicateMerge.value || pendingBackfill.value) return
   const validHeader = /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) && Boolean(form.location.trim())
   const attemptKey = autosaveAttemptKey()
   if (!validHeader || !attemptKey || attemptKey === failedAutosaveKey.value) return
@@ -1172,7 +1172,13 @@ async function deleteReceipt() {
 
     <div v-else class="receipt-store-prompt">
       <UIcon name="i-lucide-store" class="receipt-store-prompt-icon" aria-hidden="true" />
-      <p v-if="checkingReceiptMatch"><strong>Checking for a receipt</strong><span>Looking for existing lines for this date and store.</span></p>
+      <template v-if="matchingReceiptMessage">
+        <UAlert color="warning" variant="soft" icon="i-lucide-receipt-text" :description="matchingReceiptMessage" />
+        <UButton type="button" label="Open existing receipt" icon="i-lucide-arrow-up-right" color="warning" variant="outline" @click="openMatchingReceipt" />
+        <p v-if="enteredLines.length"><span>Your draft lines are kept while you choose another store.</span></p>
+      </template>
+      <p v-else-if="checkingReceiptMatch"><strong>Checking for a receipt</strong><span>Looking for existing lines for this date and store.</span></p>
+      <p v-else-if="receiptMatchFailed"><strong>Could not check for an existing receipt</strong><span>Retry the check before adding lines.</span></p>
       <p v-else><strong>Choose or add a store</strong><span>Select a store to add or edit a receipt.</span></p>
     </div>
 
@@ -1204,10 +1210,6 @@ async function deleteReceipt() {
 
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
     <UButton v-if="receiptMatchFailed" type="button" label="Retry receipt check" icon="i-lucide-refresh-cw" color="error" variant="outline" class="notice" @click="retryReceiptMatch" />
-    <div v-if="matchingReceiptMessage" class="notice flex flex-wrap items-center gap-3">
-      <UAlert color="warning" variant="soft" icon="i-lucide-receipt-text" :description="matchingReceiptMessage" class="flex-1" />
-      <UButton type="button" label="Open existing receipt" icon="i-lucide-arrow-up-right" color="warning" variant="outline" @click="openMatchingReceipt" />
-    </div>
   </form>
 
   <UModal
