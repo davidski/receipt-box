@@ -592,7 +592,7 @@ async function confirmRemoveEntry() {
             <td data-label="Size">{{ packageSize(entry.size, entry.unit) }}</td>
             <td data-label="Price" class="numeric"><strong>{{ currency(entry.price) }}</strong></td>
             <td data-label="Normalized" class="numeric">{{ currency(entry.costPerUnit) }}</td>
-            <td class="row-action"><UButton class="touch-target" type="button" label="Edit" icon="i-lucide-pencil" color="neutral" variant="ghost" size="sm" @click="startEdit(entry)" /></td>
+            <td class="row-action"><UButton class="touch-target history-edit-link" type="button" label="Edit" icon="i-lucide-arrow-up-right" trailing color="neutral" variant="ghost" size="sm" @click="startEdit(entry)" /></td>
           </tr>
         </tbody>
       </table>

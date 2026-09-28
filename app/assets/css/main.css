@@ -202,11 +202,7 @@ h2 { font-size: clamp(27px, 3vw, 34px); }
 .quick-toggles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .ui-switches { display: flex; flex-wrap: wrap; gap: 16px 24px; margin-top: 22px; }
 .ui-switches [data-slot="root"] { min-height: 44px; align-items: center; }
-.quick-toggles label { cursor: pointer; }
-.quick-toggles input { position: absolute; opacity: 0; pointer-events: none; }
-.quick-toggles span { display: grid; place-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 700; }
-.quick-toggles input:checked + span { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
-.quick-toggles input:focus-visible + span { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.quick-toggles [data-slot="label"] { cursor: pointer; }
 .more-fields { margin-top: 20px; border-top: 1px solid var(--line); }
 .more-fields summary { width: max-content; padding: 16px 0 0; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; }
 .details-grid { width: 100%; margin-top: 14px; }
@@ -395,6 +391,8 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 .history-table tbody tr:focus, .receipt-list tbody tr:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 .row-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .row-action { text-align: right; }
+.history-table .row-action .history-edit-link { justify-content: flex-end; padding-inline: 4px; border: 0; background: transparent; color: var(--muted); font-size: 13px; text-decoration: none; }
+.history-table .row-action .history-edit-link:hover, .history-table .row-action .history-edit-link:focus-visible { background: transparent; color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
 .pagination-top { margin: -4px 0 16px; }
 .receipt-browser { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 24px; align-items: start; }
 .receipt-mode-switcher { display: flex; align-items: center; gap: 5px; width: max-content; margin: 0; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
