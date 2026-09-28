@@ -100,7 +100,24 @@ a { color: inherit; }
 .receipt-entry-line { position: relative; display: grid; grid-template-columns: minmax(230px, 2fr) 120px 100px 130px 126px; gap: 10px; align-items: center; padding: 12px 24px 12px 54px; border-top: 1px solid var(--line); }
 .receipt-entry-line:first-child { border-top: 0; }
 .receipt-entry-line:focus-within { background: color-mix(in srgb, var(--accent-soft), transparent 68%); }
+.receipt-line-content { display: contents; }
 .receipt-line-number { position: absolute; top: 22px; left: 20px; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; background: var(--surface-muted); color: var(--muted); font-size: 12px; font-weight: 750; }
+.receipt-split-line-checkbox { position: absolute; top: 50%; left: 12px; z-index: 2; transform: translateY(-50%); }
+.receipt-split-line-checkbox [data-slot="base"] { width: 28px; min-width: 28px; height: 28px; min-height: 28px; justify-content: center; }
+.receipt-split-selection-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 12px 24px 18px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 14px; background: var(--accent-soft); }
+.receipt-split-selection-bar > span { flex: 1 1 260px; color: var(--muted); font-size: 13px; }
+.receipt-split-selection-bar > strong { color: var(--accent-strong); font-size: 13px; white-space: nowrap; }
+.receipt-split-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 24px 0; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 12px; background: var(--accent-soft); }
+.receipt-split-notice > span { flex: 1 1 280px; color: var(--accent-strong); font-size: 13px; font-weight: 650; }
+.receipt-split-dialog { display: grid; gap: 18px; min-width: 0; }
+.receipt-split-source { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.receipt-split-preview { display: grid; max-height: 190px; overflow: auto; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; list-style: none; }
+.receipt-split-preview li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--line); }
+.receipt-split-preview li:first-child { border-top: 0; }
+.receipt-split-preview span { min-width: 0; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.receipt-split-preview strong { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.receipt-split-destination { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 14px; }
+.receipt-split-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; width: 100%; }
 .receipt-entry-line .field { gap: 0; }
 .receipt-entry-line .field input { min-height: 44px; padding: 8px 10px; }
 .receipt-entry-line [data-slot="root"]:has([data-slot="leading"]) [data-slot="base"] { padding-inline-start: 38px; }
@@ -602,6 +619,7 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
   .receipt-entry-lines { display: grid; gap: 12px; padding: 16px; background: var(--bg); }
   .receipt-entry-line { grid-template-columns: minmax(0, 1fr) 112px 100px 96px 126px; padding: 42px 14px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 8px 24px rgb(34 49 38 / 7%); }
   .receipt-line-number { top: 10px; left: 14px; }
+  .receipt-split-line-checkbox { top: 7px; left: 8px; transform: none; }
   .receipt-entry-line:focus-within { background: var(--surface); border-color: var(--accent); }
   .mobile-field-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
   .app-header { grid-template-columns: minmax(0, 1fr) auto; min-height: 70px; }
@@ -719,6 +737,9 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
   .receipt-edit-dialog .receipt-entry-footer > .receipt-autosave-status { grid-column: 1 / -1; }
   .receipt-edit-dialog .receipt-entry-footer > button { width: 100%; }
   .receipt-edit-dialog .receipt-entry-footer > .receipt-delete-confirmation { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+  .receipt-split-selection-bar, .receipt-split-notice { margin-inline: 12px; }
+  .receipt-split-selection-bar > button, .receipt-split-notice > button { flex: 1 1 auto; justify-content: center; }
+  .receipt-split-destination { grid-template-columns: 1fr; }
   .receipt-delete-copy { grid-column: 1 / -1; }
   .receipt-delete-confirmation button { width: 100%; }
   .history-table-wrap { overflow: visible; border: 0; background: transparent; box-shadow: none; }

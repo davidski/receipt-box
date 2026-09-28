@@ -125,6 +125,7 @@ function receipt() {
 }
 
 let matchingReceipt: ReturnType<typeof receipt> | null
+let sourceReceiptForTests: ReturnType<typeof receipt> | null
 let failReceiptMatch: boolean
 let resolveReceiptFetch: ((value: { receipt: ReturnType<typeof receipt> }) => void) | undefined
 let entryAttempts: number
@@ -135,6 +136,9 @@ let backfillChecks: number
 let suggestions: Array<{ value: string, category?: string | null, size: string, unit: string, price: string }>
 let categories: string[]
 let entryBodies: Array<{ method: string, body: any }>
+let splitRequests: Array<{ method: string, body: any }>
+let splitResult: any
+let splitUndoResult: any
 const mountedForms: Array<{ unmount: () => void }> = []
 let mountedRouter: any
 
@@ -163,6 +167,7 @@ beforeEach(() => {
     return 1
   })
   matchingReceipt = null
+  sourceReceiptForTests = null
   entryAttempts = 0
   failEntrySaves = false
   deleteAttempts = 0
@@ -171,6 +176,9 @@ beforeEach(() => {
   suggestions = []
   categories = ['Beverages']
   entryBodies = []
+  splitRequests = []
+  splitResult = null
+  splitUndoResult = null
   localStorageStub.clear()
   failReceiptMatch = false
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
@@ -187,8 +195,24 @@ beforeEach(() => {
         : null
     }
   })
-  registerEndpoint('/api/receipts/receipt-1', () => ({ receipt: matchingReceipt?.id === 'receipt-1' ? matchingReceipt : receipt() }))
+  registerEndpoint('/api/receipts/receipt-1', () => ({ receipt: sourceReceiptForTests ?? (matchingReceipt?.id === 'receipt-1' ? matchingReceipt : receipt()) }))
   registerEndpoint('/api/receipts/receipt-2', () => new Promise(resolve => { resolveReceiptFetch = resolve }))
+  registerEndpoint('/api/receipts/receipt-1/split', {
+    method: 'POST',
+    handler: async (event: any) => {
+      const body = await readBody(event)
+      splitRequests.push({ method: 'POST', body })
+      return splitResult
+    }
+  })
+  registerEndpoint('/api/receipts/receipt-1/split-undo', {
+    method: 'POST',
+    handler: async (event: any) => {
+      const body = await readBody(event)
+      splitRequests.push({ method: 'UNDO', body })
+      return splitUndoResult
+    }
+  })
   registerEndpoint('/api/suggestions', () => suggestions)
   registerEndpoint('/api/categories', () => categories)
   registerEndpoint('/api/items/backfill', () => {
@@ -445,6 +469,75 @@ describe('receipt item entry interactions', () => {
     wrapper.unmount()
   })
 
+  it('moves selected saved lines in one request and can undo the split', async () => {
+    const first = receipt().entries[0]!
+    const second = { ...first, id: 'entry-2', item: 'Tea', price: '3.25', size: null, unit: null }
+    sourceReceiptForTests = { ...receipt(), itemCount: 2, total: '8.24', entries: [first, second] }
+    splitResult = {
+      source: { ...sourceReceiptForTests, itemCount: 1, total: '3.25', entries: [second] },
+      targetReceiptId: 'receipt-2', targetWasCreated: true, movedEntryIds: ['entry-1'], movedCount: 1,
+      targetPurchasedOn: '2026-08-11', targetLocation: 'New Store'
+    }
+    splitUndoResult = { source: sourceReceiptForTests }
+    const wrapper = await mountForm('Test Store', 'receipt-1')
+
+    expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(2)
+    await wrapper.findAll('button').find(button => button.text() === 'Split receipt')!.trigger('click')
+    expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(4)
+    expect(wrapper.find('.receipt-line-content').attributes('inert')).toBeDefined()
+    await wrapper.get('[aria-label="Select Coffee to move"]').trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Move 1 line')!.trigger('click')
+    await wrapper.get('[data-split-date]').setValue('2026-08-11')
+    await wrapper.get('[data-split-store]').setValue('New Store')
+    await vi.waitFor(() => expect(wrapper.text()).not.toContain('Checking for a receipt at this destination'))
+    await wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'I reviewed these lines and the destination.')!.trigger('click')
+    const moveButton = wrapper.findAll('button').filter(button => button.text() === 'Move 1 line').at(-1)!
+    expect(moveButton.attributes('disabled')).toBeUndefined()
+    await moveButton.trigger('click')
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.receipt-split-notice').exists()).toBe(true))
+
+    expect(splitRequests[0]).toMatchObject({ method: 'POST', body: { entryIds: ['entry-1'], purchasedOn: '2026-08-11', location: 'New Store' } })
+    expect(wrapper.text()).toContain('Moved 1 line to New Store')
+    expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(1)
+    await wrapper.findAll('button').find(button => button.text() === 'Undo')!.trigger('click')
+    await flushPromises()
+    expect(splitRequests[1]?.method).toBe('UNDO')
+    await vi.waitFor(() => expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(2))
+    expect(wrapper.text()).not.toContain('Moved 1 line to New Store')
+    wrapper.unmount()
+  })
+
+  it('requires an explicit choice before moving lines into an existing receipt', async () => {
+    const first = receipt().entries[0]!
+    const second = { ...first, id: 'entry-2', item: 'Tea', price: '3.25', size: null, unit: null }
+    sourceReceiptForTests = { ...receipt(), itemCount: 2, total: '8.24', entries: [first, second] }
+    matchingReceipt = { ...receipt(), id: 'receipt-2', purchasedOn: '2026-08-11', location: 'Other Store', itemCount: 4 }
+    splitResult = {
+      source: { ...sourceReceiptForTests, itemCount: 1, total: '3.25', entries: [second] },
+      targetReceiptId: 'receipt-2', targetWasCreated: false, movedEntryIds: ['entry-1'], movedCount: 1,
+      targetPurchasedOn: '2026-08-11', targetLocation: 'Other Store'
+    }
+    const wrapper = await mountForm('Test Store', 'receipt-1')
+
+    await wrapper.findAll('button').find(button => button.text() === 'Split receipt')!.trigger('click')
+    await wrapper.get('[aria-label="Select Coffee to move"]').trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Move 1 line')!.trigger('click')
+    await wrapper.get('[data-split-date]').setValue('2026-08-11')
+    await wrapper.get('[data-split-store]').setValue('Other Store')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('A receipt already exists for Other Store'))
+    await wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'I reviewed these lines and the destination.')!.trigger('click')
+    const moveButton = wrapper.findAll('button').filter(button => button.text() === 'Move 1 line').at(-1)!
+    expect(moveButton.attributes('disabled')).toBeDefined()
+    await wrapper.findAllComponents(UCheckbox).find(box => String(box.props('label')).startsWith('Add these lines to the existing'))!.trigger('click')
+    expect(moveButton.attributes('disabled')).toBeUndefined()
+    await moveButton.trigger('click')
+    await flushPromises()
+
+    expect(splitRequests[0]?.body.targetReceiptId).toBe('receipt-2')
+    wrapper.unmount()
+  })
+
   it('locks saved receipt date and store until each change is explicitly allowed', async () => {
     matchingReceipt = receipt()
     const wrapper = await mountForm('Test Store', 'receipt-1')
@@ -508,6 +601,7 @@ describe('receipt item entry interactions', () => {
     expect(Object.hasOwn(entryBodies.at(-1)!.body, 'category')).toBe(false)
     wrapper.unmount()
   })
+
 
   it('asks for inline confirmation before accepting a new item', async () => {
     const wrapper = await mountForm()

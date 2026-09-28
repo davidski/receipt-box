@@ -3,6 +3,7 @@ import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
 
 import { normalizeUnit } from '../../shared/utils/units'
 import { categoryKey } from '../../shared/utils/category'
+import { storeNameKey } from '../../shared/utils/store-name'
 import {
   receiptLineIsComplete,
   receiptLineSaveSnapshot,
@@ -81,6 +82,17 @@ type SavedEntry = EditableReceipt['entries'][number] & {
   location: string
 }
 
+type SplitUndo = {
+  sourceId: string
+  targetReceiptId: string
+  entryIds: string[]
+  targetWasCreated: boolean
+  sourcePurchasedOn: string
+  sourceLocation: string
+  targetPurchasedOn: string
+  targetLocation: string
+}
+
 const props = defineProps<{
   initialDate?: string
   initialLocation?: string
@@ -118,9 +130,24 @@ const discardConfirmOpen = ref(false)
 const discardTarget = ref<any>(null)
 const allowNavigationAfterDiscard = ref(false)
 const pendingDuplicateMerge = ref<{ receipt: MatchingReceipt, description: string } | null>(null)
+const splitSelectionMode = ref(false)
+const selectedSplitEntryIds = ref<string[]>([])
+const splitDialogOpen = ref(false)
+const splitPurchasedOn = ref('')
+const splitLocation = ref('')
+const splitMatchingReceipt = ref<MatchingReceipt | null>(null)
+const splitCheckingMatch = ref(false)
+const splitMatchFailed = ref(false)
+const splitError = ref('')
+const splitReviewed = ref(false)
+const splitIntoExistingConfirmed = ref(false)
+const splitBusy = ref(false)
+const splitNotice = ref<{ movedCount: number, targetReceiptId: string, targetPurchasedOn: string, targetLocation: string, undo: SplitUndo } | null>(null)
+const splitMatchRetryKey = ref(0)
 let nextKey = 1
 let matchRequest = 0
 let receiptLoadRequest = 0
+let splitMatchRequest = 0
 const receiptMatchRetryKey = ref(0)
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const hasReceipt = computed(() => Boolean(currentReceiptId.value))
@@ -248,6 +275,37 @@ const enteredLines = computed(() => form.lines.filter(lineHasContent))
 const completeLines = computed(() => enteredLines.value.filter(receiptLineIsComplete))
 const incompleteLines = computed(() => enteredLines.value.filter(line => !receiptLineIsComplete(line)))
 const hasBlankLine = computed(() => form.lines.some(line => !lineHasContent(line)))
+const renderedLines = computed(() => splitSelectionMode.value ? form.lines.filter(line => Boolean(line.id)) : form.lines)
+const savedReceiptLines = computed(() => form.lines.filter(line => Boolean(line.id) && receiptLineIsComplete(line) && savedLineSnapshots.get(line.key) === lineSnapshot(line)))
+const selectedSplitLines = computed(() => savedReceiptLines.value.filter(line => line.id && selectedSplitEntryIds.value.includes(line.id)))
+const canStartSplit = computed(() => (
+  hasReceipt.value
+  && savedReceiptLines.value.length >= 2
+  && !hasUnsavedChanges.value
+  && !saving.value
+  && !checkingReceiptMatch.value
+  && !receiptMatchFailed.value
+  && !pendingDuplicateMerge.value
+  && !pendingBackfill.value
+))
+const splitSameAsSource = computed(() => (
+  splitPurchasedOn.value === form.purchasedOn
+  && storeNameKey(splitLocation.value) === storeNameKey(form.location)
+))
+const splitDateValid = computed(() => Boolean(parseCalendarDate(splitPurchasedOn.value)))
+const canMoveSplitLines = computed(() => (
+  splitDialogOpen.value
+  && selectedSplitLines.value.length > 0
+  && selectedSplitLines.value.length < savedReceiptLines.value.length
+  && splitDateValid.value
+  && Boolean(splitLocation.value.trim())
+  && !splitSameAsSource.value
+  && !splitCheckingMatch.value
+  && !splitMatchFailed.value
+  && !splitBusy.value
+  && splitReviewed.value
+  && (!splitMatchingReceipt.value || splitIntoExistingConfirmed.value)
+))
 const hasUnsavedChanges = computed(() => enteredLines.value.some(line => (
   !receiptLineIsComplete(line) || savedLineSnapshots.get(line.key) !== lineSnapshot(line)
 )))
@@ -299,6 +357,8 @@ function loadReceipt(receipt: EditableReceipt) {
   }
   confirmedReceiptKey.value = { purchasedOn: receipt.purchasedOn, location: receipt.location }
   failedAutosaveKey.value = ''
+  splitSelectionMode.value = false
+  selectedSplitEntryIds.value = []
   savedLineSnapshots.clear()
   for (const line of form.lines) {
     if (line.id) savedLineSnapshots.set(line.key, lineSnapshot(line))
@@ -406,6 +466,37 @@ watch([
   }
 }, { immediate: true })
 
+watch([
+  () => splitDialogOpen.value,
+  () => splitPurchasedOn.value,
+  () => splitLocation.value,
+  () => splitMatchRetryKey.value
+], async ([open, purchasedOn, location]) => {
+  const request = ++splitMatchRequest
+  splitMatchingReceipt.value = null
+  splitCheckingMatch.value = false
+  splitMatchFailed.value = false
+  splitError.value = ''
+  splitReviewed.value = false
+  splitIntoExistingConfirmed.value = false
+  const normalizedLocation = String(location ?? '').trim()
+  if (!open || !parseCalendarDate(String(purchasedOn)) || !normalizedLocation || splitSameAsSource.value) return
+  splitCheckingMatch.value = true
+  try {
+    const result = await $fetch<{ receipt: MatchingReceipt | null }>(apiUrl('/receipts/match'), {
+      query: { date: purchasedOn, location: normalizedLocation, excludeId: currentReceiptId.value || undefined }
+    })
+    if (request === splitMatchRequest) splitMatchingReceipt.value = result.receipt
+  } catch {
+    if (request === splitMatchRequest) {
+      splitMatchFailed.value = true
+      splitError.value = 'Could not check for a receipt at the destination. Retry the check before moving these lines.'
+    }
+  } finally {
+    if (request === splitMatchRequest) splitCheckingMatch.value = false
+  }
+})
+
 watch(() => JSON.stringify({
   purchasedOn: form.purchasedOn,
   location: form.location,
@@ -447,8 +538,125 @@ function createLocation(value: string | { value: string }) {
   form.location = (typeof value === 'string' ? value : value.value).trim()
 }
 
+function createSplitLocation(value: string | { value: string }) {
+  splitLocation.value = (typeof value === 'string' ? value : value.value).trim()
+}
+
 function openMatchingReceipt() {
   if (matchingReceipt.value) return navigateTo(`/receipts/${matchingReceipt.value.id}`)
+}
+
+function startSplitSelection() {
+  if (!canStartSplit.value) return
+  splitNotice.value = null
+  splitError.value = ''
+  selectedSplitEntryIds.value = []
+  splitSelectionMode.value = true
+}
+
+function cancelSplitSelection() {
+  splitSelectionMode.value = false
+  selectedSplitEntryIds.value = []
+  splitDialogOpen.value = false
+  splitError.value = ''
+}
+
+function toggleSplitEntry(id: string, selected: boolean) {
+  if (selected) {
+    if (selectedSplitEntryIds.value.length >= savedReceiptLines.value.length - 1) return
+    selectedSplitEntryIds.value = [...selectedSplitEntryIds.value, id]
+  } else {
+    selectedSplitEntryIds.value = selectedSplitEntryIds.value.filter(entryId => entryId !== id)
+  }
+  splitError.value = ''
+}
+
+function openSplitDialog() {
+  if (!selectedSplitLines.value.length) return
+  splitPurchasedOn.value = form.purchasedOn
+  splitLocation.value = ''
+  splitReviewed.value = false
+  splitIntoExistingConfirmed.value = false
+  splitError.value = ''
+  splitDialogOpen.value = true
+}
+
+function retrySplitMatch() {
+  splitMatchRetryKey.value++
+}
+
+async function moveSelectedLines() {
+  if (!canMoveSplitLines.value || !currentReceiptId.value) return
+  splitBusy.value = true
+  splitError.value = ''
+  const sourcePurchasedOn = form.purchasedOn
+  const sourceLocation = form.location
+  const entryIds = selectedSplitLines.value.flatMap(line => line.id ? [line.id] : [])
+  try {
+    const result = await $fetch<{
+      source: EditableReceipt
+      targetReceiptId: string
+      targetWasCreated: boolean
+      movedEntryIds: string[]
+      movedCount: number
+      targetPurchasedOn: string
+      targetLocation: string
+    }>(apiUrl(`/receipts/${currentReceiptId.value}/split`), {
+      method: 'POST',
+      body: {
+        entryIds,
+        purchasedOn: splitPurchasedOn.value,
+        location: splitLocation.value,
+        ...(splitMatchingReceipt.value ? { targetReceiptId: splitMatchingReceipt.value.id } : {})
+      }
+    })
+    const undo: SplitUndo = {
+      sourceId: currentReceiptId.value,
+      targetReceiptId: result.targetReceiptId,
+      entryIds: result.movedEntryIds,
+      targetWasCreated: result.targetWasCreated,
+      sourcePurchasedOn,
+      sourceLocation,
+      targetPurchasedOn: result.targetPurchasedOn,
+      targetLocation: result.targetLocation
+    }
+    loadReceipt(result.source)
+    splitDialogOpen.value = false
+    selectedSplitEntryIds.value = []
+    splitNotice.value = {
+      movedCount: result.movedCount,
+      targetReceiptId: result.targetReceiptId,
+      targetPurchasedOn: result.targetPurchasedOn,
+      targetLocation: result.targetLocation,
+      undo
+    }
+    receiptSessionMessage.value = `Moved ${result.movedCount} ${result.movedCount === 1 ? 'line' : 'lines'} to ${result.targetLocation} on ${dateDisplayLabel(result.targetPurchasedOn)}.`
+  } catch (error: any) {
+    splitError.value = error?.data?.statusMessage || error?.message || 'Could not move these lines'
+    if (error?.statusCode === 409 || error?.response?.status === 409 || error?.data?.statusCode === 409) splitMatchFailed.value = true
+  } finally {
+    splitBusy.value = false
+  }
+}
+
+async function undoSplit() {
+  const notice = splitNotice.value
+  if (!notice || splitBusy.value) return
+  splitBusy.value = true
+  errorMessage.value = ''
+  try {
+    const result = await $fetch<{ source: EditableReceipt }>(apiUrl(`/receipts/${notice.undo.sourceId}/split-undo`), {
+      method: 'POST',
+      body: notice.undo
+    })
+    loadReceipt(result.source)
+    splitNotice.value = null
+    receiptSessionMessage.value = 'The receipt split was undone.'
+  } catch (error: any) {
+    errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not undo this receipt split'
+  } finally {
+    splitBusy.value = false
+  }
 }
 
 function confirmDiscardNavigation(to: any) {
@@ -1079,6 +1287,11 @@ async function deleteReceipt() {
     </header>
 
     <p v-if="receiptSessionMessage" class="sr-only" role="status" aria-live="polite">{{ receiptSessionMessage }}</p>
+    <div v-if="splitNotice" class="receipt-split-notice" role="status" aria-live="polite">
+      <span>Moved {{ splitNotice.movedCount }} {{ splitNotice.movedCount === 1 ? 'line' : 'lines' }} to {{ splitNotice.targetLocation }} on {{ dateDisplayLabel(splitNotice.targetPurchasedOn) }}.</span>
+      <UButton type="button" label="Open destination" icon="i-lucide-arrow-up-right" color="neutral" variant="ghost" :to="`/receipts/${splitNotice.targetReceiptId}`" />
+      <UButton type="button" label="Undo" icon="i-lucide-undo-2" color="neutral" variant="outline" :loading="splitBusy" @click="undoSplit" />
+    </div>
 
     <div v-if="canEnterLines" class="receipt-line-labels">
       <span>Item</span><span>Price</span><span>Size</span><span>Unit</span><span>Options</span>
@@ -1099,8 +1312,17 @@ async function deleteReceipt() {
     </div>
 
     <ol v-if="canEnterLines" class="receipt-entry-lines">
-      <li v-for="(line, index) in form.lines" :key="line.key" :data-receipt-line="line.key" class="receipt-entry-line">
-        <span class="receipt-line-number" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
+      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" class="receipt-entry-line">
+        <UCheckbox
+          v-if="splitSelectionMode && line.id"
+          class="receipt-split-line-checkbox"
+          :model-value="selectedSplitEntryIds.includes(line.id)"
+          :disabled="!selectedSplitEntryIds.includes(line.id) && selectedSplitEntryIds.length >= savedReceiptLines.length - 1"
+          :aria-label="`Select ${line.item} to move`"
+          @update:model-value="toggleSplitEntry(line.id, $event === true)"
+        />
+        <span v-else class="receipt-line-number" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
+        <div class="receipt-line-content" :inert="splitSelectionMode">
         <UFormField :name="`item-${line.key}`" class="field receipt-line-item">
           <span class="mobile-field-label">Item</span>
           <UInputMenu
@@ -1172,10 +1394,16 @@ async function deleteReceipt() {
           <UButton type="button" :data-line-keep="line.key" label="Keep item" color="neutral" variant="outline" :disabled="saving" @click="cancelRemoveLine(line)" />
           <UButton type="button" label="Remove item" color="error" :loading="saving" @click="removeLine(line)" />
         </div>
+        </div>
       </li>
     </ol>
 
-    <UButton v-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line" title="Add another line (Command/Control+Shift+Enter)" :disabled="hasBlankLine" @click="addLine()" />
+    <div v-if="splitSelectionMode" class="receipt-split-selection-bar">
+      <span>Select the lines to move. Leave at least one line in this receipt.</span>
+      <strong>{{ selectedSplitLines.length }} selected</strong>
+      <UButton type="button" :label="`Move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}`" icon="i-lucide-split" :disabled="!selectedSplitLines.length" @click="openSplitDialog" />
+    </div>
+    <UButton v-else-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line" title="Add another line (Command/Control+Shift+Enter)" :disabled="hasBlankLine" @click="addLine()" />
 
     <div v-else class="receipt-store-prompt">
       <UIcon name="i-lucide-store" class="receipt-store-prompt-icon" aria-hidden="true" />
@@ -1209,10 +1437,12 @@ async function deleteReceipt() {
         <UButton type="button" size="xl" label="Delete permanently" icon="i-lucide-trash-2" color="error" :loading="saving" @click="deleteReceipt" />
       </div>
       <template v-else>
-        <UButton v-if="hasReceipt" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
-        <UButton v-if="hasReceipt" type="button" label="Export receipt" icon="i-lucide-download" color="neutral" variant="outline" :disabled="saving || !completeLines.length" @click="exportReceiptCsv" />
+        <UButton v-if="hasReceipt && splitSelectionMode" type="button" label="Cancel split" icon="i-lucide-x" color="neutral" variant="outline" @click="cancelSplitSelection" />
+        <UButton v-else-if="hasReceipt" type="button" label="Delete receipt" icon="i-lucide-trash-2" color="error" variant="outline" :disabled="saving" @click="confirmingDelete = true" />
+        <UButton v-if="hasReceipt && !splitSelectionMode" type="button" label="Export receipt" icon="i-lucide-download" color="neutral" variant="outline" :disabled="saving || !completeLines.length" @click="exportReceiptCsv" />
+        <UButton v-if="hasReceipt && !splitSelectionMode && savedReceiptLines.length >= 2" type="button" label="Split receipt" icon="i-lucide-split" color="neutral" variant="outline" :disabled="!canStartSplit" @click="startSplitSelection" />
         <span v-if="hasReceipt" class="flex-1" />
-        <UButton type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
+        <UButton v-if="!splitSelectionMode" type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
         <div class="receipt-autosave-status" role="status" aria-live="polite">
           <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ spinning: saving || checkingReceiptMatch }" aria-hidden="true" />
           <span>{{ autosaveStatus }}</span>
@@ -1228,6 +1458,54 @@ async function deleteReceipt() {
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
     <UButton v-if="receiptMatchFailed" type="button" label="Retry receipt check" icon="i-lucide-refresh-cw" color="error" variant="outline" class="notice" @click="retryReceiptMatch" />
   </form>
+
+  <UModal
+    v-model:open="splitDialogOpen"
+    :dismissible="!splitBusy"
+    :close="false"
+    title="Move selected lines"
+    :description="`Choose where to move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}. They will be removed from this receipt.`"
+  >
+    <template #body>
+      <div class="receipt-split-dialog">
+        <div>
+          <p class="receipt-split-source">From {{ form.location }} · {{ dateDisplayLabel(form.purchasedOn) }}</p>
+          <ul class="receipt-split-preview">
+            <li v-for="line in selectedSplitLines" :key="line.id">
+              <span>{{ line.item }}</span>
+              <strong>${{ Number(line.price).toFixed(2) }}</strong>
+            </li>
+          </ul>
+        </div>
+        <div class="receipt-split-destination">
+          <UFormField label="Destination date" name="splitPurchasedOn" required>
+            <UInput v-model="splitPurchasedOn" data-split-date type="date" required size="lg" />
+          </UFormField>
+          <UFormField label="Destination store" name="splitLocation" required>
+            <UInputMenu v-model="splitLocation" data-split-store :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" @create="createSplitLocation" />
+          </UFormField>
+        </div>
+        <UAlert v-if="splitSameAsSource" color="warning" variant="soft" icon="i-lucide-circle-alert" description="Choose a different date or store to move these lines." />
+        <UAlert v-else-if="splitCheckingMatch" color="neutral" variant="soft" icon="i-lucide-loader-circle" description="Checking for a receipt at this destination…" />
+        <UAlert v-else-if="splitMatchingReceipt" color="warning" variant="soft" icon="i-lucide-receipt-text" :description="`A receipt already exists for ${splitMatchingReceipt.location} on ${dateDisplayLabel(splitMatchingReceipt.purchasedOn)} with ${splitMatchingReceipt.itemCount} ${splitMatchingReceipt.itemCount === 1 ? 'item' : 'items'}.`" />
+        <UButton v-if="splitMatchFailed" type="button" label="Retry destination check" icon="i-lucide-refresh-cw" color="error" variant="outline" @click="retrySplitMatch" />
+        <UCheckbox v-model="splitReviewed" label="I reviewed these lines and the destination." :disabled="splitBusy" />
+        <UCheckbox
+          v-if="splitMatchingReceipt"
+          v-model="splitIntoExistingConfirmed"
+          :label="`Add these lines to the existing ${splitMatchingReceipt.itemCount}-item receipt`"
+          :disabled="splitBusy"
+        />
+        <UAlert v-if="splitError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="splitError" />
+      </div>
+    </template>
+    <template #footer>
+      <div class="receipt-split-actions">
+        <UButton type="button" label="Cancel" color="neutral" variant="ghost" :disabled="splitBusy" @click="splitDialogOpen = false" />
+        <UButton type="button" :label="`Move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}`" icon="i-lucide-split" :loading="splitBusy" :disabled="!canMoveSplitLines" @click="moveSelectedLines" />
+      </div>
+    </template>
+  </UModal>
 
   <UModal
     :open="Boolean(pendingBackfill)"
