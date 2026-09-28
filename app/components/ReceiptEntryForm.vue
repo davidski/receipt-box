@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
+
 import { normalizeUnit } from '../../shared/utils/units'
 import { categoryKey } from '../../shared/utils/category'
 import {
@@ -1156,7 +1158,11 @@ async function deleteReceipt() {
             </div>
           </UFormField>
           <UFormField label="Notes" :name="`notes-${line.key}`" class="field">
-            <UInput :data-line-notes="line.key" v-model="line.notes" placeholder="Optional note" @keydown.tab.exact.prevent="focusLineNonGrocery(line)" />
+            <UInput :data-line-notes="line.key" v-model="line.notes" placeholder="Optional note" :maxlength="maxEntryNotesLength" :aria-describedby="`notes-character-count-${line.key}`" :ui="{ trailing: 'pointer-events-none' }" @keydown.tab.exact.prevent="focusLineNonGrocery(line)">
+              <template #trailing>
+                <span :id="`notes-character-count-${line.key}`" class="text-xs text-muted tabular-nums" aria-live="polite" role="status">{{ line.notes.length }}/{{ maxEntryNotesLength }}</span>
+              </template>
+            </UInput>
           </UFormField>
           <USwitch :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" class="receipt-line-non-grocery" @keydown.tab.exact.prevent="finishLine(line)" />
         </div>

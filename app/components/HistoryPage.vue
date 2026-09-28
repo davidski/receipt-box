@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
+
 type Entry = {
   id: string
   purchasedOn: string
@@ -643,7 +645,11 @@ async function confirmRemoveEntry() {
             <UCheckbox v-model="editing.nonGrocery" label="Non-grocery" />
           </div>
           <UFormField label="Notes" name="edit-notes" class="field">
-            <UTextarea id="edit-notes" v-model="editingNotes" :rows="3" />
+            <UTextarea id="edit-notes" v-model="editingNotes" :rows="3" :maxlength="maxEntryNotesLength" aria-describedby="edit-notes-character-count" :ui="{ trailing: 'pointer-events-none' }">
+              <template #trailing>
+                <span id="edit-notes-character-count" class="text-xs text-muted tabular-nums" aria-live="polite" role="status">{{ editingNotes.length }}/{{ maxEntryNotesLength }}</span>
+              </template>
+            </UTextarea>
           </UFormField>
           <UAlert v-if="editError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="editError" />
         </form>

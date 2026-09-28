@@ -1,6 +1,7 @@
 import { normalizeUnit } from '../../shared/utils/units.ts'
 import { normalizeStoreName } from '../../shared/utils/store-name.ts'
 import { normalizeCategory } from '../../shared/utils/category.ts'
+import { maxEntryNotesLength } from '../../shared/utils/entry-notes.ts'
 
 export type EntryInput = {
   purchasedOn: string
@@ -66,6 +67,10 @@ export function normalizeEntry(input: Record<string, unknown>): EntryInput {
   if (size !== null && size <= 0) {
     throw createError({ statusCode: 400, statusMessage: 'Size must be greater than zero' })
   }
+  const notes = String(input.notes ?? input.Notes ?? '').trim()
+  if (notes.length > maxEntryNotesLength) {
+    throw createError({ statusCode: 400, statusMessage: `Notes must be ${maxEntryNotesLength} characters or fewer` })
+  }
 
   let category: string | null | undefined
   try {
@@ -84,7 +89,7 @@ export function normalizeEntry(input: Record<string, unknown>): EntryInput {
     costPerUnit,
     saleItem: truthy(input.saleItem ?? input.Sale_Item),
     nonGrocery: truthy(input.nonGrocery ?? input.Non_Grocery),
-    notes: String(input.notes ?? input.Notes ?? '').trim() || null,
+    notes: notes || null,
     ...(category === undefined ? {} : { category })
   }
 }

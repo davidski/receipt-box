@@ -149,5 +149,7 @@ describe('Receipts home', () => {
     await flushPromises()
     expect(document.querySelector('.edit-dialog')).not.toBeNull()
     expect((document.getElementById('edit-item') as HTMLInputElement).value).toBe('Apples')
+    expect(document.getElementById('edit-notes')?.getAttribute('maxlength')).toBe('100')
+    expect(document.getElementById('edit-notes-character-count')?.textContent).toBe('0/100')
   })
 })

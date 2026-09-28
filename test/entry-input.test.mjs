@@ -3,6 +3,7 @@ import { describe, test } from 'node:test'
 
 globalThis.createError = (input) => Object.assign(new Error(input.statusMessage), input)
 const { normalizeEntry } = await import('../server/utils/entry-input.ts')
+const { maxEntryNotesLength } = await import('../shared/utils/entry-notes.ts')
 
 const validEntry = {
   purchasedOn: '2026-08-06',
@@ -85,6 +86,14 @@ describe('normalizeEntry', () => {
     assert.equal(entry.unit, null)
     assert.equal(entry.costPerUnit, null)
     assert.equal(entry.notes, null)
+  })
+
+  test('accepts notes at the character limit and rejects longer notes', () => {
+    assert.equal(normalizeEntry({ ...validEntry, notes: 'x'.repeat(maxEntryNotesLength) }).notes.length, maxEntryNotesLength)
+    assert.throws(
+      () => normalizeEntry({ ...validEntry, notes: 'x'.repeat(maxEntryNotesLength + 1) }),
+      error => error.statusCode === 400 && error.statusMessage === `Notes must be ${maxEntryNotesLength} characters or fewer`
+    )
   })
 
   test('rejects invalid required values with HTTP 400 errors', () => {

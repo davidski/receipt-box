@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { normalizeUnit } from '../../shared/utils/units'
+import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
 
 type Suggestion = {
   value: string
@@ -234,7 +235,11 @@ async function save() {
       <template #content>
         <div class="form-grid grid gap-4 mt-5 details-grid">
           <UFormField label="Notes" name="notes" class="field">
-            <UInput id="notes" v-model="form.notes" type="text" placeholder="Optional" />
+            <UInput id="notes" v-model="form.notes" type="text" placeholder="Optional" :maxlength="maxEntryNotesLength" aria-describedby="notes-character-count" :ui="{ trailing: 'pointer-events-none' }">
+              <template #trailing>
+                <span id="notes-character-count" class="text-xs text-muted tabular-nums" aria-live="polite" role="status">{{ form.notes.length }}/{{ maxEntryNotesLength }}</span>
+              </template>
+            </UInput>
           </UFormField>
         </div>
       </template>
