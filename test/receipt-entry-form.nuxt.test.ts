@@ -182,6 +182,7 @@ beforeEach(() => {
       receipt: matchingReceipt
         && matchingReceipt.id !== String(query.excludeId || '')
         && matchingReceipt.purchasedOn === String(query.date)
+        && matchingReceipt.location === String(query.location)
         ? matchingReceipt
         : null
     }
@@ -286,7 +287,7 @@ describe('receipt item entry interactions', () => {
     resolveReceiptFetch?.({ receipt: receipt() })
     await flushPromises()
 
-    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).value).toBe('2026-08-11')
+    expect(wrapper.get('[data-receipt-date-display]').attributes('datetime')).toBe('2026-08-11')
     expect(wrapper.find('[data-line-item]').exists()).toBe(false)
     wrapper.unmount()
   })
@@ -295,7 +296,8 @@ describe('receipt item entry interactions', () => {
     matchingReceipt = receipt()
     const wrapper = await mountForm()
 
-    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('A receipt already exists for this store and date with 1 item.')
     expect(wrapper.text()).toContain('Open existing receipt')
     wrapper.unmount()
   })
@@ -314,10 +316,13 @@ describe('receipt item entry interactions', () => {
     })
     mountedForms.push(wrapper)
     mountedRouter = wrapper.findComponent(ReceiptEntryForm).vm.$router
-    await wrapper.get('[data-receipt-store]').setValue('Test Store')
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Open existing receipt'))
+    await wrapper.get('[data-receipt-store]').setValue('Other Store')
+    await vi.waitFor(() => expect(wrapper.find('[data-line-item]').exists()).toBe(true))
     await wrapper.get('[data-line-item]').setValue('Coffee')
     await wrapper.get('[data-line-price]').setValue('9.99')
+    await wrapper.get('[data-receipt-store]').setValue('Test Store')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Open existing receipt'))
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
     await flushPromises()
     expect(wrapper.text()).toContain('Open existing receipt')
 
@@ -325,13 +330,13 @@ describe('receipt item entry interactions', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Discard unsaved receipt?')
     expect(wrapper.text()).toContain('Add receipt')
-    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
 
     await wrapper.findAll('button').find(button => button.text() === 'Cancel')!.trigger('click')
     await flushPromises()
     expect(wrapper.text()).not.toContain('Discard unsaved receipt?')
     expect(wrapper.text()).toContain('Add receipt')
-    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
 
     await wrapper.findAll('button').find(button => button.text() === 'Open existing receipt')!.trigger('click')
     await flushPromises()
@@ -345,29 +350,36 @@ describe('receipt item entry interactions', () => {
   it('blocks autosave and Save and add another while a new receipt has a duplicate match', async () => {
     matchingReceipt = receipt()
     const wrapper = await mountForm()
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
+    await wrapper.get('[data-receipt-store]').setValue('Other Store')
+    await vi.waitFor(() => expect(wrapper.find('[data-line-item]').exists()).toBe(true))
     await wrapper.get('[data-line-item]').setValue('Tea')
     await wrapper.get('[data-line-price]').setValue('3.25')
+    await wrapper.get('[data-receipt-store]').setValue('Test Store')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Open existing receipt'))
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Your draft lines are kept while you choose another store.')
     await flushPromises()
 
     const saveAndAdd = wrapper.findAll('button').find(button => button.text() === 'Save and add another')!
-    expect(saveAndAdd.attributes('disabled')).toBeDefined()
+    expect(saveAndAdd).toBeUndefined()
     await vi.advanceTimersByTimeAsync(700)
     await flushPromises()
     expect(entryAttempts).toBe(0)
+    await wrapper.get('[data-receipt-store]').setValue('Other Store')
+    await vi.waitFor(() => expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Tea'))
     wrapper.unmount()
   })
 
   it('fails closed when duplicate lookup fails in new mode', async () => {
     failReceiptMatch = true
     const wrapper = await mountForm()
-    await wrapper.get('[data-line-item]').setValue('Tea')
-    await wrapper.get('[data-line-price]').setValue('3.25')
     await vi.advanceTimersByTimeAsync(700)
     await flushPromises()
 
     expect(wrapper.text()).toContain('Retry the check before saving.')
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
     expect(wrapper.findAll('button').find(button => button.text() === 'Retry receipt check')).toBeDefined()
-    expect(wrapper.findAll('button').find(button => button.text() === 'Save and add another')!.attributes('disabled')).toBeDefined()
     expect(entryAttempts).toBe(0)
     wrapper.unmount()
   })
@@ -527,7 +539,7 @@ describe('receipt item entry interactions', () => {
     expect(entryAttempts).toBe(1)
     expect((wrapper.get('[data-receipt-store]').element as HTMLInputElement).value).toBe('')
     expect(wrapper.find('[data-line-item]').exists()).toBe(false)
-    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).value).toBe('2026-08-10')
+    expect(wrapper.get('[data-receipt-date-display]').attributes('datetime')).toBe('2026-08-10')
     expect(document.activeElement).toBe(wrapper.get('[data-receipt-store]').element)
     expect(wrapper.text()).toContain('Receipt saved. Ready for another receipt.')
   })

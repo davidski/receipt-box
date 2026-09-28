@@ -478,7 +478,7 @@ function resolveDuplicateMerge(confirmed: boolean) {
   const pending = pendingDuplicateMerge.value
   pendingDuplicateMerge.value = null
   if (confirmed && pending) {
-    matchingReceipt.value = pending.receipt
+    matchingReceipt.value = null
     scheduleAutosave()
     return
   }

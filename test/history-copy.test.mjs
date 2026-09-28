@@ -10,17 +10,18 @@ const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.m
 
 test('History keeps its page heading stable across views', () => {
   assert.match(page, /Purchase records<\/p>/)
-  assert.match(page, /<h1 class="text-\[clamp\(34px,3\.5vw,42px\)\] leading-\[1\.04\]">\{\{ view === 'receipts' \? 'Receipts' : 'History' \}\}<\/h1>/)
+  assert.match(page, /<h1 class="text-\[clamp\(34px,3\.5vw,42px\)\] leading-\[1\.04\]">Receipts<\/h1>/)
   assert.match(page, /Browse receipts by date\./)
-  assert.match(page, /class="page-heading my-\[15px\] mb-8 history-heading">[\s\S]*class="history-view-switcher" aria-label="History view"/)
+  assert.match(page, /class="page-heading my-\[15px\] mb-8 history-heading">[\s\S]*class="receipt-mode-switcher receipt-views" aria-label="Receipts view"/)
   assert.doesNotMatch(page, /history-view-summary/)
   assert.match(viewRoute, /middleware: 'history'/)
   assert.match(middleware, /to\.path === '\/history'/)
   assert.match(middleware, /entries.*receipts\/calendar.*receipts\/list/s)
-  assert.match(page, /to="\/history\/receipts\/calendar"/)
+  assert.match(page, /to="\/" label="Calendar"/)
+  assert.match(page, /to="\/history\/receipts\/list" label="Receipt list"/)
   assert.match(page, /to="\/history\/entries"/)
   assert.match(page, /label="Calendar" icon="i-lucide-calendar-days"/)
-  assert.match(page, /label="List" icon="i-lucide-list"/)
+  assert.match(page, /label="Item entries" icon="i-lucide-list"/)
   assert.match(page, /<th scope="col">Date<\/th><th scope="col">Store<\/th><th scope="col">Items<\/th><th scope="col">Total<\/th>/)
   assert.match(page, /Receipt date, store, and total/)
   assert.equal((page.match(/aria-label="Receipt list pagination"/g) || []).length, 2)
@@ -52,8 +53,9 @@ test('Calendar month state initializes before URL sync watches it', () => {
 })
 
 test('Calendar offers a same-day add link for populated and empty dates', () => {
-  assert.match(page, /v-if="receiptData\?\.receipts\.length" :to="\{ path: '\/receipts\/new', query: \{ date: selectedDate \} \}" label="Add receipt"/)
-  assert.match(page, /class="receipt-empty-state"[\s\S]*:to="\{ path: '\/receipts\/new', query: \{ date: selectedDate \} \}" label="Add receipt"/)
+  const addReceiptControl = page.indexOf(":to=\"{ path: '/receipts/new', query: { date: selectedDate } }\" label=\"Add receipt\"")
+  assert.ok(addReceiptControl > -1)
+  assert.ok(addReceiptControl < page.indexOf('v-else-if="!receiptData?.receipts.length"'))
   assert.match(page, /No receipts for this date/)
 })
 
