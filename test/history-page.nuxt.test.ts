@@ -151,5 +151,10 @@ describe('Receipts home', () => {
     expect((document.getElementById('edit-item') as HTMLInputElement).value).toBe('Apples')
     expect(document.getElementById('edit-notes')?.getAttribute('maxlength')).toBe('100')
     expect(document.getElementById('edit-notes-character-count')?.textContent).toBe('0/100')
+    const notes = document.getElementById('edit-notes') as HTMLTextAreaElement
+    notes.value = 'x'.repeat(100)
+    notes.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(document.getElementById('edit-notes-character-count')?.textContent).toBe('100/100')
   })
 })

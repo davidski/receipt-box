@@ -1,4 +1,5 @@
 import postgres from 'postgres'
+import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
 import { normalizeUnit } from '../../shared/utils/units'
 import { normalizeStoreName, storeNameKey } from '../../shared/utils/store-name'
 import { mergeDuplicateReceipts } from './receipt-query'
@@ -48,11 +49,32 @@ export async function migrate() {
         ) STORED,
         sale_item BOOLEAN NOT NULL DEFAULT FALSE,
         non_grocery BOOLEAN NOT NULL DEFAULT FALSE,
-        notes TEXT,
+        notes TEXT CONSTRAINT grocery_entries_notes_length_check
+          CHECK (notes IS NULL OR char_length(notes) <= 100),
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `
+    const notesLengthConstraint = await tx<{ exists: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'grocery_entries_notes_length_check'
+          AND conrelid = 'grocery_entries'::regclass
+      ) AS exists
+    `
+    if (!notesLengthConstraint[0]?.exists) {
+      await tx`
+        UPDATE grocery_entries
+        SET notes = left(notes, ${maxEntryNotesLength})
+        WHERE char_length(notes) > ${maxEntryNotesLength}
+      `
+      await tx`
+        ALTER TABLE grocery_entries
+        ADD CONSTRAINT grocery_entries_notes_length_check
+        CHECK (notes IS NULL OR char_length(notes) <= 100)
+      `
+    }
     await tx`CREATE INDEX IF NOT EXISTS grocery_entries_item_idx ON grocery_entries (lower(item))`
     const entryColumns = await tx<{ columnName: string }[]>`
       SELECT column_name
