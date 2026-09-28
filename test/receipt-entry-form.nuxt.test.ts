@@ -788,4 +788,22 @@ describe('receipt item entry interactions', () => {
     expect(backfillChecks).toBe(1)
     expect(disabledWrapper.find('.item-backfill-summary').exists()).toBe(false)
   })
+
+  it('exports receipt columns in the same order as the CSV headers', async () => {
+    sourceReceiptForTests = {
+      ...receipt(),
+      entries: [{ ...receipt().entries[0], category: 'Produce', nonGrocery: true, notes: 'Farmers market' }]
+    }
+    let exportedBlob: Blob | undefined
+    vi.stubGlobal('URL', {
+      createObjectURL: (blob: Blob) => { exportedBlob = blob; return 'blob:receipt-export' },
+      revokeObjectURL: vi.fn()
+    })
+    const wrapper = await mountForm('', 'receipt-1')
+
+    await wrapper.findAll('button').find(button => button.text() === 'Export receipt')!.trigger('click')
+
+    const csv = await exportedBlob!.text()
+    expect(csv.split('\r\n')[1]).toBe('2026-08-10,Coffee,Produce,Test Store,12,oz,4.99,,,false,true,Farmers market')
+  })
 })

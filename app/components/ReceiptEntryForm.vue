@@ -221,6 +221,7 @@ function exportReceiptCsv() {
   const rows = completeLines.value.map(line => [
     form.purchasedOn,
     line.item.trim(),
+    line.category,
     form.location.trim(),
     line.size === '' ? null : Number(line.size),
     normalizeUnit(line.unit),
