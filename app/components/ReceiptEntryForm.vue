@@ -1183,6 +1183,16 @@ async function deleteReceipt() {
     </div>
 
     <footer v-if="canEnterLines" class="receipt-entry-footer">
+      <dl class="receipt-footer-context" data-receipt-footer-context aria-label="Current receipt">
+        <div>
+          <dt>Date</dt>
+          <dd><time :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time></dd>
+        </div>
+        <div>
+          <dt>Store</dt>
+          <dd><span :title="form.location">{{ form.location }}</span></dd>
+        </div>
+      </dl>
       <div v-if="hasReceipt && confirmingDelete" class="receipt-delete-confirmation" role="alert">
         <div class="receipt-delete-copy">
           <strong>Delete this receipt?</strong>
@@ -1201,7 +1211,7 @@ async function deleteReceipt() {
           <span>{{ autosaveStatus }}</span>
           <UButton v-if="autosaveFailed" type="button" label="Retry" size="xs" color="error" variant="soft" @click="retryAutosave" />
         </div>
-        <div>
+        <div class="receipt-footer-total">
           <span>{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>
           <strong>${{ receiptTotal.toFixed(2) }}</strong>
         </div>

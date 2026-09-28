@@ -281,6 +281,19 @@ describe('receipt item entry interactions', () => {
     wrapper.unmount()
   })
 
+  it('shows the current date and store in the read-only sticky footer summary', async () => {
+    const wrapper = await mountForm()
+    const footerContext = wrapper.get('[data-receipt-footer-context]')
+
+    expect(footerContext.text()).toContain('DateAug 10, 2026')
+    expect(footerContext.text()).toContain('StoreTest Store')
+    expect(footerContext.find('input, button').exists()).toBe(false)
+
+    await wrapper.get('[data-receipt-store]').setValue('Other Store')
+    await vi.waitFor(() => expect(wrapper.get('[data-receipt-footer-context]').text()).toContain('Other Store'))
+    wrapper.unmount()
+  })
+
   it('ignores an exact-ID load that resolves after the route props changed', async () => {
     const wrapper = await mountForm('', 'receipt-2')
     await wrapper.setProps({ initialReceiptId: undefined, initialDate: '2026-08-11', initialLocation: '' })

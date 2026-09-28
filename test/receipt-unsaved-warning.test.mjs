@@ -248,6 +248,16 @@ test('receipt totals stay visible without clipping the item selector', () => {
   assert.match(form, /label="Save and add another"/)
 })
 
+test('sticky footer keeps the current date and store visible as read-only text', () => {
+  assert.match(form, /<dl class="receipt-footer-context" data-receipt-footer-context aria-label="Current receipt">/)
+  assert.match(form, /<dt>Date<\/dt>[\s\S]*<time :datetime="form\.purchasedOn">\{\{ dateDisplayLabel\(form\.purchasedOn\) \}\}<\/time>/)
+  assert.match(form, /<dt>Store<\/dt>[\s\S]*<dd><span :title="form\.location">\{\{ form\.location \}\}<\/span><\/dd>/)
+  assert.match(stylesheet, /\.receipt-footer-context \{ display: grid; flex: 0 1 300px;/)
+  assert.match(stylesheet, /@media \(max-width: 900px\) \{[\s\S]*\.receipt-entry-footer \{ bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\)/)
+  assert.match(stylesheet, /@media \(max-width: 1280px\) \{[\s\S]*\.receipt-footer-context \{ order: -1; flex: 1 1 calc\(100% - 144px\);/)
+  assert.match(stylesheet, /\.receipt-footer-context \{ flex: 1 0 100%;/)
+})
+
 test('receipt routes retain the date when starting another receipt', () => {
   assert.match(receiptEditorPage, /definePageMeta\(\{ key: 'receipt-editor' \}\)/)
   assert.match(form, /router\.replace\(\{ path: '\/receipts\/new', query: \{ date: nextDate \} \}\)/)
