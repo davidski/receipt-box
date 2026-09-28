@@ -1,7 +1,7 @@
 FROM node:26-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install --global pnpm@11.18.0
+RUN npm install --global pnpm@12.6.0
 WORKDIR /app
 
 FROM base AS dependencies

@@ -14,10 +14,10 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@nuxt/ui": "4.10.0",
+    "@nuxt/ui": "4.11.2",
     "csv-parse": "7.0.2",
     "exceljs": "4.4.0",
-    "nuxt": "4.5.1",
+    "nuxt": "4.5.2",
     "nuxt-auth-utils": "0.5.30",
     "postgres": "3.4.9",
     "vue": "3.5.40",
@@ -28,10 +28,10 @@
     "@vue/test-utils": "2.4.11",
     "happy-dom": "20.11.2",
     "typescript": "5.9.3",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "vue-tsc": "3.3.9"
   },
-  "packageManager": "pnpm@11.18.0",
+  "packageManager": "pnpm@12.6.0",
   "engines": {
     "node": ">=26"
   }
