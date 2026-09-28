@@ -714,7 +714,7 @@ async function exportXlsx() {
 <template>
   <div class="w-full max-w-[1200px] mx-auto">
     <header class="page-heading my-[15px] mb-8">
-      <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Receipt box settings and data</p>
+      <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Settings and data</p>
       <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Manage Receipt Box</h1>
     </header>
 
