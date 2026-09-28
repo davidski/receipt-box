@@ -7,6 +7,7 @@ const managePage = await readFile(new URL('../app/components/ManagePage.vue', im
 const history = await readFile(new URL('../app/components/HistoryPage.vue', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 const header = await readFile(new URL('../app/components/AppHeader.vue', import.meta.url), 'utf8')
+const receiptEditorPage = await readFile(new URL('../app/pages/receipts/[id].vue', import.meta.url), 'utf8')
 const matchApi = await readFile(new URL('../server/api/receipts/match.get.ts', import.meta.url), 'utf8')
 const unitInput = await readFile(new URL('../app/components/UnitInput.vue', import.meta.url), 'utf8')
 
@@ -19,6 +20,9 @@ test('category guidance sits under and is associated with the selector', () => {
 
 test('receipt entry warns before in-app navigation and page unload when dirty', () => {
   assert.match(form, /onBeforeRouteLeave\(to => confirmDiscardNavigation\(to\)/)
+  assert.match(form, /onBeforeRouteUpdate\(to => confirmDiscardNavigation\(to\)/)
+  assert.match(form, /@click="openMatchingReceipt"/)
+  assert.match(form, /function openMatchingReceipt\(\) \{\s*if \(matchingReceipt\.value\) return navigateTo\(`\/receipts\/\$\{matchingReceipt\.value\.id\}`\)/)
   assert.match(form, /title="Discard unsaved receipt\?"/)
   assert.match(form, /window\.addEventListener\('beforeunload', handleBeforeUnload\)/)
   assert.match(form, /if \(!hasUnsavedChanges\.value\) return/)
@@ -43,7 +47,7 @@ test('completed rows autosave and confirmed saved rows delete through the API', 
 
 test('the receipt form has no manual save action', () => {
   assert.doesNotMatch(form, /Save receipt|Save changes/)
-  assert.match(form, /Add or edit a receipt/)
+  assert.match(form, /hasReceipt \? 'Edit receipt' : 'Add receipt'/)
   assert.doesNotMatch(form, /automatic(?:ally)?/i)
   assert.match(form, /unsaved .* in progress/)
 })
@@ -51,14 +55,33 @@ test('the receipt form has no manual save action', () => {
 test('the sale-price toggle explains its state on hover and to assistive technology', () => {
   assert.match(form, /:aria-label="line\.saleItem \? 'Remove sale-price flag' : 'Mark as purchased at a sale price'"/)
   assert.match(form, /:title="line\.saleItem \? 'Purchased at a sale price\. Click to remove\.' : 'Mark as purchased at a sale price\.'"/)
-  assert.match(stylesheet, /\.receipt-line-options button, \.receipt-line-remove \{ min-width: 42px; min-height: 42px; justify-content: center; \}/)
+  assert.match(stylesheet, /\.receipt-line-options button, \.receipt-line-details \.category-input \[data-category-clear\] \{ min-width: 42px; min-height: 42px; justify-content: center; \}/)
+  assert.match(stylesheet, /\.receipt-line-remove:hover, \.receipt-line-remove:focus-visible \{ color: var\(--error\); \}/)
+})
+
+test('the details toggle explains its action on hover', () => {
+  assert.match(form, /:aria-label="line\.expanded \? 'Hide details' : 'Show details'"[^>]+:title="line\.expanded \? 'Hide item details' : 'Show item details'"/)
+})
+
+test('the remove-line button explains which line it will remove on hover', () => {
+  assert.match(form, /:aria-label="`Remove line \$\{index \+ 1\}`" :title="`Remove line \$\{index \+ 1\}`"/)
+})
+
+test('tablet receipt rows right-align theme controls and compact the row actions', () => {
+  assert.match(stylesheet, /\.receipt-line-labels \{ position: relative; display: grid; grid-template-columns: minmax\(230px, 2fr\) 120px 100px 130px 126px;/)
+  assert.match(stylesheet, /\.receipt-line-labels > :last-child \{ position: absolute; top: 50%; right: 24px; transform: translateY\(-50%\); \}/)
+  assert.match(stylesheet, /\.receipt-entry-line \{ position: relative; display: grid; grid-template-columns: minmax\(230px, 2fr\) 120px 100px 130px 126px;/)
+  assert.match(stylesheet, /@media \(max-width: 900px\) \{[\s\S]*?\.app-header \{ grid-template-columns: minmax\(0, 1fr\) auto;/)
+  assert.match(stylesheet, /\.receipt-entry-line \{ grid-template-columns: minmax\(0, 1fr\) 112px 100px 96px 126px;/)
+  assert.match(stylesheet, /\.receipt-line-options \{ display: flex; align-self: end; justify-content: center; gap: 0; \}/)
+  assert.match(form, /<div class="receipt-line-options">[\s\S]*?:data-line-sale="line\.key"[\s\S]*?:data-line-details="line\.key"[\s\S]*?:data-line-remove="line\.key"/)
 })
 
 test('only actionable receipt messages render below the stable controls row', () => {
   const footerEnd = form.indexOf('</footer>')
   assert.ok(footerEnd > -1)
   assert.ok(form.indexOf('<UAlert v-if="errorMessage"') > footerEnd)
-  assert.ok(form.indexOf('<UAlert v-if="matchingReceiptMessage"') > footerEnd)
+  assert.ok(form.indexOf('<div v-if="matchingReceiptMessage"') > footerEnd)
   assert.doesNotMatch(form, /color="success"/)
   assert.match(stylesheet, /\.receipt-entry-form > \.notice \{ width: auto; margin-inline: 24px; \}/)
 })
@@ -69,14 +92,18 @@ test('expanding line details keeps the row number aligned with the item field', 
 })
 
 test('add and edit use one receipt editor that loads existing lines', () => {
-  assert.match(header, /label: 'Add\/edit receipt'/)
-  assert.match(form, /Select an existing date and store to edit\./)
+  assert.match(header, /label: 'Receipts'/)
+  assert.match(form, /Choose a store and enter its purchases\./)
   assert.doesNotMatch(form, /Existing receipt lines load for editing\./)
   assert.match(form, /loadReceipt\(result\.receipt\)/)
   assert.match(form, /@create="createLocation"/)
   assert.match(matchApi, /entries: entries\.map\(publicEntry\)/)
-  assert.match(history, /query: \{ date: receipt\.purchasedOn, location: receipt\.location \}/)
+  assert.match(history, /:to="`\/receipts\/\$\{receipt\.id\}`"/)
   assert.doesNotMatch(history, /<ReceiptEntryForm/)
+})
+
+test('changing a receipt ID keeps the editor page instance', () => {
+  assert.match(receiptEditorPage, /definePageMeta\(\{ key: 'receipt-editor' \}\)/)
 })
 
 test('receipt item entry preserves a new name while showing suggestions', () => {
@@ -174,7 +201,9 @@ test('new dimensions offer to backfill earlier purchases without overwriting val
   assert.match(form, /if \(!unitFieldIsFocused\(line\) && await offerItemBackfill\(line\)\) \{[\s\S]+savedAllRows = false[\s\S]+break/)
   assert.match(form, /backfillKey: '',[\s\S]+backfillChecking: false/)
   assert.match(form, /line\.backfillKey === key \|\| line\.backfillChecking \|\| pendingBackfill\.value/)
-  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
+  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| receiptMatchFailed\.value \|\| pendingDuplicateMerge\.value \|\| pendingBackfill\.value\) return/)
+  assert.match(form, /receiptMatchFailed\.value = true[\s\S]+Retry the check before saving/)
+  assert.match(form, /v-if="receiptMatchFailed"[^>]+label="Retry receipt check"/)
 })
 
 test('maintenance can disable receipt history prompts', () => {
@@ -216,6 +245,11 @@ test('receipt totals stay visible without clipping the item selector', () => {
   assert.match(form, /label="Save and add another"/)
 })
 
+test('receipt routes retain the date when starting another receipt', () => {
+  assert.match(receiptEditorPage, /definePageMeta\(\{ key: 'receipt-editor' \}\)/)
+  assert.match(form, /router\.replace\(\{ path: '\/receipts\/new', query: \{ date: nextDate \} \}\)/)
+})
+
 test('new receipt items require inline confirmation', () => {
   assert.match(form, /@create="requestCreateItem\(line, \$event\)"/)
   assert.match(form, /v-if="line\.pendingItemCreation" class="receipt-item-create-confirmation" role="alert"/)
@@ -224,7 +258,12 @@ test('new receipt items require inline confirmation', () => {
 })
 
 test('receipt-key collisions require confirmation before autosave can merge', () => {
-  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingBackfill\.value\) return/)
+  assert.match(form, /if \(saving\.value \|\| checkingReceiptMatch\.value \|\| pendingDuplicateMerge\.value\) return false/)
+  assert.match(form, /if \(!currentReceiptId\.value && receiptMatchFailed\.value\) return false/)
+  assert.match(form, /&& !matchingReceipt\.value/)
+  assert.match(form, /&& !pendingDuplicateMerge\.value/)
+  assert.match(form, /checkingReceiptMatch\.value \|\| receiptMatchFailed\.value \|\| pendingDuplicateMerge\.value \|\| pendingBackfill\.value/)
+  assert.match(form, /checkingReceiptMatch\.value \|\| pendingDuplicateMerge\.value\) return false/)
   assert.match(form, /pendingDuplicateMerge\.value =/)
   assert.match(form, /title="Merge duplicate receipt\?"/)
   assert.match(form, /Merge this receipt into it\?/)

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 const route = useRoute()
-const initialDate = computed(() => String(route.query.date || '').slice(0, 10))
-const initialLocation = computed(() => String(route.query.location || ''))
+
+// Preserve old receipt edit links while the home page becomes the browser.
+if (route.query.location) {
+  await navigateTo({
+    path: '/receipts/new',
+    query: { date: route.query.date, location: route.query.location }
+  })
+}
 </script>
 
 <template>
-  <div class="receipt-entry-layout">
-    <ReceiptEntryForm :initial-date="initialDate" :initial-location="initialLocation" />
-  </div>
+  <HistoryPage />
 </template>

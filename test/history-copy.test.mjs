@@ -10,8 +10,8 @@ const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.m
 
 test('History keeps its page heading stable across views', () => {
   assert.match(page, /Purchase records<\/p>/)
-  assert.match(page, /<h1 class="text-\[clamp\(34px,3\.5vw,42px\)\] leading-\[1\.04\]">History<\/h1>/)
-  assert.match(page, /<p>Browse receipts or individual purchase entries\.<\/p>/)
+  assert.match(page, /<h1 class="text-\[clamp\(34px,3\.5vw,42px\)\] leading-\[1\.04\]">\{\{ view === 'receipts' \? 'Receipts' : 'History' \}\}<\/h1>/)
+  assert.match(page, /Browse receipts by date\./)
   assert.match(page, /class="page-heading my-\[15px\] mb-8 history-heading">[\s\S]*class="history-view-switcher" aria-label="History view"/)
   assert.doesNotMatch(page, /history-view-summary/)
   assert.match(viewRoute, /middleware: 'history'/)
@@ -37,6 +37,24 @@ test('Purchase editor uses consistent spacing between form rows', () => {
 test('Calendar receipt store headings keep wrapped lines compact', () => {
   assert.match(stylesheet, /\.receipt-heading h2 \{ font-size: 23px; line-height: 1\.05; \}/)
   assert.match(stylesheet, /\.receipt-heading > button, \.receipt-heading > a \{ align-self: flex-start; \}/)
+})
+
+test('Calendar lets an empty date become the selected date', () => {
+  const calendarButton = page.match(/<button\s+type="button"\s+:class="\{ available:[\s\S]*?@click="selectReceiptDate\(day\)"[\s\S]*?<\/button>/)?.[0]
+  assert.ok(calendarButton)
+  assert.doesNotMatch(calendarButton, /:disabled=/)
+  assert.match(calendarButton, /@click="selectReceiptDate\(day\)"/)
+  assert.match(page, /function selectReceiptDate\(day: CalendarDay\) \{\s*selectReceiptDateValue\(day\.date\)/)
+})
+
+test('Calendar month state initializes before URL sync watches it', () => {
+  assert.ok(page.indexOf('const selectedCalendarMonth = computed') < page.indexOf('watch([search, location, sortBy'))
+})
+
+test('Calendar offers a same-day add link for populated and empty dates', () => {
+  assert.match(page, /v-if="receiptData\?\.receipts\.length" :to="\{ path: '\/receipts\/new', query: \{ date: selectedDate \} \}" label="Add receipt"/)
+  assert.match(page, /class="receipt-empty-state"[\s\S]*:to="\{ path: '\/receipts\/new', query: \{ date: selectedDate \} \}" label="Add receipt"/)
+  assert.match(page, /No receipts for this date/)
 })
 
 test('Page content reserves the scrollbar gutter', () => {
@@ -75,4 +93,10 @@ test('History filters entries by category and labels categorized receipt lines',
   assert.match(entriesApi, /const category = String\(query\.category \?\? ''\)\.trim\(\)/)
   assert.equal((entriesApi.match(/category = \$\{category\}/g) || []).length, 3)
   assert.match(page, /UBadge v-if="entry\.category" :label="entry\.category"/)
+})
+
+test('Receipts keeps headings intact and uses tablet space without widening mobile pages', () => {
+  assert.match(stylesheet, /\.selected-receipts-heading \{ display: grid;/)
+  assert.match(stylesheet, /@media \(min-width: 760px\) and \(max-width: 900px\) \{\s*\.receipt-browser \{ grid-template-columns: 280px minmax\(0, 1fr\); \}/)
+  assert.match(stylesheet, /\.history-heading \{ display: grid; align-items: start; \}/)
 })

@@ -1,8 +1,9 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { readBody } from 'h3'
+import { getQuery, readBody } from 'h3'
 import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { RouterView } from 'vue-router'
 import ReceiptEntryForm from '../app/components/ReceiptEntryForm.vue'
 
 const UInput = defineComponent({
@@ -67,8 +68,24 @@ const UFormField = defineComponent({ setup: (_, { slots }) => () => h('div', slo
 const UPopover = defineComponent({ setup: (_, { slots }) => () => h('div', [slots.default?.(), slots.content?.()]) })
 const UIcon = defineComponent({ setup: () => () => h('span') })
 const UAlert = defineComponent({ props: { description: String }, setup: props => () => h('div', props.description) })
-const UModal = defineComponent({ setup: (_, { slots }) => () => h('div', [slots.body?.(), slots.footer?.()]) })
-const UCheckbox = UInput
+const UModal = defineComponent({
+  props: { title: String, description: String, open: Boolean },
+  setup(props, { slots }) {
+    return () => h('div', props.open ? [h('h2', props.title), h('p', props.description), slots.default?.(), slots.body?.(), slots.footer?.()] : [])
+  }
+})
+const UCheckbox = defineComponent({
+  props: { modelValue: Boolean, label: String },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () => h('button', {
+      type: 'button',
+      role: 'checkbox',
+      'aria-checked': String(Boolean(props.modelValue)),
+      onClick: () => emit('update:modelValue', !props.modelValue)
+    }, props.label)
+  }
+})
 const USwitch = defineComponent({
   inheritAttrs: false,
   props: { modelValue: Boolean, label: String },
@@ -84,6 +101,7 @@ const USwitch = defineComponent({
 })
 
 const stubs = { UInput, UInputMenu, UButton, UFormField, UPopover, UIcon, UAlert, UModal, UCheckbox, USwitch }
+const RouteView = defineComponent({ setup: () => () => h(RouterView) })
 const localStorageStub = {
   values: new Map<string, string>(),
   getItem(key: string) { return this.values.get(key) ?? null },
@@ -107,6 +125,8 @@ function receipt() {
 }
 
 let matchingReceipt: ReturnType<typeof receipt> | null
+let failReceiptMatch: boolean
+let resolveReceiptFetch: ((value: { receipt: ReturnType<typeof receipt> }) => void) | undefined
 let entryAttempts: number
 let failEntrySaves: boolean
 let deleteAttempts: number
@@ -116,15 +136,16 @@ let suggestions: Array<{ value: string, category?: string | null, size: string, 
 let categories: string[]
 let entryBodies: Array<{ method: string, body: any }>
 const mountedForms: Array<{ unmount: () => void }> = []
+let mountedRouter: any
 
-async function mountForm(initialLocation = 'Test Store') {
+async function mountForm(initialLocation = 'Test Store', initialReceiptId?: string) {
   const wrapper = await mountSuspended(ReceiptEntryForm, {
-    props: { initialDate: '2026-08-10', initialLocation },
+    props: { initialDate: '2026-08-10', initialLocation, initialReceiptId },
     route: '/',
     attachTo: document.body,
     global: { stubs }
   })
-  await vi.advanceTimersByTimeAsync(0)
+  if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0)
   await flushPromises()
   mountedForms.push(wrapper)
   return wrapper
@@ -151,7 +172,22 @@ beforeEach(() => {
   categories = ['Beverages']
   entryBodies = []
   localStorageStub.clear()
-  registerEndpoint('/api/receipts/match', () => ({ receipt: matchingReceipt }))
+  failReceiptMatch = false
+  registerEndpoint('/api/auth/config', () => ({ enabled: false }))
+  resolveReceiptFetch = undefined
+  registerEndpoint('/api/receipts/match', (event: any) => {
+    if (failReceiptMatch) throw new Error('match unavailable')
+    const query = getQuery(event)
+    return {
+      receipt: matchingReceipt
+        && matchingReceipt.id !== String(query.excludeId || '')
+        && matchingReceipt.purchasedOn === String(query.date)
+        ? matchingReceipt
+        : null
+    }
+  })
+  registerEndpoint('/api/receipts/receipt-1', () => ({ receipt: matchingReceipt?.id === 'receipt-1' ? matchingReceipt : receipt() }))
+  registerEndpoint('/api/receipts/receipt-2', () => new Promise(resolve => { resolveReceiptFetch = resolve }))
   registerEndpoint('/api/suggestions', () => suggestions)
   registerEndpoint('/api/categories', () => categories)
   registerEndpoint('/api/items/backfill', () => {
@@ -211,27 +247,208 @@ registerEndpoint('/api/entries', {
 
 afterEach(async () => {
   mountedForms.splice(0).forEach(wrapper => wrapper.unmount())
+  vi.useRealTimers()
+  if (mountedRouter) await mountedRouter.replace('/')
   await flushPromises()
+  mountedRouter = undefined
   document.body.innerHTML = ''
   localStorageStub.clear()
   vi.unstubAllGlobals()
-  vi.useRealTimers()
 })
 
 describe('receipt item entry interactions', () => {
+  it('loads the exact receipt requested by stable ID', async () => {
+    const wrapper = await mountForm('', 'receipt-1')
+
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).disabled).toBe(true)
+    expect(wrapper.text()).toContain('All changes saved')
+    wrapper.unmount()
+  })
+
+  it('keeps a new receipt date fixed to the selected calendar day', async () => {
+    const wrapper = await mountForm()
+    const dateDisplay = wrapper.get('[data-receipt-date-display]')
+
+    expect(dateDisplay.attributes('datetime')).toBe('2026-08-10')
+    expect(dateDisplay.text()).toContain('2026')
+    expect(wrapper.find('input[type="date"]').exists()).toBe(false)
+    expect(wrapper.findAllComponents(UCheckbox).some(box => box.props('label') === 'Allow date change')).toBe(false)
+
+    await wrapper.setProps({ initialDate: '2026-08-11' })
+    expect(dateDisplay.attributes('datetime')).toBe('2026-08-11')
+    wrapper.unmount()
+  })
+
+  it('ignores an exact-ID load that resolves after the route props changed', async () => {
+    const wrapper = await mountForm('', 'receipt-2')
+    await wrapper.setProps({ initialReceiptId: undefined, initialDate: '2026-08-11', initialLocation: '' })
+    resolveReceiptFetch?.({ receipt: receipt() })
+    await flushPromises()
+
+    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).value).toBe('2026-08-11')
+    expect(wrapper.find('[data-line-item]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('offers an explicit open action for a matching receipt in new mode', async () => {
+    matchingReceipt = receipt()
+    const wrapper = await mountForm()
+
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.text()).toContain('Open existing receipt')
+    wrapper.unmount()
+  })
+
+  it('confirms before opening a matching receipt when a new receipt has a draft', async () => {
+    matchingReceipt = receipt()
+    vi.useRealTimers()
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      setTimeout(() => callback(0), 0)
+      return 1
+    })
+    const wrapper = await mountSuspended(RouteView, {
+      route: '/receipts/new?date=2026-08-10',
+      attachTo: document.body,
+      global: { stubs }
+    })
+    mountedForms.push(wrapper)
+    mountedRouter = wrapper.findComponent(ReceiptEntryForm).vm.$router
+    await wrapper.get('[data-receipt-store]').setValue('Test Store')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Open existing receipt'))
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('9.99')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Open existing receipt')
+
+    await wrapper.findAll('button').find(button => button.text() === 'Open existing receipt')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Discard unsaved receipt?')
+    expect(wrapper.text()).toContain('Add receipt')
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+
+    await wrapper.findAll('button').find(button => button.text() === 'Cancel')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Discard unsaved receipt?')
+    expect(wrapper.text()).toContain('Add receipt')
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+
+    await wrapper.findAll('button').find(button => button.text() === 'Open existing receipt')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'Discard changes')!.trigger('click')
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Edit receipt'))
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
+    wrapper.unmount()
+  })
+
+  it('blocks autosave and Save and add another while a new receipt has a duplicate match', async () => {
+    matchingReceipt = receipt()
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Tea')
+    await wrapper.get('[data-line-price]').setValue('3.25')
+    await flushPromises()
+
+    const saveAndAdd = wrapper.findAll('button').find(button => button.text() === 'Save and add another')!
+    expect(saveAndAdd.attributes('disabled')).toBeDefined()
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+    expect(entryAttempts).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('fails closed when duplicate lookup fails in new mode', async () => {
+    failReceiptMatch = true
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Tea')
+    await wrapper.get('[data-line-price]').setValue('3.25')
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Retry the check before saving.')
+    expect(wrapper.findAll('button').find(button => button.text() === 'Retry receipt check')).toBeDefined()
+    expect(wrapper.findAll('button').find(button => button.text() === 'Save and add another')!.attributes('disabled')).toBeDefined()
+    expect(entryAttempts).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('keeps a draft row when the first autosaved row changes the URL to its receipt ID', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    await wrapper.findAll('button').find(button => button.text() === 'Add another line')!.trigger('click')
+    const itemInputs = wrapper.findAll('[data-line-item]')
+    await itemInputs[1]!.setValue('Tea')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+
+    await wrapper.setProps({ initialReceiptId: 'receipt-new', initialDate: '', initialLocation: '' })
+    await flushPromises()
+    expect((wrapper.findAll('[data-line-item]')[1]!.element as HTMLInputElement).value).toBe('Tea')
+    wrapper.unmount()
+  })
+
+  it('keeps explicit merge confirmation for an edit key collision', async () => {
+    matchingReceipt = { ...receipt(), id: 'receipt-2', purchasedOn: '2026-08-11', entries: [{ ...receipt().entries[0]!, id: 'entry-2' }] }
+    const wrapper = await mountForm('Test Store', 'receipt-1')
+    await wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'Allow date change')!.trigger('click')
+    await wrapper.get('input[type="date"]').setValue('2026-08-11')
+    await flushPromises()
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Merge duplicate receipt?'))
+    expect(wrapper.text()).not.toContain('Open existing receipt')
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+    expect(entryAttempts).toBe(0)
+    expect(entryBodies).toHaveLength(0)
+
+    await wrapper.findAll('button').find(button => button.text() === 'Cancel')!.trigger('click')
+    await flushPromises()
+    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).value).toBe('2026-08-10')
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+    expect(entryBodies).toHaveLength(0)
+
+    await wrapper.get('input[type="date"]').setValue('2026-08-11')
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Merge duplicate receipt?'))
+    await wrapper.findAll('button').find(button => button.text() === 'Merge receipts')!.trigger('click')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    expect(entryBodies).toHaveLength(1)
+    expect(entryBodies[0]?.method).toBe('PUT')
+    wrapper.unmount()
+  })
+
+  it('locks saved receipt date and store until each change is explicitly allowed', async () => {
+    matchingReceipt = receipt()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
+    const datePermission = wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'Allow date change')!
+    const storePermission = wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'Allow store change')!
+
+    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).disabled).toBe(true)
+    expect(datePermission.props('modelValue')).toBe(false)
+    expect(storePermission.props('modelValue')).toBe(false)
+
+    await datePermission.trigger('click')
+    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).disabled).toBe(false)
+    wrapper.unmount()
+  })
+
   it('clearly labels the action that clears an item category', async () => {
     const wrapper = await mountForm()
     await wrapper.get('[data-line-details]').trigger('click')
+    expect(wrapper.find('[data-category-clear]').exists()).toBe(false)
     findCategoryMenu(wrapper).vm.$emit('update:modelValue', 'Beverages')
     await flushPromises()
 
     const clearCategory = wrapper.get('[data-category-clear]')
-    expect(clearCategory.text()).toBe('Clear item category')
+    expect(clearCategory.attributes('aria-label')).toBe('Clear item category')
     expect(clearCategory.attributes('data-icon')).toBe('i-lucide-x')
-    expect(clearCategory.attributes('data-variant')).toBe('outline')
+    expect(clearCategory.attributes('data-variant')).toBe('ghost')
     await clearCategory.trigger('click')
     expect((wrapper.get('[data-line-category]').element as HTMLInputElement).value).toBe('')
-    expect(clearCategory.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-category-clear]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -256,7 +473,7 @@ describe('receipt item entry interactions', () => {
   it('omits category from notes-only saves', async () => {
     matchingReceipt = receipt()
     matchingReceipt.entries[0]!.category = 'Beverages'
-    const wrapper = await mountForm()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
     await wrapper.get('[data-line-details]').trigger('click')
     await wrapper.get('[data-line-notes]').setValue('weekly coupon')
     await vi.advanceTimersByTimeAsync(600)
@@ -442,7 +659,7 @@ describe('receipt item entry interactions', () => {
 
   it('confirms before deleting a saved entry', async () => {
     matchingReceipt = receipt()
-    const wrapper = await mountForm()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
     await wrapper.get('[aria-label="Remove line 1"]').trigger('click')
     expect(deleteAttempts).toBe(0)
     expect(wrapper.text()).toContain('This saved entry will be permanently deleted.')
@@ -461,7 +678,7 @@ describe('receipt item entry interactions', () => {
 
   it('focuses Keep item and cancels row deletion with Escape', async () => {
     matchingReceipt = receipt()
-    const wrapper = await mountForm()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
     const remove = wrapper.get('[aria-label="Remove line 1"]')
 
     await remove.trigger('click')
@@ -483,7 +700,7 @@ describe('receipt item entry interactions', () => {
   it('keeps a saved row when deletion fails', async () => {
     matchingReceipt = receipt()
     failDeletes = true
-    const wrapper = await mountForm()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
     await wrapper.get('[aria-label="Remove line 1"]').trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Remove item')!.trigger('click')
     await flushPromises()
@@ -497,7 +714,7 @@ describe('receipt item entry interactions', () => {
   it('preserves saved dimensions when selecting another suggestion', async () => {
     matchingReceipt = receipt()
     suggestions = [{ value: 'Ground coffee', size: '16', unit: 'lb', price: '8.99' }]
-    const wrapper = await mountForm()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
     await wrapper.get('[data-line-item]').setValue('Ground')
     await vi.advanceTimersByTimeAsync(160)
     await flushPromises()

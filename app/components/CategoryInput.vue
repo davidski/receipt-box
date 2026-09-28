@@ -42,14 +42,14 @@ function advanceFromInput(event: KeyboardEvent) {
       <template #create-item-label="{ item }">Add “{{ item }}”</template>
     </UInputMenu>
     <UButton
+      v-if="model"
       type="button"
       data-category-clear
-      label="Clear item category"
       icon="i-lucide-x"
+      aria-label="Clear item category"
       color="neutral"
-      variant="outline"
-      size="sm"
-      :disabled="model === null"
+      variant="ghost"
+      size="md"
       @click="selectCategory(null)"
       @keydown.tab.exact.prevent="emit('tabNext')"
     />

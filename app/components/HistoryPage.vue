@@ -73,12 +73,18 @@ const changeFilters: { label: string, value: ChangeFilter, icon: string, activeC
 ]
 const offset = ref((initialPage - 1) * 50)
 const limit = 50
-const selectedDate = ref(queryValue(route.query.date))
 const today = new Date()
-const initialMonth = queryValue(route.query.month)
-const visibleMonth = ref(/^\d{4}-\d{2}$/.test(initialMonth)
-  ? new Date(`${initialMonth}-01T00:00:00Z`)
-  : new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)))
+const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+function validDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value
+}
+const initialDate = queryValue(route.query.date)
+const selectedDate = ref(validDate(initialDate) ? initialDate : todayDate)
+const visibleMonth = ref(new Date(`${selectedDate.value.slice(0, 7)}-01T00:00:00Z`))
+const selectedCalendarMonth = computed(() => visibleMonth.value.toISOString().slice(0, 7))
+const selectedCalendarMonthLabel = computed(() => new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(visibleMonth.value))
 const query = computed(() => ({
   search: search.value,
   location: location.value === allLocationsValue ? '' : location.value,
@@ -152,45 +158,15 @@ watch(() => route.query, (query) => {
   sortDirection.value = nextDirection === 'asc' ? 'asc' : 'desc'
   offset.value = (view.value === 'entries' ? nextPage - 1 : 0) * 50
   receiptListOffset.value = (view.value === 'receipts' && receiptMode.value === 'list' ? nextPage - 1 : 0) * 50
-  selectedDate.value = queryValue(query.date)
+  const date = queryValue(query.date)
+  selectedDate.value = validDate(date) ? date : todayDate
   const month = queryValue(query.month)
-  if (/^\d{4}-\d{2}$/.test(month)) visibleMonth.value = new Date(`${month}-01T00:00:00Z`)
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) visibleMonth.value = new Date(`${month}-01T00:00:00Z`)
 }, { deep: true })
 
 const receiptDateMap = computed(() => new Map((receiptDates.value?.dates || []).map(date => [date.date, date])))
-const selectedReceiptDateIndex = computed(() => (receiptDates.value?.dates || []).findIndex(date => date.date === selectedDate.value))
-const olderReceiptDate = computed(() => {
-  const dates = receiptDates.value?.dates || []
-  const index = selectedReceiptDateIndex.value
-  return index >= 0 ? dates[index + 1] || null : null
-})
-const newerReceiptDate = computed(() => {
-  const dates = receiptDates.value?.dates || []
-  const index = selectedReceiptDateIndex.value
-  return index > 0 ? dates[index - 1] || null : null
-})
-const calendarMonthOptions = computed(() => {
-  const dates = receiptDates.value?.dates || []
-  if (!dates.length) return []
-  const newest = new Date(`${dates[0]!.date.slice(0, 7)}-01T00:00:00Z`)
-  const oldest = new Date(`${dates.at(-1)!.date.slice(0, 7)}-01T00:00:00Z`)
-  const options: { label: string, value: string }[] = []
-  const cursor = new Date(oldest)
-  while (cursor <= newest) {
-    options.push({
-      label: new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(cursor),
-      value: cursor.toISOString().slice(0, 7)
-    })
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1)
-  }
-  return options
-})
-const selectedCalendarMonth = computed({
-  get: () => visibleMonth.value.toISOString().slice(0, 7),
-  set: (value: string) => { visibleMonth.value = new Date(`${value}-01T00:00:00Z`) }
-})
-const canMoveToPreviousMonth = computed(() => selectedCalendarMonth.value > (calendarMonthOptions.value[0]?.value || ''))
-const canMoveToNextMonth = computed(() => selectedCalendarMonth.value < (calendarMonthOptions.value.at(-1)?.value || ''))
+const olderReceiptDate = computed(() => (receiptDates.value?.dates || []).find(date => date.date < selectedDate.value) || null)
+const newerReceiptDate = computed(() => (receiptDates.value?.dates || []).findLast(date => date.date > selectedDate.value) || null)
 const calendarDays = computed<CalendarDay[]>(() => {
   const year = visibleMonth.value.getUTCFullYear()
   const month = visibleMonth.value.getUTCMonth()
@@ -210,17 +186,6 @@ const calendarDays = computed<CalendarDay[]>(() => {
 })
 const calendarWeeks = computed(() => Array.from({ length: 6 }, (_, index) => calendarDays.value.slice(index * 7, index * 7 + 7)))
 
-watch(receiptDates, (value) => {
-  const dates = value?.dates || []
-  if (!dates.length) {
-    selectedDate.value = ''
-    return
-  }
-  if (!dates.some(date => date.date === selectedDate.value)) selectedDate.value = dates[0]!.date
-  const selected = new Date(`${selectedDate.value}T00:00:00Z`)
-  visibleMonth.value = new Date(Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1))
-}, { immediate: true })
-
 function moveCalendarMonth(amount: number) {
   visibleMonth.value = new Date(Date.UTC(visibleMonth.value.getUTCFullYear(), visibleMonth.value.getUTCMonth() + amount, 1))
 }
@@ -232,7 +197,7 @@ function selectReceiptDateValue(value: string) {
 }
 
 function selectReceiptDate(day: CalendarDay) {
-  if (day.receiptCount) selectReceiptDateValue(day.date)
+  selectReceiptDateValue(day.date)
 }
 
 function toggleSort(column: SortKey) {
@@ -366,13 +331,14 @@ async function confirmRemoveEntry() {
     <header class="page-heading my-[15px] mb-8 history-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Purchase records</p>
-        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">History</h1>
-        <p>Browse receipts or individual purchase entries.</p>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Receipts</h1>
+        <p>{{ view === 'receipts' ? 'Browse receipts by date.' : 'Browse individual purchase entries.' }}</p>
       </div>
-      <div class="history-view-switcher" aria-label="History view">
-        <UButton to="/history/receipts/calendar" label="Receipts" icon="i-lucide-receipt-text" :color="view === 'receipts' ? 'primary' : 'neutral'" :variant="view === 'receipts' ? 'solid' : 'ghost'" :aria-current="view === 'receipts' ? 'page' : undefined" />
-        <UButton to="/history/entries" label="All entries" icon="i-lucide-list" :color="view === 'entries' ? 'primary' : 'neutral'" :variant="view === 'entries' ? 'solid' : 'ghost'" :aria-current="view === 'entries' ? 'page' : undefined" />
-      </div>
+      <nav class="receipt-mode-switcher receipt-views" aria-label="Receipts view">
+        <UButton to="/" label="Calendar" icon="i-lucide-calendar-days" :color="historyView === 'receipts-calendar' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-calendar' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-calendar' ? 'page' : undefined" />
+        <UButton to="/history/receipts/list" label="Receipt list" icon="i-lucide-receipt-text" :color="historyView === 'receipts-list' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-list' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-list' ? 'page' : undefined" />
+        <UButton to="/history/entries" label="Item entries" icon="i-lucide-list" :color="historyView === 'entries' ? 'primary' : 'neutral'" :variant="historyView === 'entries' ? 'soft' : 'ghost'" :aria-current="historyView === 'entries' ? 'page' : undefined" />
+      </nav>
     </header>
 
     <div v-if="view === 'entries'" class="filter-bar">
@@ -411,20 +377,16 @@ async function confirmRemoveEntry() {
     <UAlert v-if="linkedEditError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="linkedEditError" class="notice" />
 
     <template v-if="view === 'receipts'">
-        <div v-if="!receiptDates?.dates.length" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">No receipt dates yet.</div>
-      <div v-else class="receipt-browser">
+      <div class="receipt-browser">
         <template v-if="receiptMode === 'calendar'">
         <aside class="receipt-calendar-panel" aria-label="Choose a receipt date">
           <div class="calendar-heading">
-            <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" :disabled="!canMoveToPreviousMonth" @click="moveCalendarMonth(-1)" />
-            <label>
-              <span class="sr-only">Choose month</span>
-              <USelect v-model="selectedCalendarMonth" :items="calendarMonthOptions" aria-label="Choose month" size="sm" :content="{ bodyLock: false }" />
-            </label>
-            <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" :disabled="!canMoveToNextMonth" @click="moveCalendarMonth(1)" />
+            <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" @click="moveCalendarMonth(-1)" />
+            <h2 aria-live="polite">{{ selectedCalendarMonthLabel }}</h2>
+            <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" @click="moveCalendarMonth(1)" />
           </div>
           <table class="receipt-calendar">
-            <caption class="sr-only">Dates with recorded purchases</caption>
+            <caption class="sr-only">Choose any calendar date</caption>
             <thead><tr><th v-for="weekday in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="weekday" scope="col">{{ weekday.slice(0, 1) }}</th></tr></thead>
             <tbody>
               <tr v-for="(week, weekIndex) in calendarWeeks" :key="weekIndex">
@@ -432,7 +394,6 @@ async function confirmRemoveEntry() {
                   <button
                     type="button"
                     :class="{ available: day.receiptCount, selected: day.date === selectedDate, outside: !day.currentMonth }"
-                    :disabled="!day.receiptCount"
                     :aria-label="day.receiptCount ? `${dateLabel(day.date)}, ${day.receiptCount} ${day.receiptCount === 1 ? 'receipt' : 'receipts'}, ${day.itemCount} ${day.itemCount === 1 ? 'item' : 'items'}` : dateLabel(day.date)"
                     :aria-pressed="day.date === selectedDate"
                     @click="selectReceiptDate(day)"
@@ -443,7 +404,7 @@ async function confirmRemoveEntry() {
               </tr>
             </tbody>
           </table>
-          <p class="calendar-legend"><i aria-hidden="true" /> Dates with purchases</p>
+          <p class="calendar-legend"><i aria-hidden="true" /> Dates with receipts</p>
         </aside>
 
         <section class="selected-receipts" :aria-labelledby="'selected-receipt-date'">
@@ -451,11 +412,6 @@ async function confirmRemoveEntry() {
             <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Selected date</p><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
             <div class="selected-receipts-controls">
               <span v-if="receiptData">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
-              <div class="receipt-mode-switcher" aria-label="Receipt display">
-                <span>Display</span>
-                <UButton to="/history/receipts/calendar" label="Calendar" icon="i-lucide-calendar-days" color="primary" variant="soft" aria-current="page" />
-                <UButton to="/history/receipts/list" label="List" icon="i-lucide-list" color="neutral" variant="ghost" />
-              </div>
               <nav class="receipt-day-navigation" aria-label="Receipt day navigation">
                 <UButton
                   type="button"
@@ -480,11 +436,12 @@ async function confirmRemoveEntry() {
                   @click="newerReceiptDate && selectReceiptDateValue(newerReceiptDate.date)"
                 />
               </nav>
+              <UButton :to="{ path: '/receipts/new', query: { date: selectedDate } }" label="Add receipt" icon="i-lucide-plus" color="primary" class="receipt-add-button" />
             </div>
           </header>
           <div v-if="receiptsPending" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Gathering receipts…</div>
           <div v-else-if="receiptsError" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)] error-state">Could not load receipts for this date.</div>
-          <div v-else-if="!receiptData?.receipts.length" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">No receipts recorded for this date.</div>
+          <div v-else-if="!receiptData?.receipts.length" class="receipt-empty-state"><UIcon name="i-lucide-receipt-text" aria-hidden="true" /><strong>No receipts for this date</strong><span>Add the first receipt for {{ dateLabel(selectedDate) }}.</span></div>
           <div v-else class="receipt-grid">
           <article v-for="receipt in receiptData.receipts" :key="receipt.id" class="virtual-receipt">
             <header class="receipt-heading">
@@ -493,7 +450,7 @@ async function confirmRemoveEntry() {
                 <h2>{{ receipt.location }}</h2>
                 <p>{{ dateLabel(receipt.purchasedOn) }} · {{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</p>
               </div>
-              <UButton :to="{ path: '/', query: { date: receipt.purchasedOn, location: receipt.location } }" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" />
+              <UButton :to="`/receipts/${receipt.id}`" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" />
             </header>
             <div class="receipt-rule"><span>Item</span><span>Price</span></div>
             <ul class="receipt-lines">
@@ -526,11 +483,6 @@ async function confirmRemoveEntry() {
             <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">All receipts</p><h2 id="receipt-list-heading">Shopping history</h2></div>
             <div class="receipt-list-heading-controls">
               <span v-if="receiptData" class="receipt-list-count">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
-              <div class="receipt-mode-switcher" aria-label="Receipt display">
-                <span>Display</span>
-                <UButton to="/history/receipts/calendar" label="Calendar" icon="i-lucide-calendar-days" color="neutral" variant="ghost" />
-                <UButton to="/history/receipts/list" label="List" icon="i-lucide-list" color="primary" variant="soft" aria-current="page" />
-              </div>
             </div>
           </header>
           <div v-if="receiptData && receiptData.total > 50" class="pagination flex items-center justify-center gap-[18px] mt-6 text-[13px] text-[var(--muted)] receipt-list-pagination receipt-list-pagination-top" aria-label="Receipt list pagination">
@@ -552,7 +504,7 @@ async function confirmRemoveEntry() {
                     <td data-label="Store"><span class="receipt-list-store"><UIcon name="i-lucide-store" aria-hidden="true" />{{ receipt.location }}</span></td>
                     <td data-label="Items" class="receipt-list-items">{{ receipt.itemCount }}</td>
                     <td data-label="Total" class="receipt-list-total">{{ currency(receipt.total) }}</td>
-                    <td class="receipt-list-action"><NuxtLink :to="{ path: '/', query: { date: receipt.purchasedOn, location: receipt.location } }" :aria-label="`Edit ${receipt.location} receipt from ${dateLabel(receipt.purchasedOn)}`">Edit <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink></td>
+                    <td class="receipt-list-action"><NuxtLink :to="`/receipts/${receipt.id}`" :aria-label="`Edit ${receipt.location} receipt from ${dateLabel(receipt.purchasedOn)}`">Edit <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink></td>
                   </tr>
                 </tbody>
               </table>

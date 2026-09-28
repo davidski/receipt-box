@@ -4,7 +4,6 @@ import { categoryKey } from '../../shared/utils/category'
 import {
   receiptLineIsComplete,
   receiptLineSaveSnapshot,
-  shouldLoadMatchingReceipt,
   type ReceiptSaveSummary
 } from '../utils/receipt-merge'
 import { entryCsv } from '../utils/csv-export'
@@ -83,12 +82,15 @@ type SavedEntry = EditableReceipt['entries'][number] & {
 const props = defineProps<{
   initialDate?: string
   initialLocation?: string
+  initialReceiptId?: string
 }>()
 const emit = defineEmits<{
   dirtyChange: [dirty: boolean]
 }>()
 
 const { apiUrl } = useApi()
+const route = useRoute()
+const router = useRouter()
 const saving = ref(false)
 const confirmingDelete = ref(false)
 const errorMessage = ref('')
@@ -96,7 +98,10 @@ const receiptSessionMessage = ref('')
 const locationSuggestions = ref<Suggestion[]>([])
 const matchingReceipt = ref<MatchingReceipt | null>(null)
 const checkingReceiptMatch = ref(false)
+const receiptMatchFailed = ref(false)
 const currentReceiptId = ref<string | null>(null)
+const allowDateChange = ref(false)
+const allowStoreChange = ref(false)
 const lastSavedSummary = ref<ReceiptSaveSummary | null>(null)
 const confirmedReceiptKey = ref<{ purchasedOn: string, location: string } | null>(null)
 const pendingBackfill = ref<PendingBackfill | null>(null)
@@ -113,12 +118,21 @@ const allowNavigationAfterDiscard = ref(false)
 const pendingDuplicateMerge = ref<{ receipt: MatchingReceipt, description: string } | null>(null)
 let nextKey = 1
 let matchRequest = 0
+let receiptLoadRequest = 0
+const receiptMatchRetryKey = ref(0)
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const hasReceipt = computed(() => Boolean(currentReceiptId.value))
 
 function localDate() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+function dateDisplayLabel(value: string) {
+  const date = parseCalendarDate(value)
+  return date
+    ? new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(date)
+    : value
 }
 
 const purchasedOnStorageKey = 'receipt-box:purchased-on'
@@ -248,6 +262,9 @@ const canSaveAndAddAnother = computed(() => (
   && Boolean(form.location.trim())
   && !saving.value
   && !checkingReceiptMatch.value
+  && !receiptMatchFailed.value
+  && !matchingReceipt.value
+  && !pendingDuplicateMerge.value
   && !pendingBackfill.value
 ))
 const autosaveFailed = computed(() => Boolean(failedAutosaveKey.value) && failedAutosaveKey.value === autosaveAttemptKey())
@@ -268,6 +285,8 @@ function loadReceipt(receipt: EditableReceipt) {
   form.lines = receipt.entries.map(lineFromEntry)
   if (!form.lines.length) form.lines = [blankLine()]
   currentReceiptId.value = receipt.id
+  allowDateChange.value = false
+  allowStoreChange.value = false
   lastSavedSummary.value = {
     id: receipt.id,
     purchasedOn: receipt.purchasedOn,
@@ -283,7 +302,22 @@ function loadReceipt(receipt: EditableReceipt) {
   }
 }
 
-watch(() => [props.initialDate, props.initialLocation] as const, ([initialDate, initialLocation]) => {
+watch(() => props.initialReceiptId, async (id) => {
+  const request = ++receiptLoadRequest
+  if (!id || id === currentReceiptId.value) return
+  try {
+    const result = await $fetch<{ receipt: EditableReceipt | null }>(apiUrl(`/receipts/${id}`))
+    if (request !== receiptLoadRequest || props.initialReceiptId !== id) return
+    if (result.receipt) loadReceipt(result.receipt)
+    else errorMessage.value = 'Receipt not found'
+  } catch (error: any) {
+    if (request !== receiptLoadRequest || props.initialReceiptId !== id) return
+    errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not load this receipt'
+  }
+}, { immediate: true })
+
+watch(() => [props.initialDate, props.initialLocation, props.initialReceiptId] as const, ([initialDate, initialLocation, initialReceiptId]) => {
+  if (initialReceiptId && initialReceiptId === currentReceiptId.value) return
   clearTimeout(autosaveTimer)
   form.lines.forEach(line => clearTimeout(line.timer))
   savedLineSnapshots.clear()
@@ -291,9 +325,12 @@ watch(() => [props.initialDate, props.initialLocation] as const, ([initialDate, 
   form.location = initialLocation?.trim() || ''
   form.lines = [blankLine()]
   currentReceiptId.value = null
+  allowDateChange.value = false
+  allowStoreChange.value = false
   lastSavedSummary.value = null
   confirmedReceiptKey.value = null
   failedAutosaveKey.value = ''
+  receiptMatchFailed.value = false
   errorMessage.value = ''
   confirmingDelete.value = false
 }, { immediate: true })
@@ -310,19 +347,22 @@ watch(() => form.purchasedOn, (purchasedOn) => {
 })
 
 const matchingReceiptMessage = computed(() => {
-  if (!matchingReceipt.value) return ''
+  if (!matchingReceipt.value || hasReceipt.value) return ''
   const existingItems = `${matchingReceipt.value.itemCount} ${matchingReceipt.value.itemCount === 1 ? 'item' : 'items'}`
-  return `A receipt already exists for this store and date with ${existingItems}. Changes will combine both receipts and keep every line.`
+  return `A receipt already exists for this store and date with ${existingItems}. Open it to add or edit its lines.`
 })
 
 watch([
   () => form.purchasedOn,
   () => form.location,
-  () => currentReceiptId.value
+  () => currentReceiptId.value,
+  () => receiptMatchRetryKey.value
 ], async ([purchasedOn, location, receiptId]) => {
   const request = ++matchRequest
   clearTimeout(autosaveTimer)
   matchingReceipt.value = null
+  if (receiptMatchFailed.value) errorMessage.value = ''
+  receiptMatchFailed.value = false
   const normalizedLocation = String(location ?? '').trim()
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(purchasedOn)) || !normalizedLocation) {
     checkingReceiptMatch.value = false
@@ -340,9 +380,6 @@ watch([
         receipt: result.receipt,
         description: `A receipt already exists for ${normalizedLocation} on ${purchasedOn} with ${existingItems}. Merge this receipt into it?`
       }
-    } else if (result.receipt && shouldLoadMatchingReceipt(currentReceiptId.value, enteredLines.value.length)) {
-      loadReceipt(result.receipt)
-      matchingReceipt.value = null
     } else {
       matchingReceipt.value = result.receipt
     }
@@ -353,6 +390,9 @@ watch([
         form.purchasedOn = confirmedReceiptKey.value.purchasedOn
         form.location = confirmedReceiptKey.value.location
         errorMessage.value = 'Could not check for an existing receipt. The date and store were restored.'
+      } else {
+        receiptMatchFailed.value = true
+        errorMessage.value = 'Could not check for an existing receipt. Retry the check before saving.'
       }
     }
   } finally {
@@ -404,7 +444,12 @@ function createLocation(value: string | { value: string }) {
   form.location = (typeof value === 'string' ? value : value.value).trim()
 }
 
+function openMatchingReceipt() {
+  if (matchingReceipt.value) return navigateTo(`/receipts/${matchingReceipt.value.id}`)
+}
+
 function confirmDiscardNavigation(to: any) {
+  if (currentReceiptId.value && to.path === `/receipts/${currentReceiptId.value}`) return true
   if (allowNavigationAfterDiscard.value) {
     allowNavigationAfterDiscard.value = false
     return true
@@ -413,6 +458,10 @@ function confirmDiscardNavigation(to: any) {
   discardTarget.value = to
   discardConfirmOpen.value = true
   return false
+}
+
+function isReceiptEditorPath(path: string) {
+  return path === '/receipts/new' || /^\/receipts\/\d+$/.test(path)
 }
 
 async function discardChanges() {
@@ -438,6 +487,10 @@ function resolveDuplicateMerge(confirmed: boolean) {
     form.purchasedOn = confirmedKey.purchasedOn
     form.location = confirmedKey.location
   }
+}
+
+function retryReceiptMatch() {
+  receiptMatchRetryKey.value++
 }
 
 function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -483,6 +536,7 @@ function handleCancelRemoveShortcut(event: KeyboardEvent) {
 }
 
 onBeforeRouteLeave(to => confirmDiscardNavigation(to))
+onBeforeRouteUpdate(to => confirmDiscardNavigation(to))
 
 onMounted(() => {
   loadLocations()
@@ -700,7 +754,7 @@ function autosaveAttemptKey() {
 
 function scheduleAutosave() {
   clearTimeout(autosaveTimer)
-  if (saving.value || checkingReceiptMatch.value || pendingBackfill.value) return
+  if (saving.value || checkingReceiptMatch.value || receiptMatchFailed.value || pendingDuplicateMerge.value || pendingBackfill.value) return
   const validHeader = /^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) && Boolean(form.location.trim())
   const attemptKey = autosaveAttemptKey()
   if (!validHeader || !attemptKey || attemptKey === failedAutosaveKey.value) return
@@ -818,8 +872,10 @@ async function loadCurrentReceiptSummary() {
   return summary
 }
 
-async function saveCompletedRows() {
-  if (saving.value) return false
+async function saveCompletedRows(updateReceiptRoute = true) {
+  if (saving.value || checkingReceiptMatch.value || pendingDuplicateMerge.value) return false
+  if (!currentReceiptId.value && receiptMatchFailed.value) return false
+  if (!currentReceiptId.value && matchingReceipt.value) return false
   const rows = completeLines.value.filter(line => savedLineSnapshots.get(line.key) !== lineSnapshot(line))
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.purchasedOn) || !form.location.trim()) return false
   if (!rows.length) return Boolean(currentReceiptId.value) && !hasUnsavedChanges.value
@@ -871,6 +927,10 @@ async function saveCompletedRows() {
     }
 
     confirmedReceiptKey.value = { purchasedOn: form.purchasedOn, location: form.location }
+    if (savedAllRows) {
+      allowDateChange.value = false
+      allowStoreChange.value = false
+    }
     failedAutosaveKey.value = ''
     await loadCurrentReceiptSummary()
   } catch (error: any) {
@@ -879,6 +939,9 @@ async function saveCompletedRows() {
     errorMessage.value = error?.data?.statusMessage || error?.message || 'Could not save these changes'
   } finally {
     saving.value = false
+    if (updateReceiptRoute && currentReceiptId.value && isReceiptEditorPath(route.path) && route.path !== `/receipts/${currentReceiptId.value}`) {
+      await router.replace(`/receipts/${currentReceiptId.value}`)
+    }
     scheduleAutosave()
   }
   return savedAllRows && rows.every(line => savedLineSnapshots.get(line.key) === lineSnapshot(line))
@@ -888,14 +951,21 @@ async function saveAndAddAnotherReceipt() {
   if (!canSaveAndAddAnother.value) return
   clearTimeout(autosaveTimer)
   receiptSessionMessage.value = ''
-  await saveCompletedRows()
+  const nextDate = form.purchasedOn
+  await saveCompletedRows(false)
   const hasUnpersistedRows = completeLines.value.some(line => (
     !line.id || savedLineSnapshots.get(line.key) !== lineSnapshot(line)
   ))
-  if (!currentReceiptId.value || pendingBackfill.value || hasUnpersistedRows) return
+  if (!currentReceiptId.value || pendingBackfill.value || hasUnpersistedRows) {
+    if (currentReceiptId.value && isReceiptEditorPath(route.path) && route.path !== `/receipts/${currentReceiptId.value}`) {
+      await router.replace(`/receipts/${currentReceiptId.value}`)
+    }
+    return
+  }
 
   form.lines.forEach(line => clearTimeout(line.timer))
   savedLineSnapshots.clear()
+  form.purchasedOn = nextDate
   form.location = ''
   form.lines = [blankLine()]
   currentReceiptId.value = null
@@ -905,6 +975,9 @@ async function saveAndAddAnotherReceipt() {
   errorMessage.value = ''
   confirmingDelete.value = false
   receiptSessionMessage.value = 'Receipt saved. Ready for another receipt.'
+  if (isReceiptEditorPath(route.path)) {
+    await router.replace({ path: '/receipts/new', query: { date: nextDate } })
+  }
   await nextTick()
   document.querySelector<HTMLInputElement>('[data-receipt-store]')?.focus()
 }
@@ -982,15 +1055,22 @@ async function deleteReceipt() {
     <header class="receipt-entry-heading">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Shopping trip editor</p>
-        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Add or edit a receipt</h1>
-        <p>Select an existing date and store to edit.</p>
+        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">{{ hasReceipt ? 'Edit receipt' : 'Add receipt' }}</h1>
+        <p>{{ hasReceipt ? 'Date and store are locked unless you allow a change.' : 'Choose a store and enter its purchases.' }}</p>
+        <UButton :to="{ path: '/', query: { date: form.purchasedOn } }" label="Return to selected day" icon="i-lucide-calendar-days" color="neutral" variant="outline" class="mt-3" />
       </div>
       <div class="receipt-meta-fields">
-        <UFormField label="Date" name="purchasedOn" required class="field date-field">
-          <UInput v-model="form.purchasedOn" type="date" required size="lg" />
+        <div v-if="!hasReceipt" class="receipt-date-display">
+          <span>Date</span>
+          <time data-receipt-date-display :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time>
+        </div>
+        <UFormField v-else label="Date" name="purchasedOn" required class="field date-field">
+          <UInput v-model="form.purchasedOn" type="date" required size="lg" :disabled="!allowDateChange" />
+          <UCheckbox v-model="allowDateChange" label="Allow date change" />
         </UFormField>
         <UFormField label="Store" name="location" required class="field receipt-store-field" :error="storeError">
-          <UInputMenu v-model="form.location" data-receipt-store :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" @create="createLocation" />
+          <UInputMenu v-model="form.location" data-receipt-store :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" :disabled="hasReceipt && !allowStoreChange" @create="createLocation" />
+          <UCheckbox v-if="hasReceipt" v-model="allowStoreChange" label="Allow store change" />
         </UFormField>
       </div>
     </header>
@@ -1060,9 +1140,9 @@ async function deleteReceipt() {
             @keydown.tab.exact.prevent="focusLineDetails(line)"
             @click="line.saleItem = !line.saleItem"
           />
-          <UButton type="button" :data-line-details="line.key" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @keydown.tab.exact.prevent="advanceFromLineDetails(line)" @click="line.expanded = !line.expanded" />
+          <UButton type="button" :data-line-details="line.key" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" :title="line.expanded ? 'Hide item details' : 'Show item details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @keydown.tab.exact.prevent="advanceFromLineDetails(line)" @click="line.expanded = !line.expanded" />
+          <UButton class="receipt-line-remove" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" :title="`Remove line ${index + 1}`" color="neutral" variant="ghost" size="md" :disabled="saving" @click="requestRemoveLine(line)" />
         </div>
-        <UButton class="receipt-line-remove" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" color="neutral" variant="ghost" :disabled="saving" @click="requestRemoveLine(line)" />
         <div v-if="line.pendingItemCreation" class="receipt-item-create-confirmation" role="alert">
           <span>Create <strong>“{{ line.pendingItemCreation }}”</strong> as a new item?</span>
           <UButton type="button" label="Cancel" color="neutral" variant="outline" @click="cancelCreateItem(line)" />
@@ -1123,7 +1203,11 @@ async function deleteReceipt() {
     </footer>
 
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
-    <UAlert v-if="matchingReceiptMessage" color="warning" variant="soft" icon="i-lucide-git-merge" :description="matchingReceiptMessage" class="notice" />
+    <UButton v-if="receiptMatchFailed" type="button" label="Retry receipt check" icon="i-lucide-refresh-cw" color="error" variant="outline" class="notice" @click="retryReceiptMatch" />
+    <div v-if="matchingReceiptMessage" class="notice flex flex-wrap items-center gap-3">
+      <UAlert color="warning" variant="soft" icon="i-lucide-receipt-text" :description="matchingReceiptMessage" class="flex-1" />
+      <UButton type="button" label="Open existing receipt" icon="i-lucide-arrow-up-right" color="warning" variant="outline" @click="openMatchingReceipt" />
+    </div>
   </form>
 
   <UModal
