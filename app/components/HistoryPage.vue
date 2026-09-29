@@ -475,7 +475,7 @@ async function confirmRemoveEntry() {
               <div class="grid size-[42px] flex-[0_0_auto] place-items-center rounded-[13px] text-xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
               <div class="min-w-0 flex-1">
                 <h2 class="text-[23px] leading-[1.05]">{{ receipt.location }}</h2>
-                <p class="[margin:4px_0_0] text-(--muted) text-[12px]">{{ dateLabel(receipt.purchasedOn) }} · {{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</p>
+                <p class="[margin:4px_0_0] text-(--muted) text-[12px]">{{ dateLabel(receipt.purchasedOn) }}<span class="ml-2.5 font-[650] text-(--accent-strong)">{{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</span></p>
               </div>
               <UButton :to="`/receipts/${receipt.id}`" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" />
             </header>
