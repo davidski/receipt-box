@@ -10,9 +10,9 @@ const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.m
 
 test('History keeps its page heading stable across views', () => {
   assert.match(page, /Purchase records<\/p>/)
-  assert.match(page, /<h1 class="text-\[clamp\(34px,3\.5vw,42px\)\] leading-\[1\.04\]">Receipts<\/h1>/)
+  assert.match(page, /<h1 class="(?=[^"]*text-\[clamp\(34px,3\.5vw,42px\)\])(?=[^"]*leading-1\.04)[^"]*">Receipts<\/h1>/)
   assert.match(page, /Browse receipts by date\./)
-  assert.match(page, /class="page-heading my-\[15px\] mb-8 history-heading">[\s\S]*class="receipt-mode-switcher receipt-views" aria-label="Receipts view"/)
+  assert.match(page, /class="[^"]*page-heading[^"]*history-heading[^"]*">[\s\S]*class="[^"]*receipt-mode-switcher[^"]*receipt-views[^"]*" aria-label="Receipts view"/)
   assert.doesNotMatch(page, /history-view-summary/)
   assert.match(viewRoute, /middleware: 'history'/)
   assert.match(middleware, /to\.path === '\/history'/)
@@ -64,7 +64,7 @@ test('Page content reserves the scrollbar gutter', () => {
 })
 
 test('History filters keep the store selector from widening the filter bar', () => {
-  assert.match(stylesheet, /\.filter-bar \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 220px\) minmax\(0, 220px\)/)
+  assert.match(page, /class="[^"]*filter-bar[^"]*grid-cols-\[minmax\(0,1fr\)_minmax\(0,220px\)_minmax\(0,220px\)\][^"]*"/)
   assert.match(stylesheet, /\.store-filter-control, \.store-filter-control > \[data-slot="base"\], \.category-filter-control, \.category-filter-control > \[data-slot="base"\] \{ min-width: 0; \}/)
 })
 
@@ -98,7 +98,7 @@ test('History filters entries by category and labels categorized receipt lines',
 })
 
 test('Receipts keeps headings intact and uses tablet space without widening mobile pages', () => {
-  assert.match(stylesheet, /\.selected-receipts-heading \{ display: grid;/)
+  assert.match(page, /class="[^"]*selected-receipts-heading[^"]*gap-3\.5/)
   assert.match(stylesheet, /@media \(min-width: 760px\) and \(max-width: 900px\) \{\s*\.receipt-browser \{ grid-template-columns: 280px minmax\(0, 1fr\); \}/)
   assert.match(stylesheet, /\.history-heading \{ display: grid; align-items: start; \}/)
 })

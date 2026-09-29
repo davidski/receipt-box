@@ -3,7 +3,7 @@ defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{ items: string[] }>()
 const model = defineModel<string | null>({ required: true })
-const emit = defineEmits<{ change: [category: string | null], tabNext: [] }>()
+const emit = defineEmits<{ change: [category:string | null], tabNext: [] }>()
 const open = ref(false)
 
 function selectCategory(value: string | null) {

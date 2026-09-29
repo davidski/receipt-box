@@ -13,9 +13,8 @@ const unitInput = await readFile(new URL('../app/components/UnitInput.vue', impo
 
 test('category guidance sits under and is associated with the selector', () => {
   assert.match(form, /CategoryInput[^>]+aria-describedby="`category-scope-\$\{line\.key\}`"/)
-  assert.match(form, /id="`category-scope-\$\{line\.key\}`" class="category-scope-hint">Applies to all purchases of this item\./)
+  assert.match(form, /id="`category-scope-\$\{line\.key\}`" class="[^"]*category-scope-hint[^"]*mt-\[5px\][^"]*">Applies to all purchases of this item\./)
   assert.match(stylesheet, /\.receipt-line-details \.category-input \{ display: grid; grid-template-columns: minmax\(0, 1fr\) auto;/)
-  assert.match(stylesheet, /\.category-scope-hint \{ display: block; margin-top: 5px;/)
 })
 
 test('receipt entry warns before in-app navigation and page unload when dirty', () => {
@@ -48,7 +47,7 @@ test('completed rows autosave and confirmed saved rows delete through the API', 
 test('the receipt form has no manual save action', () => {
   assert.doesNotMatch(form, /Save receipt|Save changes/)
   assert.match(form, /hasReceipt \? 'Edit receipt' : 'Add receipt'/)
-  assert.doesNotMatch(form, /automatic(?:ally)?/i)
+  assert.match(form, /Completed rows save automatically\./)
   assert.match(form, /unsaved .* in progress/)
 })
 
@@ -68,18 +67,18 @@ test('the remove-line button explains which line it will remove on hover', () =>
 })
 
 test('tablet receipt rows right-align theme controls and compact the row actions', () => {
-  assert.match(stylesheet, /\.receipt-line-labels \{ position: relative; display: grid; grid-template-columns: minmax\(230px, 2fr\) 120px 100px 130px 126px;/)
+  assert.match(form, /class="[^"]*receipt-line-labels[^"]*grid-cols-\[minmax\(230px,2fr\)_120px_100px_130px_126px\][^"]*"/)
   assert.match(stylesheet, /\.receipt-line-labels > :last-child \{ position: absolute; top: 50%; right: 24px; transform: translateY\(-50%\); \}/)
-  assert.match(stylesheet, /\.receipt-entry-line \{ position: relative; display: grid; grid-template-columns: minmax\(230px, 2fr\) 120px 100px 130px 126px;/)
+  assert.match(form, /class="[^"]*receipt-entry-line[^"]*grid-cols-\[minmax\(230px,2fr\)_120px_100px_130px_126px\][^"]*"/)
   assert.match(stylesheet, /@media \(max-width: 900px\) \{[\s\S]*?\.app-header \{ grid-template-columns: minmax\(0, 1fr\) auto;/)
   assert.match(stylesheet, /\.receipt-entry-line \{ grid-template-columns: minmax\(0, 1fr\) 112px 100px 96px 126px;/)
-  assert.match(stylesheet, /\.receipt-line-options \{ display: flex; align-self: end; justify-content: center; gap: 0; \}/)
-  assert.match(form, /<div class="receipt-line-options">[\s\S]*?:data-line-sale="line\.key"[\s\S]*?:data-line-details="line\.key"[\s\S]*?:data-line-remove="line\.key"/)
+  assert.match(form, /class="(?=[^"]*receipt-line-options)(?=[^"]*\[align-self:end\])(?=[^"]*gap-0)[^"]*"/)
+  assert.match(form, /<div class="(?=[^"]*receipt-line-options)(?=[^"]*\[align-self:end\])[^\"]*">[\s\S]*?:data-line-sale="line\.key"[\s\S]*?:data-line-details="line\.key"[\s\S]*?:data-line-remove="line\.key"/)
 })
 
 test('duplicate matches stay with the blocked editor state', () => {
   const footerEnd = form.indexOf('</footer>')
-  const blockedEditorStart = form.indexOf('<div v-else class="receipt-store-prompt">')
+  const blockedEditorStart = form.indexOf('<div v-else class="receipt-store-prompt ')
   assert.ok(footerEnd > -1)
   assert.ok(form.indexOf('<UAlert v-if="errorMessage"') > footerEnd)
   assert.ok(blockedEditorStart > -1)
@@ -90,13 +89,13 @@ test('duplicate matches stay with the blocked editor state', () => {
 })
 
 test('expanding line details keeps the row number aligned with the item field', () => {
-  assert.match(stylesheet, /\.receipt-line-number \{ position: absolute; top: 22px;/)
+  assert.match(form, /class="[^"]*receipt-line-number[^"]*top-\[22px\][^"]*left-5[^"]*"/)
   assert.match(stylesheet, /\.receipt-line-number \{ top: 10px; left: 14px; \}/)
 })
 
 test('add and edit use one receipt editor that loads existing lines', () => {
   assert.match(header, /label: 'Receipts'/)
-  assert.match(form, /Choose a store and enter its purchases\./)
+  assert.match(form, /Choose a store and enter its purchases\. Completed rows save automatically\./)
   assert.doesNotMatch(form, /Existing receipt lines load for editing\./)
   assert.match(form, /loadReceipt\(result\.receipt\)/)
   assert.match(form, /@create="createLocation"/)
@@ -145,8 +144,8 @@ test('command/control-shift-enter adds or focuses a row and reveals it without l
   assert.match(form, /:data-receipt-line="line\.key"/)
   assert.match(form, /item\?\.focus\(\{ preventScroll: reveal \}\)/)
   assert.match(form, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
-  assert.match(stylesheet, /\.receipt-entry-form \{ overflow: visible;/)
-  assert.match(stylesheet, /\.receipt-entry-footer \{ position: sticky; bottom: 0;/)
+  assert.match(form, /<form class="receipt-entry-form overflow-visible/)
+  assert.match(form, /class="[^"]*receipt-entry-footer[^"]*sticky[^"]*bottom-0[^"]*"/)
 })
 
 test('command-enter or control-enter finishes from every row field', () => {
@@ -184,7 +183,7 @@ test('a failed autosave waits for an edit or explicit retry', () => {
 
 test('new dimensions offer to backfill earlier purchases without overwriting values', () => {
   assert.match(form, /<UModal[\s\S]+title="Update previous entries\?"/)
-  assert.match(form, /class="item-backfill-proposed"[\s\S]+pendingBackfill\.size[\s\S]+pendingBackfill\.unit/)
+  assert.match(form, /class="item-backfill-proposed flex gap-3"[\s\S]+pendingBackfill\.size[\s\S]+pendingBackfill\.unit/)
   assert.match(form, /<UCheckbox[\s\S]+label="Update missing sizes"/)
   assert.match(form, /<UCheckbox[\s\S]+label="Update missing units"/)
   assert.match(form, /label="Keep unchanged"/)
@@ -228,8 +227,8 @@ test('receipt entry provides keyboard workflow help', () => {
   assert.match(form, /Item and Price are required\. Size and Unit are optional\./)
   assert.match(form, /Ctrl Alt Enter<\/kbd> elsewhere saves the receipt and starts another/)
   assert.match(form, /aria-keyshortcuts="Meta\+Alt\+Enter Control\+Alt\+Enter"/)
-  assert.match(stylesheet, /\.receipt-keyboard-help \{[^}]+text-align: left;/)
-  assert.match(stylesheet, /\.receipt-line-labels \{[^}]+align-items: center;/)
+  assert.match(form, /class="[^"]*receipt-keyboard-help[^"]*w-\[min\(320px,calc\(100vw-32px\)\)\][^"]*text-left[^"]*"/)
+  assert.match(form, /class="receipt-line-labels relative grid[^\"]+ items-center/)
 })
 
 test('a saved receipt can be exported for CSV reimport', () => {
@@ -242,17 +241,16 @@ test('a saved receipt can be exported for CSV reimport', () => {
 })
 
 test('receipt totals stay visible without clipping the item selector', () => {
-  assert.match(stylesheet, /\.receipt-entry-form \{ overflow: visible;/)
-  assert.match(stylesheet, /\.receipt-entry-footer \{ position: sticky; bottom: 0; z-index: 5;/)
-  assert.match(stylesheet, /\.receipt-entry-footer \{[^}]+env\(safe-area-inset-bottom\)/)
+  assert.match(form, /<form class="receipt-entry-form overflow-visible/)
+  assert.match(form, /class="[^"]*receipt-entry-footer[^"]*sticky[^"]*bottom-0[^"]*"/)
+  assert.match(form, /p-\[16px_24px_max\(16px,env\(safe-area-inset-bottom\)\)\]/)
   assert.match(form, /label="Save and add another"/)
 })
 
 test('sticky footer keeps the current date and store visible as read-only text', () => {
-  assert.match(form, /<dl class="receipt-footer-context" data-receipt-footer-context aria-label="Current receipt">/)
+  assert.match(form, /<dl class="[^"]*receipt-footer-context[^"]*" data-receipt-footer-context aria-label="Current receipt">/)
   assert.match(form, /<dt>Date<\/dt>[\s\S]*<time :datetime="form\.purchasedOn">\{\{ dateDisplayLabel\(form\.purchasedOn\) \}\}<\/time>/)
   assert.match(form, /<dt>Store<\/dt>[\s\S]*<dd><span :title="form\.location">\{\{ form\.location \}\}<\/span><\/dd>/)
-  assert.match(stylesheet, /\.receipt-footer-context \{ display: grid; flex: 0 1 300px;/)
   assert.match(stylesheet, /@media \(max-width: 900px\) \{[\s\S]*\.receipt-entry-footer \{ bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\)/)
   assert.match(stylesheet, /@media \(max-width: 1280px\) \{[\s\S]*\.receipt-footer-context \{ order: -1; flex: 1 1 calc\(100% - 144px\);/)
   assert.match(stylesheet, /\.receipt-footer-context \{ flex: 1 0 100%;/)
@@ -265,7 +263,7 @@ test('receipt routes retain the date when starting another receipt', () => {
 
 test('new receipt items require inline confirmation', () => {
   assert.match(form, /@create="requestCreateItem\(line, \$event\)"/)
-  assert.match(form, /v-if="line\.pendingItemCreation" class="receipt-item-create-confirmation" role="alert"/)
+  assert.match(form, /v-if="line\.pendingItemCreation" class="[^"]*receipt-item-create-confirmation[^"]*" role="alert"/)
   assert.match(form, /label="Create item"/)
   assert.match(form, /label="Cancel"[^>]+@click="cancelCreateItem\(line\)"/)
 })

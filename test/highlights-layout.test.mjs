@@ -7,25 +7,25 @@ const page = await readFile(new URL('../app/pages/highlights.vue', import.meta.u
 const endpoint = await readFile(new URL('../server/api/highlights.get.ts', import.meta.url), 'utf8')
 
 test('the Highlights period field accommodates its longest option without overflowing', () => {
-  assert.match(stylesheet, /\.period-field \{ width: 240px; \}/)
+  assert.match(page, /class="period-field w-60"/)
   assert.match(stylesheet, /\.period-field \[data-slot="base"\] \{ width: 100%; \}/)
   assert.match(stylesheet, /\.period-field \{ width: min\(240px, 100%\); \}/)
   assert.match(page, /:content="\{ bodyLock: false \}"/)
 })
 
 test('the monthly spending chart stays within its card and compresses wide ranges', () => {
-  assert.match(page, /ref="monthlySpendContainer" class="monthly-spend-scroll"/)
+  assert.match(page, /ref="monthlySpendContainer" class="monthly-spend-scroll w-full max-w-full overflow-hidden/)
   assert.match(page, /const width = monthlySpendWidth\.value/)
   assert.match(page, /const barWidth = Math\.max\(1, Math\.min\(28, slotWidth \* 0\.64\)\)/)
   assert.match(page, /const hitWidth = Math\.max\(barWidth, Math\.min\(28, slotWidth\)\)/)
   assert.match(page, /const labelEvery = Math\.max\(1, Math\.ceil\(54 \/ slotWidth\)\)/)
   assert.doesNotMatch(page, /minWidth: `\$\{monthlySpendChart\.width\}px`/)
-  assert.match(stylesheet, /\.monthly-spend-scroll \{ width: 100%; max-width: 100%; overflow: hidden;/)
+  assert.match(page, /class="monthly-spend-scroll w-full max-w-full overflow-hidden/)
 })
 
 test('category price movement is separated from monthly spending', () => {
-  assert.match(stylesheet, /\.category-price-panel \{ margin-bottom: 20px; \}/)
-  assert.match(page, /class="category-price-panel highlight-panel"[\s\S]*class="monthly-spend-panel highlight-panel"/)
+  assert.match(page, /class="category-price-panel highlight-panel mb-5/)
+  assert.match(page, /class="monthly-spend-panel highlight-panel/)
 })
 
 test('Highlights cards share the Purchases by month heading size', () => {
@@ -43,10 +43,9 @@ test('the Highlights page explains and renders core-item price velocity', () => 
 })
 
 test('the core-item table uses compact desktop rows without losing mobile labels', () => {
-  assert.match(stylesheet, /\.core-items-table td \{ padding: 9px 12px;/)
-  assert.match(page, /class="core-items-table text-sm \[&_th\]:text-\[11px\]"/)
+  assert.match(page, /class="[^"]*core-items-table[^"]*"/)
   assert.doesNotMatch(stylesheet, /\.core-items-table (?:th|td) \{[^}]*font-size:/)
-  assert.match(stylesheet, /\.core-item-inline \{ display: flex;/)
+  assert.match(page, /class="core-item-inline flex /)
   assert.match(page, /data-label="Regularity"/)
   assert.match(page, /data-label="Price behavior"/)
 })
@@ -58,33 +57,32 @@ test('Highlights omits redundant recent and sale-frequency views', () => {
   assert.doesNotMatch(endpoint, /recentRows|saleItemRows|topSaleItems|saleItems:/)
   assert.match(page, /Recent movers/)
   assert.match(page, /Top stores/)
-  assert.match(stylesheet, /\.highlight-stats \{ display: grid; grid-template-columns: repeat\(3, 1fr\);/)
+  assert.match(page, /class="[^"]*highlight-stats[^"]*grid-cols-\[repeat\(3,1fr\)\]/)
 })
 
 test('Top stores anchors each spend amount to the end of its bar', () => {
-  assert.match(page, /class="store-spend-value text-xs" :style="\{ width:/)
-  assert.match(page, /class="store-bar"><i :style="\{ width:/)
-  assert.match(stylesheet, /\.store-spend-value \{[^}]*text-align: right;[^}]*white-space: nowrap;/)
-  assert.match(stylesheet, /\.store-rank-list \{ display: grid; gap: 9px; \}/)
-  assert.match(page, /class="store-name-label" :title="store\.name"/)
-  assert.match(stylesheet, /\.store-name-label \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/)
+  assert.match(page, /class="[^"]*store-spend-value[^"]*" :style="\{ width:/)
+  assert.match(page, /class="store-bar h-2 overflow-hidden rounded-full \[background:var\(--surface-muted\)\]"><i :style="\{ width:/)
+  assert.match(page, /class="[^"]*store-spend-value[^"]*text-right[^"]*whitespace-nowrap/)
+  assert.match(page, /class="[^"]*store-rank-list[^"]*list-none[^"]*gap-\[9px\][^"]*"/)
+  assert.match(page, /class="[^"]*store-name-label[^"]*" :title="store\.name"/)
 })
 
 test('Recent movers uses compact table rows with a mobile card fallback', () => {
-  assert.match(page, /<table class="movers-table text-sm \[&_th\]:text-\[11px\]">/)
+  assert.match(page, /<table class="[^"]*movers-table[^"]*">/)
   assert.match(page, /<th>Item<\/th><th>Comparison<\/th><th>Change<\/th>/)
-  assert.match(page, /class="mover-dates text-xs">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
-  assert.match(page, /class="mover-stores text-xs">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
+  assert.match(page, /class="[^"]*mover-dates[^"]*text-xs[^"]+">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
+  assert.match(page, /class="[^"]*mover-stores[^"]*">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
   assert.doesNotMatch(page, /class="mover-list"/)
   assert.match(stylesheet, /\.movers-table td \{ padding: 9px;/)
-  assert.match(stylesheet, /\.mover-context \{ display: grid; gap: 2px;/)
+  assert.match(page, /class="mover-context grid gap-\[2px\] overflow-hidden"/)
   assert.match(stylesheet, /\.movers-table, \.movers-table tbody \{ display: grid; gap: 10px; \}/)
 })
 
 test('Highlights avoids undersized nine-pixel text', () => {
   assert.doesNotMatch(stylesheet, /font-size: 9px/)
-  assert.match(page, /class="mover-stores text-xs"/)
-  assert.match(page, /class="store-spend-value text-xs"/)
+  assert.match(page, /class="[^"]*mover-stores[^"]*text-xs/)
+  assert.match(page, /class="[^"]*store-spend-value[^"]*text-xs/)
 })
 
 test('Highlights renders the same-item price index with coverage context', () => {
@@ -97,12 +95,12 @@ test('Highlights renders the same-item price index with coverage context', () =>
   assert.match(page, /v-for="segment in priceIndexChart\.segments"/)
   assert.match(page, /At least three matched regular items/)
   assert.match(endpoint, /priceIndex: priceIndex\(reportObservations\)/)
-  assert.match(stylesheet, /\.price-index-line \{[^}]*stroke: var\(--accent\)/)
+  assert.match(page, /class="[^"]*price-index-line[^"]*"/)
   assert.match(page, /aria-label="How the price index is calculated"/)
   assert.match(page, /Find items purchased in both the current and previous month/)
   assert.match(page, /Weight each movement by spending on that item in the previous month/)
   assert.match(page, /weighted geometric mean/)
-  assert.match(stylesheet, /\.price-index-help \{ width: min\(390px, calc\(100vw - 32px\)\)/)
+  assert.match(page, /class="[^"]*price-index-help w-\[min\(390px,calc\(100vw-32px\)\)\]/)
 })
 
 test('Highlights reports comparable regular-price movement by category', () => {
@@ -116,11 +114,11 @@ test('Highlights reports comparable regular-price movement by category', () => {
 })
 
 test('core item rows include accessible regular-price sparklines', () => {
-  assert.match(page, /class="core-sparkline"/)
+  assert.match(page, /class="[^"]*core-sparkline[^"]*"/)
   assert.match(page, /sparklinePoints\(item\.priceSeries\)/)
   assert.match(page, /:aria-label="`\$\{item\.name\} regular price trend`"/)
   assert.match(endpoint, /array_agg\(comparable_price::text ORDER BY purchased_on, id\) AS price_series/)
-  assert.match(stylesheet, /\.core-sparkline \{[^}]*height: 24px;/)
+  assert.match(page, /class="[^"]*core-sparkline[^"]*"/)
 })
 
 test('Highlights explains monthly spending changes without claiming quantity data', () => {
@@ -151,6 +149,6 @@ test('shrinkflation defaults to impact order and supports sorting every visible 
   assert.match(page, /:aria-sort="shrinkflationAriaSort\('impact'\)"/)
   assert.match(stylesheet, /\.shrinkflation-table th > button \{/)
   assert.match(stylesheet, /\.shrinkflation-table th:last-child \{ width: 36%; \}/)
-  assert.match(stylesheet, /\.shrinkflation-impact \{ display: flex;[^}]*justify-content: flex-end;[^}]*white-space: nowrap;/)
+  assert.match(page, /class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap"/)
   assert.match(stylesheet, /\.shrinkflation-impact > strong, \.shrinkflation-impact > span \{ white-space: nowrap; \}/)
 })

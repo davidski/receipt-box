@@ -167,18 +167,18 @@ async function save() {
 </script>
 
 <template>
-  <UForm :state="form" class="entry-form" @submit="save">
+  <UForm :state="form" class="entry-form p-[clamp(22px,3vw,36px)]" @submit="save">
     <div class="form-heading">
       <div>
-        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">New price</p>
-        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">Add a purchase</h1>
+        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">New price</p>
+        <h1 class="leading-1.04 text-[clamp(34px,3.5vw,42px)]">Add a purchase</h1>
       </div>
-      <UFormField label="Date" name="purchasedOn" required class="date-field">
+      <UFormField label="Date" name="purchasedOn" required class="date-field grid gap-[5px] text-xs font-bold text-(--muted)">
         <UInput v-model="form.purchasedOn" type="date" required size="lg" />
       </UFormField>
     </div>
 
-    <UFormField label="Item" name="item" required help="Choose a suggestion or press Enter to add a new item." class="field item-field">
+    <UFormField label="Item" name="item" required help="Choose a suggestion or press Enter to add a new item." class="field item-field relative mt-[30px] grid min-w-0 gap-[7px]">
       <UInputMenu
         id="item"
         data-item-input
@@ -198,43 +198,43 @@ async function save() {
       />
     </UFormField>
 
-    <p v-if="selectedHistory" class="history-hint">
+    <p v-if="selectedHistory" class="history-hint m-[10px_0_-7px] text-[13px] text-(--muted)">
       Last paid <strong>${{ Number(selectedHistory.price).toFixed(2) }}</strong>
       <span v-if="selectedHistory.lastUsed"> on {{ String(selectedHistory.lastUsed).slice(0, 10) }}</span>.
     </p>
 
-    <div class="form-grid grid gap-4 mt-5 grid-cols-2">
-      <UFormField label="Store" name="location" required class="field">
+    <div class="form-grid mt-5 grid grid-cols-2 gap-4">
+      <UFormField label="Store" name="location" required class="field relative grid min-w-0 gap-[7px]">
         <UInputMenu id="location" v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required />
       </UFormField>
-      <UFormField label="Price" name="price" required class="field price-field">
+      <UFormField label="Price" name="price" required class="field price-field relative grid min-w-0 gap-[7px]">
         <UInput id="price" v-model="form.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" required />
       </UFormField>
     </div>
 
-    <div class="form-grid grid gap-4 mt-5 size-grid">
-      <UFormField label="Package size" name="size" class="field">
+    <div class="form-grid size-grid mt-5 grid grid-cols-[1fr_.75fr_1fr] items-end gap-4">
+      <UFormField label="Package size" name="size" class="field relative grid min-w-0 gap-[7px]">
         <UInput id="size" v-model="form.size" type="number" min="0" step="any" inputmode="decimal" />
       </UFormField>
-      <UFormField label="Unit" name="unit" class="field">
+      <UFormField label="Unit" name="unit" class="field relative grid min-w-0 gap-[7px]">
         <UnitInput id="unit" v-model="form.unit" />
       </UFormField>
-      <div v-if="normalizedCost !== null" class="cost-preview" aria-live="polite">
+      <div v-if="normalizedCost !== null" class="cost-preview flex min-h-13 items-center justify-between rounded-xl px-3.5 py-2 text-(--accent-strong) [background:var(--accent-soft)]" aria-live="polite">
         <span>{{ ['g', 'mL'].includes(normalizedUnit || '') ? `Per 100 ${normalizedUnit}` : normalizedUnit === 'ea' ? 'Each' : `Per ${normalizedUnit || 'unit'}` }}</span>
         <strong>${{ normalizedCost.toFixed(2) }}</strong>
       </div>
     </div>
 
-    <div class="ui-switches">
+    <div class="ui-switches mt-[22px] flex flex-wrap gap-x-6 gap-y-4">
       <USwitch v-model="form.saleItem" label="Sale item" />
       <USwitch v-model="form.nonGrocery" label="Non-grocery" />
     </div>
 
-    <UCollapsible class="more-fields">
+    <UCollapsible class="more-fields mt-5 [border-top:1px_solid_var(--line)]">
       <UButton class="touch-target" label="More details" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" size="sm" />
       <template #content>
-        <div class="form-grid grid gap-4 mt-5 details-grid">
-          <UFormField label="Notes" name="notes" class="field">
+        <div class="form-grid details-grid mt-3.5 grid w-full gap-4">
+          <UFormField label="Notes" name="notes" class="field relative grid min-w-0 gap-[7px]">
             <UInput id="notes" v-model="form.notes" type="text" placeholder="Optional" :maxlength="maxEntryNotesLength" aria-describedby="notes-character-count" :ui="{ trailing: 'pointer-events-none' }">
               <template #trailing>
                 <span id="notes-character-count" class="text-xs text-muted tabular-nums" aria-live="polite" role="status">{{ form.notes.length }}/{{ maxEntryNotesLength }}</span>
@@ -245,9 +245,9 @@ async function save() {
       </template>
     </UCollapsible>
 
-    <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice" />
-    <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice" />
+    <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
+    <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
 
-    <UButton class="save-button" type="submit" block size="xl" icon="i-lucide-plus" :loading="saving" label="Save & add another" />
+    <UButton class="save-button mt-[22px] min-h-[57px] w-full text-base" type="submit" block size="xl" icon="i-lucide-plus" :loading="saving" label="Save & add another" />
   </UForm>
 </template>

@@ -1,6 +1,12 @@
 repos:
   - repo: local
     hooks:
+      - id: tailwind-lint
+        name: Tailwind CSS lint
+        entry: pnpm exec eslint
+        language: system
+        types: [file]
+        files: ^app/.*\.vue$
       - id: codecov
         name: codecov coverage gate
         entry: just codecov

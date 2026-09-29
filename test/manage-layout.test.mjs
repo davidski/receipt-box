@@ -8,7 +8,7 @@ const manageMiddleware = await readFile(new URL('../app/middleware/manage.ts', i
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('the Manage section uses the standard desktop content width', () => {
-  assert.match(managePage, /<div class="w-full max-w-\[1200px\] mx-auto">/)
+  assert.match(managePage, /<div class="mx-auto w-full max-w-300">/)
   assert.doesNotMatch(managePage, /narrow-page/)
 })
 

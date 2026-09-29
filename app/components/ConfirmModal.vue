@@ -13,7 +13,7 @@ withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  'update:open': [open: boolean]
+  'update:open': [open:boolean]
   confirm: []
 }>()
 </script>

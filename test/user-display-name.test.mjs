@@ -25,6 +25,6 @@ test('omits an unusable identity label', () => {
 
 test('shows the identity subtly only for an authenticated OIDC session', () => {
   assert.match(header, /v-if="authEnabled && loggedIn && displayName"/)
-  assert.match(header, /class="signed-in-user"/)
+  assert.match(header, /class="signed-in-user\b/)
   assert.match(header, /Signed in as \$\{displayName\}/)
 })

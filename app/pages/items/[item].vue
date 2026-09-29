@@ -201,23 +201,23 @@ function packageLabel(entry: HistoryEntry) {
 </script>
 
 <template>
-  <div class="w-full max-w-[1200px] mx-auto item-history-page">
-    <header class="page-heading my-[15px] mb-8 item-history-heading">
+  <div class="item-history-page mx-auto w-full max-w-300">
+    <header class="page-heading item-history-heading my-[15px] mb-8 flex items-end justify-between gap-6">
       <div>
-        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Normalized price history</p>
-        <h1 class="text-[clamp(34px,3.5vw,42px)] leading-[1.04]">{{ data?.item || routeItem }}</h1>
+        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Normalized price history</p>
+        <h1 class="leading-1.04 text-[clamp(34px,3.5vw,42px)]">{{ data?.item || routeItem }}</h1>
         <p v-if="data">{{ data.entries.length.toLocaleString() }} recorded {{ data.entries.length === 1 ? 'purchase' : 'purchases' }}</p>
       </div>
       <UButton to="/history/receipts/calendar" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
     </header>
 
-    <div v-if="pending" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)]">Loading item history…</div>
-    <div v-else-if="error" class="grid min-h-[220px] place-items-center gap-1.5 rounded-2xl border border-dashed border-[var(--line)] p-9 text-center text-[var(--muted)] error-state">
+    <div v-if="pending" class="grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Loading item history…</div>
+    <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">
       <strong>Could not load this item’s history</strong>
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
     <template v-else-if="data">
-      <div v-if="series.length > 1" class="series-picker" aria-label="Normalized price basis">
+      <div v-if="series.length > 1" class="series-picker m-[-12px_0_18px] flex flex-wrap items-center gap-1.5 rounded-[14px] p-2 [background:var(--surface)] [border:1px_solid_var(--line)]" aria-label="Normalized price basis">
         <span>Compare by</span>
         <UButton
           v-for="option in series"
@@ -231,7 +231,7 @@ function packageLabel(entry: HistoryEntry) {
         />
       </div>
 
-      <div v-if="summary" class="item-price-stats">
+      <div v-if="summary" class="item-price-stats mb-4.5 grid grid-cols-[repeat(3,1fr)] gap-3.5">
         <UCard><span>Latest normalized</span><strong>{{ currency(summary.latest.normalizedPrice) }}</strong><small>{{ summary.latest.basisLabel }}</small></UCard>
         <UCard><span>Historical low</span><strong>{{ currency(summary.low) }}</strong><small>{{ chartPoints.length }} charted purchases</small></UCard>
         <UCard><span>Historical high</span><strong>{{ currency(summary.high) }}</strong><small>{{ dateLabel(summary.latest.purchasedOn) }} latest</small></UCard>
@@ -243,16 +243,16 @@ function packageLabel(entry: HistoryEntry) {
         variant="soft"
         icon="i-lucide-triangle-alert"
         :description="`${excludedOutliers} unusually high normalized ${excludedOutliers === 1 ? 'value is' : 'values are'} excluded from the chart scale but retained in the purchase table for review.`"
-        class="outlier-notice"
+        class="outlier-notice m-[0_0_18px]"
       />
 
       <UCard v-if="chart" class="price-chart-card">
-        <div class="chart-heading">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Price trend</p><h2>{{ visiblePoints[0]?.basisLabel }}</h2></div>
-          <div class="chart-legend"><span><i />Regular</span><span><i class="sale" />Sale</span></div>
+        <div class="chart-heading mb-4.5 flex items-end justify-between gap-4.5">
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Price trend</p><h2>{{ visiblePoints[0]?.basisLabel }}</h2></div>
+          <div class="chart-legend flex gap-3.5 text-xs text-(--muted)"><span><i />Regular</span><span><i class="sale" />Sale</span></div>
         </div>
-        <div v-if="chartPoints.length < 2" class="chart-empty">Add another comparable purchase to draw a trend line.</div>
-        <div v-else class="price-chart-scroll">
+        <div v-if="chartPoints.length < 2" class="chart-empty grid min-h-[130px] place-items-center text-center text-(--muted)">Add another comparable purchase to draw a trend line.</div>
+        <div v-else class="price-chart-scroll min-w-0 overflow-hidden">
           <svg :viewBox="`0 0 ${chart.width} ${chart.height}`" role="img" :aria-label="`${data.item} normalized price chart, ${visiblePoints[0]?.basisLabel}`">
             <title>{{ data.item }} normalized price history</title>
             <g class="chart-grid">
@@ -267,7 +267,7 @@ function packageLabel(entry: HistoryEntry) {
                 <text :x="tick.x" :y="chart.height - 11" :text-anchor="tick.anchor">{{ tick.label }}</text>
               </g>
             </g>
-            <polyline class="price-chart-line" :points="chart.line" />
+            <polyline class="price-chart-line fill-none stroke-(--accent) stroke-3 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
             <g
               v-for="point in chart.positioned"
               :key="point.id"
@@ -280,14 +280,14 @@ function packageLabel(entry: HistoryEntry) {
               @keydown.enter.prevent="selectedPoint = point"
               @keydown.space.prevent="selectedPoint = point"
             >
-              <circle class="price-chart-hit" :cx="point.x" :cy="point.y" r="16" />
+              <circle class="price-chart-hit cursor-pointer fill-transparent" :cx="point.x" :cy="point.y" r="16" />
               <circle :class="['price-chart-point', { sale: point.saleItem }]" :cx="point.x" :cy="point.y" r="5">
                 <title>{{ dateLabel(point.purchasedOn) }} · {{ currency(point.normalizedPrice) }} · {{ point.location }}{{ point.saleItem ? ' · Sale' : '' }}</title>
               </circle>
             </g>
           </svg>
         </div>
-        <div v-if="selectedPoint" class="chart-point-detail" aria-live="polite">
+        <div v-if="selectedPoint" class="chart-point-detail mt-2 flex min-h-12 flex-wrap items-center gap-[7px_14px] rounded-xl p-[10px_13px] text-[13px] [background:var(--surface-muted)] [border:1px_solid_var(--line)]" aria-live="polite">
           <strong>{{ currency(selectedPoint.normalizedPrice) }}</strong>
           <span>{{ dateLabel(selectedPoint.purchasedOn) }}</span>
           <span>{{ selectedPoint.location }}</span>
@@ -296,10 +296,10 @@ function packageLabel(entry: HistoryEntry) {
       </UCard>
 
       <UCard class="item-purchases-card">
-        <div class="flex items-end justify-between gap-5 pb-5 mb-2"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] uppercase text-[var(--accent)]">Source purchases</p><h2>Comparable history</h2></div></div>
-        <div v-if="!newestFirst.length" class="chart-empty">No entries have enough information to calculate a normalized price.</div>
+        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Source purchases</p><h2>Comparable history</h2></div></div>
+        <div v-if="!newestFirst.length" class="chart-empty grid min-h-[130px] place-items-center text-center text-(--muted)">No entries have enough information to calculate a normalized price.</div>
         <div v-else class="item-purchases-table-wrap">
-          <table class="item-purchases-table">
+          <table class="item-purchases-table w-full border-collapse">
             <thead><tr><th>Date</th><th>Store</th><th>Package</th><th>Price</th><th>Normalized</th><th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>
               <tr v-for="point in newestFirst" :key="point.id">
@@ -308,7 +308,7 @@ function packageLabel(entry: HistoryEntry) {
                 <td data-label="Package">{{ packageLabel(point) }}</td>
                 <td data-label="Price">{{ currency(point.price) }}</td>
                 <td data-label="Normalized"><strong>{{ currency(point.normalizedPrice) }}</strong> <span>{{ point.basisLabel }}</span></td>
-                <td class="item-purchase-action">
+                <td class="item-purchase-action w-[1%] text-right whitespace-nowrap">
                   <UButton
                     :to="{ path: '/history/entries', query: { edit: point.id } }"
                     label="Edit"

@@ -3,6 +3,7 @@
 ## Interface components
 
 - Prefer Nuxt UI components over native HTML controls or custom replacements when Nuxt UI provides a suitable element.
+- Prefer Tailwind utility classes at their use sites over defining composite CSS classes. Keep custom CSS for theme tokens, complex selectors, keyframes, and styling that utilities cannot express cleanly.
 - After implementation, reproduce every reported interactive UI flow end to end in a browser before declaring it fixed. If browser verification is unavailable, say so explicitly and label visual conclusions as source- or test-level inference.
 
 ## Tests and coverage
