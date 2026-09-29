@@ -1,4 +1,4 @@
-const validSections = new Set(['stores', 'categories', 'items', 'import-export', 'transfer', 'maintenance'])
+const validSections = new Set(['stores', 'categories', 'items', 'import-export', 'transfer', 'preferences', 'maintenance'])
 
 export default defineNuxtRouteMiddleware((to) => {
   const section = String(to.params.section || '')

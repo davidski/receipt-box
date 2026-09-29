@@ -122,7 +122,7 @@ const pendingBackfill = ref<PendingBackfill | null>(null)
 const backfillBusy = ref(false)
 const backfillSizeSelected = ref(false)
 const backfillUnitSelected = ref(false)
-const backfillPromptsEnabled = ref(true)
+const { enabled: backfillPromptsEnabled, load: loadBackfillPrompts } = useBackfillPromptPreference()
 const categoryChoices = ref<string[]>([])
 const savedLineSnapshots = reactive(new Map<number, string>())
 const failedAutosaveKey = ref('')
@@ -752,11 +752,7 @@ onBeforeRouteUpdate(to => confirmDiscardNavigation(to))
 onMounted(() => {
   loadLocations()
   loadCategories()
-  try {
-    backfillPromptsEnabled.value = localStorage.getItem('receipt-box:item-backfill-prompts') !== 'disabled'
-  } catch {
-    // Storage can be unavailable in privacy-restricted browser contexts.
-  }
+  void loadBackfillPrompts()
   window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('keydown', handleAddLineShortcut, { capture: true })
   window.addEventListener('keydown', handleAddReceiptShortcut, { capture: true })
@@ -979,6 +975,7 @@ function retryAutosave() {
 }
 
 async function offerItemBackfill(line: ReceiptLine) {
+  await loadBackfillPrompts()
   const size = String(line.size ?? '').trim()
   const unit = normalizeUnit(line.unit)
   if (!backfillPromptsEnabled.value || !line.id || line.backfillPrompted || (!size && !unit)) return false

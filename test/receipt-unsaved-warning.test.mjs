@@ -10,6 +10,11 @@ const header = await readFile(new URL('../app/components/AppHeader.vue', import.
 const receiptEditorPage = await readFile(new URL('../app/pages/receipts/[id].vue', import.meta.url), 'utf8')
 const matchApi = await readFile(new URL('../server/api/receipts/match.get.ts', import.meta.url), 'utf8')
 const unitInput = await readFile(new URL('../app/components/UnitInput.vue', import.meta.url), 'utf8')
+const preference = await readFile(new URL('../app/composables/useBackfillPromptPreference.ts', import.meta.url), 'utf8')
+const preferenceGet = await readFile(new URL('../server/api/preferences/backfill-prompts.get.ts', import.meta.url), 'utf8')
+const preferencePut = await readFile(new URL('../server/api/preferences/backfill-prompts.put.ts', import.meta.url), 'utf8')
+const databaseReset = await readFile(new URL('../server/utils/database-reset.ts', import.meta.url), 'utf8')
+const manageMiddleware = await readFile(new URL('../app/middleware/manage.ts', import.meta.url), 'utf8')
 
 test('category guidance sits under and is associated with the selector', () => {
   assert.match(form, /CategoryInput[^>]+aria-describedby="`category-scope-\$\{line\.key\}`"/)
@@ -210,9 +215,19 @@ test('new dimensions offer to backfill earlier purchases without overwriting val
 
 test('maintenance can disable receipt history prompts', () => {
   assert.match(managePage, /label="Prompt before updating previous entries"/)
-  assert.match(managePage, /localStorage\.getItem\('receipt-box:item-backfill-prompts'\) !== 'disabled'/)
-  assert.match(managePage, /localStorage\.setItem\('receipt-box:item-backfill-prompts', enabled \? 'enabled' : 'disabled'\)/)
-  assert.match(form, /localStorage\.getItem\('receipt-box:item-backfill-prompts'\) !== 'disabled'/)
+  assert.match(managePage, /When enabled, ask before filling missing quantity or unit values in older entries for the same item\. When disabled, older entries stay unchanged\./)
+  assert.match(managePage, /to="\/data\/preferences"/)
+  assert.match(managePage, /@update:model-value="saveBackfillPrompts\(\$event === true\)"/)
+  assert.match(manageMiddleware, /'preferences'/)
+  assert.match(preference, /if \(await loadAuthMode\(\)\)[\s\S]+apiUrl\('\/preferences\/backfill-prompts'\)/)
+  assert.match(preference, /localStorage\.getItem\('receipt-box:item-backfill-prompts'\) !== 'disabled'/)
+  assert.match(preference, /localStorage\.setItem\('receipt-box:item-backfill-prompts', value \? 'enabled' : 'disabled'\)/)
+  assert.match(form, /loadBackfillPrompts\(\)/)
+  assert.match(preferenceGet, /WHERE user_sub = \$\{user\.sub\}/)
+  assert.match(preferenceGet, /preference\?\.enabled \?\? true/)
+  assert.match(preferencePut, /typeof body\?\.enabled !== 'boolean'/)
+  assert.match(preferencePut, /ON CONFLICT \(user_sub\) DO UPDATE SET backfill_prompts_enabled = EXCLUDED\.backfill_prompts_enabled/)
+  assert.doesNotMatch(databaseReset, /grocery_user_preferences/)
 })
 
 test('receipt entry provides keyboard workflow help', () => {

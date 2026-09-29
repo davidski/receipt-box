@@ -13,7 +13,7 @@ test('the Manage section uses the standard desktop content width', () => {
 })
 
 test('spreadsheet import copy lists the supported template and export formats', () => {
-  assert.match(managePage, /Import an XLSX in the Receipt Box template format, or a CSV\/XLSX export from Receipt Box/)
+  assert.match(managePage, /Import an XLSX using the template format, or a CSV\/XLSX export/)
   assert.doesNotMatch(managePage, /Numbers/)
 })
 

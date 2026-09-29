@@ -30,13 +30,14 @@ const route = useRoute()
 const file = ref<File | null>(null)
 const importing = ref(false)
 const exporting = ref<'csv' | 'xlsx' | null>(null)
-type ManageSection = 'stores' | 'categories' | 'items' | 'transfer' | 'maintenance'
+type ManageSection = 'stores' | 'categories' | 'items' | 'transfer' | 'preferences' | 'maintenance'
 const activeSection = computed<ManageSection>(() => {
   switch (String(route.params.section || 'stores')) {
     case 'items': return 'items'
     case 'categories': return 'categories'
     case 'import-export':
     case 'transfer': return 'transfer'
+    case 'preferences': return 'preferences'
     case 'maintenance': return 'maintenance'
     default: return 'stores'
   }
@@ -96,7 +97,7 @@ const resetConfirming = ref(false)
 const resetBusy = ref(false)
 const resetError = ref('')
 const resetComplete = ref(false)
-const backfillPromptsEnabled = ref(true)
+const { enabled: backfillPromptsEnabled, loaded: backfillPromptsLoaded, error: backfillPromptsError, load: loadBackfillPrompts, save: saveBackfillPrompts } = useBackfillPromptPreference()
 const pendingConfirmation = ref<{ title: string, description: string, confirmLabel: string, confirmColor: 'primary' | 'error' | 'warning', action: () => Promise<void> } | null>(null)
 const confirmationBusy = ref(false)
 const categoryConflict = ref<{ target: string, categories: string[], retry: (category: string) => Promise<void> } | null>(null)
@@ -192,22 +193,7 @@ watch(categories, (value) => {
   }
 })
 
-onMounted(() => {
-  try {
-    backfillPromptsEnabled.value = localStorage.getItem('receipt-box:item-backfill-prompts') !== 'disabled'
-  } catch {
-    // Storage can be unavailable in privacy-restricted browser contexts.
-  }
-})
-
-watch(backfillPromptsEnabled, enabled => {
-  if (!import.meta.client) return
-  try {
-    localStorage.setItem('receipt-box:item-backfill-prompts', enabled ? 'enabled' : 'disabled')
-  } catch {
-    // Keep the setting for this session when browser storage is unavailable.
-  }
-})
+onMounted(() => { void loadBackfillPrompts() })
 
 function storeErrorMessage(error: any, fallback: string) {
   return error?.data?.statusMessage || error?.statusMessage || error?.message || fallback
@@ -756,6 +742,15 @@ async function exportXlsx() {
         :aria-current="activeSection === 'transfer' ? 'page' : undefined"
       />
       <UButton
+        to="/data/preferences"
+        label="Preferences"
+        icon="i-lucide-sliders-horizontal"
+        size="lg"
+        :variant="activeSection === 'preferences' ? 'solid' : 'ghost'"
+        :color="activeSection === 'preferences' ? 'primary' : 'neutral'"
+        :aria-current="activeSection === 'preferences' ? 'page' : undefined"
+      />
+      <UButton
         to="/data/maintenance"
         label="Maintenance"
         icon="i-lucide-wrench"
@@ -1005,7 +1000,7 @@ async function exportXlsx() {
         <div class="data-icon grid size-[50px] place-items-center rounded-[15px] text-2xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true">↑</div>
         <div>
           <h2>Import spreadsheet</h2>
-          <p>Import an XLSX in the Receipt Box template format, or a CSV/XLSX export from Receipt Box. Existing entries are left untouched.</p>
+          <p>Import an XLSX using the template format, or a CSV/XLSX export. Existing entries are left untouched.</p>
           <div class="import-controls">
             <label class="file-picker grid min-h-12 min-w-55 flex-1 cursor-pointer items-center rounded-xl p-[0_16px] [border:1px_dashed_var(--line)]">
               <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="selectFile">
@@ -1032,19 +1027,26 @@ async function exportXlsx() {
       </UCard>
     </section>
 
-    <section v-else class="transfer-section mt-0" aria-label="Maintenance tools">
+    <section v-else-if="activeSection === 'preferences'" class="transfer-section mt-0" aria-label="Preferences">
       <UCard class="data-card mt-4.5 grid grid-cols-[54px_1fr] gap-5 p-[clamp(22px,4vw,34px)]" :ui="{ body: 'contents' }">
-        <div class="data-icon grid size-[50px] place-items-center rounded-[15px] text-2xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-history" /></div>
+        <div class="data-icon grid size-[50px] place-items-center rounded-[15px] text-2xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-sliders-horizontal" /></div>
         <div>
           <h2>Receipt entry prompts</h2>
+          <UAlert v-if="backfillPromptsError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="backfillPromptsError" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm">
+            <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" @click="loadBackfillPrompts" /></template>
+          </UAlert>
           <UCheckbox
             v-model="backfillPromptsEnabled"
+            :disabled="!backfillPromptsLoaded"
             label="Prompt before updating previous entries"
-            description="Ask once per receipt line when a new quantity or unit can fill missing historical values."
+            description="When enabled, ask before filling missing quantity or unit values in older entries for the same item. When disabled, older entries stay unchanged."
+            @update:model-value="saveBackfillPrompts($event === true)"
           />
         </div>
       </UCard>
+    </section>
 
+    <section v-else class="transfer-section mt-0" aria-label="Maintenance tools">
       <UCard class="data-card maintenance-card mt-4.5 grid grid-cols-[54px_1fr] gap-5 p-[clamp(22px,4vw,34px)]" :ui="{ body: 'contents' }">
         <div class="data-icon danger-icon grid size-[50px] place-items-center rounded-[15px] text-2xl text-(--danger) [background:var(--danger-soft)]" aria-hidden="true"><UIcon name="i-lucide-database-zap" /></div>
         <div>

@@ -105,6 +105,12 @@ export async function migrate() {
       )
     `
     await tx`CREATE TABLE IF NOT EXISTS grocery_category_seeds (seed TEXT PRIMARY KEY)`
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_user_preferences (
+        user_sub TEXT PRIMARY KEY,
+        backfill_prompts_enabled BOOLEAN NOT NULL DEFAULT TRUE
+      )
+    `
     await seedInitialCategories(tx)
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
     const existingUnits = await tx<{ unit: string }[]>`
