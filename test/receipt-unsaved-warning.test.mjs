@@ -75,8 +75,8 @@ test('tablet receipt rows right-align theme controls and compact the row actions
   assert.match(form, /class="[^"]*receipt-line-labels[^"]*grid-cols-\[minmax\(230px,2fr\)_120px_100px_130px_126px\][^"]*"/)
   assert.match(stylesheet, /\.receipt-line-labels > :last-child \{ position: absolute; top: 50%; right: 24px; transform: translateY\(-50%\); \}/)
   assert.match(form, /class="[^"]*receipt-entry-line[^"]*grid-cols-\[minmax\(230px,2fr\)_120px_100px_130px_126px\][^"]*"/)
-  assert.match(stylesheet, /@media \(max-width: 900px\) \{[\s\S]*?\.app-header \{ grid-template-columns: minmax\(0, 1fr\) auto;/)
-  assert.match(stylesheet, /\.receipt-entry-line \{ grid-template-columns: minmax\(0, 1fr\) 112px 100px 96px 126px;/)
+  assert.match(header, /max-\[900\.01px\]:grid-cols-\[minmax\(0,_1fr\)_auto\]/)
+  assert.match(form, /max-\[900\.01px\]:grid-cols-\[minmax\(0,_1fr\)_112px_100px_96px_126px\]/)
   assert.match(form, /class="(?=[^"]*receipt-line-options)(?=[^"]*\[align-self:end\])(?=[^"]*gap-0)[^"]*"/)
   assert.match(form, /<div class="(?=[^"]*receipt-line-options)(?=[^"]*\[align-self:end\])[^\"]*">[\s\S]*?:data-line-sale="line\.key"[\s\S]*?:data-line-details="line\.key"[\s\S]*?:data-line-remove="line\.key"/)
 })
@@ -95,7 +95,7 @@ test('duplicate matches stay with the blocked editor state', () => {
 
 test('expanding line details keeps the row number aligned with the item field', () => {
   assert.match(form, /class="[^"]*receipt-line-number[^"]*top-\[22px\][^"]*left-5[^"]*"/)
-  assert.match(stylesheet, /\.receipt-line-number \{ top: 10px; left: 14px; \}/)
+  assert.match(form, /receipt-line-number[^\"]*max-\[900\.01px\]:top-\[10px\][^\"]*max-\[900\.01px\]:left-\[14px\]/)
 })
 
 test('add and edit use one receipt editor that loads existing lines', () => {
@@ -266,9 +266,9 @@ test('sticky footer keeps the current date and store visible as read-only text',
   assert.match(form, /<dl class="[^"]*receipt-footer-context[^"]*" data-receipt-footer-context aria-label="Current receipt">/)
   assert.match(form, /<dt>Date<\/dt>[\s\S]*<time :datetime="form\.purchasedOn">\{\{ dateDisplayLabel\(form\.purchasedOn\) \}\}<\/time>/)
   assert.match(form, /<dt>Store<\/dt>[\s\S]*<dd><span :title="form\.location">\{\{ form\.location \}\}<\/span><\/dd>/)
-  assert.match(stylesheet, /@media \(max-width: 900px\) \{[\s\S]*\.receipt-entry-footer \{ bottom: calc\(76px \+ env\(safe-area-inset-bottom\)\)/)
-  assert.match(stylesheet, /@media \(max-width: 1280px\) \{[\s\S]*\.receipt-footer-context \{ order: -1; flex: 1 1 calc\(100% - 144px\);/)
-  assert.match(stylesheet, /\.receipt-footer-context \{ flex: 1 0 100%;/)
+  assert.match(form, /max-\[900\.01px\]:bottom-\[calc\(76px_\+_env\(safe-area-inset-bottom\)\)\]/)
+  assert.match(form, /max-\[1280\.01px\]:order-\[-1\][^\"]*max-\[1280\.01px\]:flex-\[1_1_calc\(100%_-_144px\)\]/)
+  assert.match(form, /max-\[640\.01px\]:flex-\[1_0_100%\]/)
 })
 
 test('receipt routes retain the date when starting another receipt', () => {

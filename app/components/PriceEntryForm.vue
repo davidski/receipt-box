@@ -167,13 +167,13 @@ async function save() {
 </script>
 
 <template>
-  <UForm :state="form" class="entry-form p-[clamp(22px,3vw,36px)]" @submit="save">
-    <div class="form-heading">
+  <UForm :state="form" class="entry-form p-[clamp(22px,3vw,36px)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:rounded-[20px]" @submit="save">
+    <div class="flex items-start justify-between gap-5 max-[640.01px]:grid">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">New price</p>
-        <h1 class="leading-1.04 text-[clamp(34px,3.5vw,42px)]">Add a purchase</h1>
+        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Add a purchase</h1>
       </div>
-      <UFormField label="Date" name="purchasedOn" required class="date-field grid gap-[5px] text-xs font-bold text-(--muted)">
+      <UFormField label="Date" name="purchasedOn" required class="date-field grid gap-[5px] text-xs font-bold text-(--muted) max-[640.01px]:grid-cols-[auto_1fr] max-[640.01px]:items-center">
         <UInput v-model="form.purchasedOn" type="date" required size="lg" />
       </UFormField>
     </div>
@@ -195,10 +195,11 @@ async function save() {
         required
         @update:search-term="searchItems"
         @create="createItem"
+        :ui="{ base: 'min-h-[62px] px-4 py-[13px] text-[19px]' }"
       />
     </UFormField>
 
-    <p v-if="selectedHistory" class="history-hint m-[10px_0_-7px] text-[13px] text-(--muted)">
+    <p v-if="selectedHistory" class="m-[10px_0_-7px] text-[13px] text-(--muted)">
       Last paid <strong>${{ Number(selectedHistory.price).toFixed(2) }}</strong>
       <span v-if="selectedHistory.lastUsed"> on {{ String(selectedHistory.lastUsed).slice(0, 10) }}</span>.
     </p>
@@ -207,21 +208,21 @@ async function save() {
       <UFormField label="Store" name="location" required class="field relative grid min-w-0 gap-[7px]">
         <UInputMenu id="location" v-model="form.location" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required />
       </UFormField>
-      <UFormField label="Price" name="price" required class="field price-field relative grid min-w-0 gap-[7px]">
+      <UFormField label="Price" name="price" required class="field relative grid min-w-0 gap-[7px]">
         <UInput id="price" v-model="form.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" required />
       </UFormField>
     </div>
 
-    <div class="form-grid size-grid mt-5 grid grid-cols-[1fr_.75fr_1fr] items-end gap-4">
+    <div class="form-grid size-grid mt-5 grid grid-cols-[1fr_.75fr_1fr] items-end gap-4 max-[640.01px]:grid-cols-[1fr_1fr]">
       <UFormField label="Package size" name="size" class="field relative grid min-w-0 gap-[7px]">
         <UInput id="size" v-model="form.size" type="number" min="0" step="any" inputmode="decimal" />
       </UFormField>
       <UFormField label="Unit" name="unit" class="field relative grid min-w-0 gap-[7px]">
         <UnitInput id="unit" v-model="form.unit" />
       </UFormField>
-      <div v-if="normalizedCost !== null" class="cost-preview flex min-h-13 items-center justify-between rounded-xl px-3.5 py-2 text-(--accent-strong) [background:var(--accent-soft)]" aria-live="polite">
-        <span>{{ ['g', 'mL'].includes(normalizedUnit || '') ? `Per 100 ${normalizedUnit}` : normalizedUnit === 'ea' ? 'Each' : `Per ${normalizedUnit || 'unit'}` }}</span>
-        <strong>${{ normalizedCost.toFixed(2) }}</strong>
+      <div v-if="normalizedCost !== null" class="cost-preview flex min-h-13 items-center justify-between rounded-xl px-3.5 py-2 text-(--accent-strong) [background:var(--accent-soft)] max-[640.01px]:col-span-full" aria-live="polite">
+        <span class="text-[12px] font-bold uppercase">{{ ['g', 'mL'].includes(normalizedUnit || '') ? `Per 100 ${normalizedUnit}` : normalizedUnit === 'ea' ? 'Each' : `Per ${normalizedUnit || 'unit'}` }}</span>
+        <strong class="text-[20px]">${{ normalizedCost.toFixed(2) }}</strong>
       </div>
     </div>
 
@@ -248,6 +249,6 @@ async function save() {
     <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
     <UAlert v-if="savedMessage" color="success" variant="soft" icon="i-lucide-circle-check" :description="savedMessage" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
 
-    <UButton class="save-button mt-[22px] min-h-[57px] w-full text-base" type="submit" block size="xl" icon="i-lucide-plus" :loading="saving" label="Save & add another" />
+    <UButton class="mt-[22px] min-h-[57px] w-full text-base" type="submit" block size="xl" icon="i-lucide-plus" :loading="saving" label="Save & add another" />
   </UForm>
 </template>

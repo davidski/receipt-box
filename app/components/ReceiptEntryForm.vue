@@ -1259,20 +1259,20 @@ async function deleteReceipt() {
 </script>
 
 <template>
-  <form class="receipt-entry-form overflow-visible rounded-3xl shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" @submit.prevent>
-    <header class="receipt-entry-heading flex items-start justify-between gap-8 p-[clamp(24px,3vw,36px)] [border-bottom:1px_solid_var(--line)]">
+  <form class="receipt-entry-form overflow-visible rounded-3xl shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:rounded-[20px]" @submit.prevent>
+    <header class="flex items-start justify-between gap-8 p-[clamp(24px,3vw,36px)] [border-bottom:1px_solid_var(--line)] max-[900.01px]:grid max-[640.01px]:p-[22px_18px]">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Shopping trip editor</p>
-        <h1 class="leading-1.04 text-[clamp(34px,3.5vw,42px)]">{{ hasReceipt ? 'Edit receipt' : 'Add receipt' }}</h1>
+        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">{{ hasReceipt ? 'Edit receipt' : 'Add receipt' }}</h1>
         <p class="mt-[10px] text-(--muted)">{{ hasReceipt ? 'Date and store are locked unless you allow a change.' : 'Choose a store and enter its purchases. Completed rows save automatically.' }}</p>
         <UButton :to="{ path: '/', query: { date: form.purchasedOn } }" label="Return to selected day" icon="i-lucide-calendar-days" color="neutral" variant="outline" class="mt-3" />
       </div>
-      <div class="receipt-meta-fields grid grid-cols-[170px_minmax(230px,310px)] items-end gap-3.5">
+      <div class="receipt-meta-fields grid grid-cols-[170px_minmax(230px,310px)] items-end gap-3.5 max-[900.01px]:grid-cols-[170px_minmax(230px,_1fr)] max-[640.01px]:grid-cols-1">
         <div v-if="!hasReceipt" class="receipt-date-display grid min-w-0 [align-content:end] gap-[7px]">
           <span class="text-[13px] font-bold text-(--muted)">Date</span>
           <time class="flex min-h-[52px] items-center text-base text-(--ink)" data-receipt-date-display :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time>
         </div>
-        <UFormField v-else label="Date" name="purchasedOn" required class="field date-field relative grid min-w-0 gap-[5px] text-sm font-medium text-(--muted)">
+        <UFormField v-else label="Date" name="purchasedOn" required class="field date-field relative grid min-w-0 gap-[5px] text-sm font-medium text-(--muted) max-[640.01px]:grid-cols-[auto_1fr] max-[640.01px]:items-center">
           <UInput v-model="form.purchasedOn" type="date" required size="lg" :disabled="!allowDateChange" />
           <UCheckbox v-model="allowDateChange" label="Allow date change" />
         </UFormField>
@@ -1284,13 +1284,13 @@ async function deleteReceipt() {
     </header>
 
     <p v-if="receiptSessionMessage" class="sr-only" role="status" aria-live="polite">{{ receiptSessionMessage }}</p>
-    <div v-if="splitNotice" class="receipt-split-notice m-[16px_24px_0] flex flex-wrap items-center gap-2 rounded-xl px-3.5 py-2.5 [background:var(--accent-soft)] [border:1px_solid_color-mix(in_srgb,var(--accent)_40%,var(--line))]" role="status" aria-live="polite">
+    <div v-if="splitNotice" class="receipt-split-notice m-[16px_24px_0] flex flex-wrap items-center gap-2 rounded-xl px-3.5 py-2.5 [background:var(--accent-soft)] [border:1px_solid_color-mix(in_srgb,var(--accent)_40%,var(--line))] max-[640.01px]:mx-[12px]" role="status" aria-live="polite">
       <span class="flex-[1_1_280px] text-[13px] font-[650] text-(--accent-strong)">Moved {{ splitNotice.movedCount }} {{ splitNotice.movedCount === 1 ? 'line' : 'lines' }} to {{ splitNotice.targetLocation }} on {{ dateDisplayLabel(splitNotice.targetPurchasedOn) }}.</span>
       <UButton type="button" label="Open destination" icon="i-lucide-arrow-up-right" color="neutral" variant="ghost" :to="`/receipts/${splitNotice.targetReceiptId}`" />
       <UButton type="button" label="Undo" icon="i-lucide-undo-2" color="neutral" variant="outline" :loading="splitBusy" @click="undoSplit" />
     </div>
 
-    <div v-if="canEnterLines" class="receipt-line-labels relative grid grid-cols-[minmax(230px,2fr)_120px_100px_130px_126px] items-center gap-2.5 p-[12px_24px_10px_54px] text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)]">
+    <div v-if="canEnterLines" class="receipt-line-labels relative grid grid-cols-[minmax(230px,2fr)_120px_100px_130px_126px] items-center gap-2.5 p-[12px_24px_10px_54px] text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)] max-[900.01px]:hidden">
       <span>Item</span><span>Price</span><span>Size</span><span>Unit</span><span>Options</span>
       <UPopover>
         <UButton type="button" icon="i-lucide-circle-help" color="neutral" variant="ghost" aria-label="Keyboard entry help" title="Keyboard entry help" />
@@ -1308,20 +1308,20 @@ async function deleteReceipt() {
       </UPopover>
     </div>
 
-    <ol v-if="canEnterLines" class="receipt-entry-lines m-0 list-none p-0 [counter-reset:receipt-line]">
-      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" class="receipt-entry-line relative grid grid-cols-[minmax(230px,2fr)_120px_100px_130px_126px] items-center gap-2.5 p-[12px_24px_12px_54px] [border-top:1px_solid_var(--line)]">
+    <ol v-if="canEnterLines" class="m-0 list-none p-0 [counter-reset:receipt-line] max-[900.01px]:grid max-[900.01px]:gap-3 max-[900.01px]:p-[16px] max-[900.01px]:bg-(--bg) max-[640.01px]:p-[12px]">
+      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" class="receipt-entry-line relative grid grid-cols-[minmax(230px,2fr)_120px_100px_130px_126px] items-center gap-2.5 p-[12px_24px_12px_54px] [border-top:1px_solid_var(--line)] max-[900.01px]:grid-cols-[minmax(0,_1fr)_112px_100px_96px_126px] max-[900.01px]:p-[42px_14px_14px] max-[900.01px]:[border:1px_solid_var(--line)] max-[900.01px]:rounded-[16px] max-[900.01px]:bg-(--surface) max-[900.01px]:[box-shadow:0_8px_24px_rgb(34_49_38_/_7%)] max-[640.01px]:grid-cols-[1fr_1fr] max-[640.01px]:gap-[12px_10px]">
         <UCheckbox
           v-if="splitSelectionMode && line.id"
-          class="receipt-split-line-checkbox absolute top-[50%] left-3 z-2 transform-[translateY(-50%)]"
+          class="receipt-split-line-checkbox absolute top-[50%] left-3 z-2 transform-[translateY(-50%)] max-[900.01px]:top-[7px] max-[900.01px]:left-[8px] max-[900.01px]:transform-none"
           :model-value="selectedSplitEntryIds.includes(line.id)"
           :disabled="!selectedSplitEntryIds.includes(line.id) && selectedSplitEntryIds.length >= savedReceiptLines.length - 1"
           :aria-label="`Select ${line.item} to move`"
           @update:model-value="toggleSplitEntry(line.id, $event === true)"
         />
-        <span v-else class="receipt-line-number absolute top-[22px] left-5 grid size-6 place-items-center rounded-lg text-xs font-[750] text-(--muted) [background:var(--surface-muted)]" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
+        <span v-else class="receipt-line-number absolute top-[22px] left-5 grid size-6 place-items-center rounded-lg text-xs font-[750] text-(--muted) [background:var(--surface-muted)] max-[900.01px]:top-[10px] max-[900.01px]:left-[14px]" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
         <div class="receipt-line-content contents" :inert="splitSelectionMode">
-        <UFormField :name="`item-${line.key}`" class="field receipt-line-item relative grid min-w-0 gap-[7px]">
-          <span class="mobile-field-label hidden">Item</span>
+        <UFormField :name="`item-${line.key}`" class="field relative grid min-w-0 gap-[7px] max-[640.01px]:col-span-full">
+          <span class="hidden max-[900.01px]:block max-[900.01px]:mb-[5px] max-[900.01px]:text-(--muted) max-[900.01px]:text-[11px] max-[900.01px]:font-[750] max-[900.01px]:tracking-[.07em] max-[900.01px]:uppercase">Item</span>
           <UInputMenu
             v-model="line.item"
             v-model:open="line.itemMenuOpen"
@@ -1336,21 +1336,22 @@ async function deleteReceipt() {
             @create="requestCreateItem(line, $event)"
             @keydown.meta.enter.exact.prevent="finishLine(line)"
             @keydown.ctrl.enter.exact.prevent="finishLine(line)"
+            :ui="{ base: 'min-h-11 px-2.5 py-2' }"
           />
         </UFormField>
-        <UFormField :name="`price-${line.key}`" class="field receipt-line-price-input relative grid min-w-0 gap-[7px]">
-          <span class="mobile-field-label hidden">Price</span>
-          <UInput :data-line-price="line.key" v-model="line.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" @focus="closeItemMenu(line)" @blur="formatPrice(line)" @keydown.enter.exact.prevent="focusLineSize(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" />
+        <UFormField :name="`price-${line.key}`" class="field relative grid min-w-0 gap-[7px] max-[640.01px]:col-start-1">
+          <span class="hidden max-[900.01px]:block max-[900.01px]:mb-[5px] max-[900.01px]:text-(--muted) max-[900.01px]:text-[11px] max-[900.01px]:font-[750] max-[900.01px]:tracking-[.07em] max-[900.01px]:uppercase">Price</span>
+          <UInput :data-line-price="line.key" v-model="line.price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" icon="i-lucide-dollar-sign" @focus="closeItemMenu(line)" @blur="formatPrice(line)" @keydown.enter.exact.prevent="focusLineSize(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
         </UFormField>
-        <UFormField :name="`size-${line.key}`" class="field receipt-line-size relative grid min-w-0 gap-[7px]">
-          <span class="mobile-field-label hidden">Size</span>
-          <UInput :data-line-size="line.key" v-model="line.size" type="number" min="0.000001" step="any" inputmode="decimal" placeholder="—" @keydown.enter.exact.prevent="focusLineUnit(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" />
+        <UFormField :name="`size-${line.key}`" class="field relative grid min-w-0 gap-[7px] max-[640.01px]:col-start-2">
+          <span class="hidden max-[900.01px]:block max-[900.01px]:mb-[5px] max-[900.01px]:text-(--muted) max-[900.01px]:text-[11px] max-[900.01px]:font-[750] max-[900.01px]:tracking-[.07em] max-[900.01px]:uppercase">Size</span>
+          <UInput :data-line-size="line.key" v-model="line.size" type="number" min="0.000001" step="any" inputmode="decimal" placeholder="—" @keydown.enter.exact.prevent="focusLineUnit(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
         </UFormField>
-        <UFormField :name="`unit-${line.key}`" class="field receipt-line-unit relative grid min-w-0 gap-[7px]">
-          <span class="mobile-field-label hidden">Unit</span>
-          <UnitInput :data-line-unit="line.key" v-model="line.unit" @blur="checkItemBackfillOnUnitExit(line)" @commit="finishLine(line)" @tab-next="focusLineSale(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" />
+        <UFormField :name="`unit-${line.key}`" class="field relative grid min-w-0 gap-[7px] max-[640.01px]:col-start-1">
+          <span class="hidden max-[900.01px]:block max-[900.01px]:mb-[5px] max-[900.01px]:text-(--muted) max-[900.01px]:text-[11px] max-[900.01px]:font-[750] max-[900.01px]:tracking-[.07em] max-[900.01px]:uppercase">Unit</span>
+          <UnitInput :data-line-unit="line.key" v-model="line.unit" @blur="checkItemBackfillOnUnitExit(line)" @commit="finishLine(line)" @tab-next="focusLineSale(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
         </UFormField>
-        <div class="receipt-line-options flex justify-center gap-0 [align-self:end]">
+        <div class="receipt-line-options flex justify-center gap-0 [align-self:end] max-[640.01px]:col-start-2 max-[640.01px]:[align-self:end] max-[640.01px]:justify-start">
           <UButton
             type="button"
             :data-line-sale="line.key"
@@ -1363,30 +1364,30 @@ async function deleteReceipt() {
             @click="line.saleItem = !line.saleItem"
           />
           <UButton type="button" :data-line-details="line.key" icon="i-lucide-ellipsis" :aria-label="line.expanded ? 'Hide details' : 'Show details'" :title="line.expanded ? 'Hide item details' : 'Show item details'" color="neutral" :variant="line.expanded ? 'soft' : 'ghost'" :aria-expanded="line.expanded" @keydown.tab.exact.prevent="advanceFromLineDetails(line)" @click="line.expanded = !line.expanded" />
-          <UButton class="receipt-line-remove" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" :title="`Remove line ${index + 1}`" color="neutral" variant="ghost" size="md" :disabled="saving" @click="requestRemoveLine(line)" />
+          <UButton class="receipt-line-remove max-[640.01px]:absolute max-[640.01px]:top-[8px] max-[640.01px]:right-[8px]" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" :title="`Remove line ${index + 1}`" color="neutral" variant="ghost" size="md" :disabled="saving" @click="requestRemoveLine(line)" />
         </div>
         <div v-if="line.pendingItemCreation" class="receipt-item-create-confirmation col-span-full flex items-center justify-end gap-2.5 rounded-xl px-3 py-2.5 [background:color-mix(in_srgb,var(--accent-soft),transparent_35%)] [border:1px_solid_color-mix(in_srgb,var(--accent),transparent_60%)]" role="alert">
           <span>Create <strong>“{{ line.pendingItemCreation }}”</strong> as a new item?</span>
           <UButton type="button" label="Cancel" color="neutral" variant="outline" @click="cancelCreateItem(line)" />
           <UButton type="button" :data-confirm-item="line.key" label="Create item" icon="i-lucide-plus" @click="confirmCreateItem(line)" />
         </div>
-        <div v-if="line.expanded" class="receipt-line-details col-span-full grid grid-cols-[minmax(180px,1fr)_minmax(240px,2fr)_auto] items-start gap-4.5 p-[4px_0_3px]">
+        <div v-if="line.expanded" class="receipt-line-details col-span-full grid grid-cols-[minmax(180px,1fr)_minmax(240px,2fr)_auto] items-start gap-4.5 p-[4px_0_3px] max-[640.01px]:grid-cols-1">
           <UFormField label="Category" :name="`category-${line.key}`" class="field relative grid min-w-0 gap-[7px]">
-            <div class="receipt-category-field">
-              <CategoryInput :data-line-category="line.key" :aria-describedby="`category-scope-${line.key}`" v-model="line.category" :items="categoryChoices" @change="changeCategory(line, $event)" @tab-next="focusLineNotes(line)" />
-              <small :id="`category-scope-${line.key}`" class="category-scope-hint leading-1.35 mt-[5px] block text-xs text-(--muted)">Applies to all purchases of this item.</small>
+            <div>
+              <CategoryInput :data-line-category="line.key" :aria-describedby="`category-scope-${line.key}`" v-model="line.category" :items="categoryChoices" @change="changeCategory(line, $event)" @tab-next="focusLineNotes(line)" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
+              <small :id="`category-scope-${line.key}`" class="category-scope-hint leading-[1.35] mt-[5px] block text-xs text-(--muted)">Applies to all purchases of this item.</small>
             </div>
           </UFormField>
           <UFormField label="Notes" :name="`notes-${line.key}`" class="field relative grid min-w-0 gap-[7px]">
-            <UInput :data-line-notes="line.key" v-model="line.notes" placeholder="Optional note" :maxlength="maxEntryNotesLength" :aria-describedby="`notes-character-count-${line.key}`" :ui="{ trailing: 'pointer-events-none' }" @keydown.tab.exact.prevent="focusLineNonGrocery(line)">
+            <UInput :data-line-notes="line.key" v-model="line.notes" placeholder="Optional note" :maxlength="maxEntryNotesLength" :aria-describedby="`notes-character-count-${line.key}`" :ui="{ trailing: 'pointer-events-none' , base: 'min-h-11 px-2.5 py-2' }" @keydown.tab.exact.prevent="focusLineNonGrocery(line)">
               <template #trailing>
                 <span :id="`notes-character-count-${line.key}`" class="text-xs text-muted tabular-nums" aria-live="polite" role="status">{{ line.notes.length }}/{{ maxEntryNotesLength }}</span>
               </template>
             </UInput>
           </UFormField>
-          <USwitch :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" class="receipt-line-non-grocery mt-[27px]" @keydown.tab.exact.prevent="finishLine(line)" />
+          <USwitch :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" class="mt-[27px] max-[640.01px]:mt-0" @keydown.tab.exact.prevent="finishLine(line)" />
         </div>
-        <div v-if="line.confirmingRemove" class="receipt-line-remove-confirmation col-span-full flex items-center justify-end gap-2.5 rounded-xl px-3 py-2.5 [background:color-mix(in_srgb,var(--error),transparent_93%)] [border:1px_solid_color-mix(in_srgb,var(--error),transparent_65%)]" role="alert">
+        <div v-if="line.confirmingRemove" class="receipt-line-remove-confirmation col-span-full flex items-center justify-end gap-2.5 rounded-xl px-3 py-2.5 [background:color-mix(in_srgb,var(--error),transparent_93%)] [border:1px_solid_color-mix(in_srgb,var(--error),transparent_65%)] max-[640.01px]:grid max-[640.01px]:grid-cols-[1fr_1fr]" role="alert">
           <span><strong>Remove {{ line.item }}?</strong> This saved entry will be permanently deleted.</span>
           <UButton type="button" :data-line-keep="line.key" label="Keep item" color="neutral" variant="outline" :disabled="saving" @click="cancelRemoveLine(line)" />
           <UButton type="button" label="Remove item" color="error" :loading="saving" @click="removeLine(line)" />
@@ -1395,15 +1396,15 @@ async function deleteReceipt() {
       </li>
     </ol>
 
-    <div v-if="splitSelectionMode" class="receipt-split-selection-bar mx-6 mt-3 mb-4.5 flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-[14px] px-4 py-3 [background:var(--accent-soft)] [border:1px_solid_color-mix(in_srgb,var(--accent)_35%,var(--line))]">
+    <div v-if="splitSelectionMode" class="receipt-split-selection-bar mx-6 mt-3 mb-4.5 flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-[14px] px-4 py-3 [background:var(--accent-soft)] [border:1px_solid_color-mix(in_srgb,var(--accent)_35%,var(--line))] max-[640.01px]:mx-[12px]">
       <span class="flex-[1_1_260px] text-[13px] text-(--muted)">Select the lines to move. Leave at least one line in this receipt.</span>
       <strong class="whitespace-nowrap text-[13px] text-(--accent-strong)">{{ selectedSplitLines.length }} selected</strong>
       <UButton type="button" :label="`Move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}`" icon="i-lucide-split" :disabled="!selectedSplitLines.length" @click="openSplitDialog" />
     </div>
-    <UButton v-else-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="receipt-add-line mx-6 my-4" title="Add another line (Command/Control+Shift+Enter)" :disabled="hasBlankLine" @click="addLine()" />
+    <UButton v-else-if="canEnterLines" type="button" label="Add another line" icon="i-lucide-plus" color="neutral" variant="outline" class="mx-6 my-4 max-[640.01px]:w-[calc(100%_-_24px)] max-[640.01px]:[margin:4px_12px_16px]" title="Add another line (Command/Control+Shift+Enter)" :disabled="hasBlankLine" @click="addLine()" />
 
     <div v-else class="receipt-store-prompt flex min-h-[190px] items-center justify-center gap-3.5 p-8 text-left text-(--muted)">
-      <UIcon name="i-lucide-store" class="receipt-store-prompt-icon size-7 flex-[0_0_28px] text-(--accent)" aria-hidden="true" />
+      <UIcon name="i-lucide-store" class="size-7 flex-[0_0_28px] text-(--accent)" aria-hidden="true" />
       <template v-if="matchingReceiptMessage">
         <UAlert color="warning" variant="soft" icon="i-lucide-receipt-text" :description="matchingReceiptMessage" />
         <UButton type="button" label="Open existing receipt" icon="i-lucide-arrow-up-right" color="warning" variant="outline" @click="openMatchingReceipt" />
@@ -1414,8 +1415,8 @@ async function deleteReceipt() {
       <p v-else class="m-0"><strong class="block text-base text-(--ink)">Choose or add a store</strong><span class="mt-[3px] block text-[13px]">Select a store to add or edit a receipt.</span></p>
     </div>
 
-    <footer v-if="canEnterLines" class="receipt-entry-footer sticky bottom-0 z-5 flex items-center justify-end gap-4.5 rounded-[0_0_24px_24px] p-[16px_24px_max(16px,env(safe-area-inset-bottom))] shadow-[0_-10px_28px_rgb(34_49_38/8%)] backdrop-blur-[14px] [background:color-mix(in_srgb,var(--surface),transparent_4%)] [border-top:1px_solid_var(--line)]">
-      <dl class="receipt-footer-context m-0 grid min-w-0 flex-[0_1_300px] grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] gap-3 text-left" data-receipt-footer-context aria-label="Current receipt">
+    <footer v-if="canEnterLines" class="receipt-entry-footer sticky bottom-0 z-5 flex items-center justify-end gap-4.5 rounded-[0_0_24px_24px] p-[16px_24px_max(16px,env(safe-area-inset-bottom))] shadow-[0_-10px_28px_rgb(34_49_38/8%)] backdrop-blur-[14px] [background:color-mix(in_srgb,var(--surface),transparent_4%)] [border-top:1px_solid_var(--line)] max-[1280.01px]:flex-wrap max-[1280.01px]:justify-between max-[1280.01px]:gap-3 max-[900.01px]:bottom-[calc(76px_+_env(safe-area-inset-bottom))] max-[640.01px]:justify-between max-[640.01px]:gap-3 max-[640.01px]:p-[14px_12px]">
+      <dl class="receipt-footer-context m-0 grid min-w-0 flex-[0_1_300px] grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] gap-3 text-left max-[1280.01px]:order-[-1] max-[1280.01px]:flex-[1_1_calc(100%_-_144px)] max-[640.01px]:flex-[1_0_100%] max-[640.01px]:grid-cols-[minmax(0,_.9fr)_minmax(0,_1.1fr)]" data-receipt-footer-context aria-label="Current receipt">
         <div>
           <dt>Date</dt>
           <dd><time :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time></dd>
@@ -1426,7 +1427,7 @@ async function deleteReceipt() {
         </div>
       </dl>
       <div v-if="hasReceipt && confirmingDelete" class="receipt-delete-confirmation" role="alert">
-        <div class="receipt-delete-copy min-w-0 text-left">
+        <div class="receipt-delete-copy min-w-0 text-left max-[640.01px]:col-span-full">
           <strong>Delete this receipt?</strong>
           <span>All {{ enteredLines.length }} {{ enteredLines.length === 1 ? 'entry' : 'entries' }} will be permanently deleted.</span>
         </div>
@@ -1441,7 +1442,7 @@ async function deleteReceipt() {
         <span v-if="hasReceipt" class="flex-1" />
         <UButton v-if="!splitSelectionMode" type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
         <div class="receipt-autosave-status" role="status" aria-live="polite">
-          <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ spinning: saving || checkingReceiptMatch }" aria-hidden="true" />
+          <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ 'animate-spin [animation-duration:.9s]': saving || checkingReceiptMatch }" aria-hidden="true" />
           <span>{{ autosaveStatus }}</span>
           <UButton v-if="autosaveFailed" type="button" label="Retry" size="xs" color="error" variant="soft" @click="retryAutosave" />
         </div>
@@ -1464,17 +1465,17 @@ async function deleteReceipt() {
     :description="`Choose where to move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}. They will be removed from this receipt.`"
   >
     <template #body>
-      <div class="receipt-split-dialog grid min-w-0 gap-4.5">
+      <div class="grid min-w-0 gap-4.5">
         <div>
-          <p class="receipt-split-source m-[0_0_8px] text-[13px] text-(--muted)">From {{ form.location }} · {{ dateDisplayLabel(form.purchasedOn) }}</p>
-          <ul class="receipt-split-preview m-0 grid max-h-[190px] list-none overflow-auto rounded-xl p-0 [border:1px_solid_var(--line)]">
+          <p class="m-[0_0_8px] text-[13px] text-(--muted)">From {{ form.location }} · {{ dateDisplayLabel(form.purchasedOn) }}</p>
+          <ul class="m-0 grid max-h-[190px] list-none overflow-auto rounded-xl p-0 [border:1px_solid_var(--line)]">
             <li v-for="line in selectedSplitLines" :key="line.id" class="flex items-center justify-between gap-3 border-t border-(--line) px-3 py-[9px] first:border-t-0">
               <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-(--ink)">{{ line.item }}</span>
               <strong class="shrink-0 text-(--muted) tabular-nums">${{ Number(line.price).toFixed(2) }}</strong>
             </li>
           </ul>
         </div>
-        <div class="receipt-split-destination grid grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] gap-3.5">
+        <div class="grid grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] gap-3.5 max-[640.01px]:grid-cols-1">
           <UFormField label="Destination date" name="splitPurchasedOn" required>
             <UInput v-model="splitPurchasedOn" data-split-date type="date" required size="lg" />
           </UFormField>
@@ -1497,7 +1498,7 @@ async function deleteReceipt() {
       </div>
     </template>
     <template #footer>
-      <div class="receipt-split-actions flex w-full flex-wrap justify-end gap-2">
+      <div class="flex w-full flex-wrap justify-end gap-2">
         <UButton type="button" label="Cancel" color="neutral" variant="ghost" :disabled="splitBusy" @click="splitDialogOpen = false" />
         <UButton type="button" :label="`Move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}`" icon="i-lucide-split" :loading="splitBusy" :disabled="!canMoveSplitLines" @click="moveSelectedLines" />
       </div>
@@ -1513,7 +1514,7 @@ async function deleteReceipt() {
   >
     <template #body>
       <div v-if="pendingBackfill" class="item-backfill-summary grid gap-4.5">
-        <p class="item-backfill-proposed-label m-0 text-xs font-bold tracking-[.08em] text-(--muted) uppercase">Proposed values</p>
+        <p class="m-0 text-xs font-bold tracking-[.08em] text-(--muted) uppercase">Proposed values</p>
         <div class="item-backfill-proposed flex gap-3">
           <div v-if="pendingBackfill.size" class="grid min-w-[112px] rounded-[10px] p-3 px-4 [background:color-mix(in_srgb,var(--accent)_10%,var(--surface))] [border:1px_solid_color-mix(in_srgb,var(--accent)_45%,var(--line))]">
             <span class="text-xs font-bold tracking-[.04em] text-(--muted) uppercase">Size</span>
@@ -1524,7 +1525,7 @@ async function deleteReceipt() {
             <strong class="text-2xl leading-[1.2] text-(--ink)">{{ pendingBackfill.unit }}</strong>
           </div>
         </div>
-        <div class="item-backfill-choices grid gap-3.5">
+        <div class="grid gap-3.5">
           <UCheckbox
             v-if="pendingBackfill.size"
             v-model="backfillSizeSelected"
@@ -1540,11 +1541,11 @@ async function deleteReceipt() {
             :disabled="backfillBusy || !pendingBackfill.counts.unit"
           />
         </div>
-        <p class="item-backfill-note m-0 text-[13px] text-(--muted)">Existing values will not be overwritten.</p>
+        <p class="m-0 text-[13px] text-(--muted)">Existing values will not be overwritten.</p>
       </div>
     </template>
     <template #footer>
-      <div v-if="pendingBackfill" class="item-backfill-actions flex w-full flex-wrap justify-end gap-2">
+      <div v-if="pendingBackfill" class="flex w-full flex-wrap justify-end gap-2">
         <UButton type="button" color="neutral" variant="ghost" label="Keep unchanged" :disabled="backfillBusy" @click="resolveItemBackfill([])" />
         <UButton type="button" :label="`Update ${selectedBackfillCount} ${selectedBackfillCount === 1 ? 'entry' : 'entries'}`" :loading="backfillBusy" :disabled="!selectedBackfillFields.length" @click="resolveItemBackfill(selectedBackfillFields)" />
       </div>

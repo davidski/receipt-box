@@ -10,7 +10,7 @@ const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.m
 
 test('History keeps its page heading stable across views', () => {
   assert.match(page, /Purchase records<\/p>/)
-  assert.match(page, /<h1 class="(?=[^"]*text-\[clamp\(34px,3\.5vw,42px\)\])(?=[^"]*leading-1\.04)[^"]*">Receipts<\/h1>/)
+  assert.match(page, /<h1 class="(?=[^"]*text-\[clamp\(34px,3\.5vw,42px\)\])(?=[^"]*leading-\[1\.04\])[^"]*">Receipts<\/h1>/)
   assert.match(page, /Browse receipts by date\./)
   assert.match(page, /class="[^"]*page-heading[^"]*history-heading[^"]*">[\s\S]*class="[^"]*receipt-mode-switcher[^"]*receipt-views[^"]*" aria-label="Receipts view"/)
   assert.doesNotMatch(page, /history-view-summary/)
@@ -36,7 +36,7 @@ test('Purchase editor uses consistent spacing between form rows', () => {
 })
 
 test('Calendar receipt store headings keep wrapped lines compact', () => {
-  assert.match(stylesheet, /\.receipt-heading h2 \{ font-size: 23px; line-height: 1\.05; \}/)
+  assert.match(page, /<h2[^>]*class="[^\"]*text-\[23px\][^\"]*leading-\[1\.05\]/)
   assert.match(stylesheet, /\.receipt-heading > button, \.receipt-heading > a \{ align-self: flex-start; \}/)
 })
 
@@ -99,6 +99,6 @@ test('History filters entries by category and labels categorized receipt lines',
 
 test('Receipts keeps headings intact and uses tablet space without widening mobile pages', () => {
   assert.match(page, /class="[^"]*selected-receipts-heading[^"]*gap-3\.5/)
-  assert.match(stylesheet, /@media \(min-width: 760px\) and \(max-width: 900px\) \{\s*\.receipt-browser \{ grid-template-columns: 280px minmax\(0, 1fr\); \}/)
-  assert.match(stylesheet, /\.history-heading \{ display: grid; align-items: start; \}/)
+  assert.match(page, /min-\[760px\]:max-\[900\.01px\]:grid-cols-\[280px_minmax\(0,_1fr\)\]/)
+  assert.match(page, /history-heading[^\"]*max-\[900\.01px\]:grid[^\"]*max-\[900\.01px\]:items-start/)
 })

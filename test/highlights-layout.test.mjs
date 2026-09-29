@@ -7,9 +7,9 @@ const page = await readFile(new URL('../app/pages/highlights.vue', import.meta.u
 const endpoint = await readFile(new URL('../server/api/highlights.get.ts', import.meta.url), 'utf8')
 
 test('the Highlights period field accommodates its longest option without overflowing', () => {
-  assert.match(page, /class="period-field w-60"/)
+  assert.match(page, /class="period-field w-60[^"]*"/)
   assert.match(stylesheet, /\.period-field \[data-slot="base"\] \{ width: 100%; \}/)
-  assert.match(stylesheet, /\.period-field \{ width: min\(240px, 100%\); \}/)
+  assert.match(page, /max-\[640\.01px\]:w-\[min\(240px,_100%\)\]/)
   assert.match(page, /:content="\{ bodyLock: false \}"/)
 })
 
@@ -62,7 +62,7 @@ test('Highlights omits redundant recent and sale-frequency views', () => {
 
 test('Top stores anchors each spend amount to the end of its bar', () => {
   assert.match(page, /class="[^"]*store-spend-value[^"]*" :style="\{ width:/)
-  assert.match(page, /class="store-bar h-2 overflow-hidden rounded-full \[background:var\(--surface-muted\)\]"><i :style="\{ width:/)
+  assert.match(page, /class="store-bar h-2 overflow-hidden rounded-full \[background:var\(--surface-muted\)\][^"]*"><i :style="\{ width:/)
   assert.match(page, /class="[^"]*store-spend-value[^"]*text-right[^"]*whitespace-nowrap/)
   assert.match(page, /class="[^"]*store-rank-list[^"]*list-none[^"]*gap-\[9px\][^"]*"/)
   assert.match(page, /class="[^"]*store-name-label[^"]*" :title="store\.name"/)
@@ -149,6 +149,6 @@ test('shrinkflation defaults to impact order and supports sorting every visible 
   assert.match(page, /:aria-sort="shrinkflationAriaSort\('impact'\)"/)
   assert.match(stylesheet, /\.shrinkflation-table th > button \{/)
   assert.match(stylesheet, /\.shrinkflation-table th:last-child \{ width: 36%; \}/)
-  assert.match(page, /class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap"/)
+  assert.match(page, /class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap[^"]*"/)
   assert.match(stylesheet, /\.shrinkflation-impact > strong, \.shrinkflation-impact > span \{ white-space: nowrap; \}/)
 })

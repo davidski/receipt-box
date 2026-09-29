@@ -9,7 +9,7 @@ const initialLocation = computed(() => isNewReceipt.value ? String(route.query.l
 </script>
 
 <template>
-  <div class="receipt-entry-layout m-[0_auto] w-[min(1240px,100%)]">
+  <div class="m-[0_auto] w-[min(1240px,100%)]">
     <ReceiptEntryForm :initial-date="initialDate" :initial-location="initialLocation" :initial-receipt-id="receiptId" />
   </div>
 </template>

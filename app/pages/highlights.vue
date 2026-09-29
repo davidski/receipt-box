@@ -319,14 +319,14 @@ function unitCurrency(value: number) {
 
 <template>
   <div class="highlights-page mx-auto w-full max-w-300">
-    <header class="page-heading highlights-heading my-[15px] mb-8 flex items-end justify-between gap-6">
+    <header class="page-heading my-[15px] mb-8 flex items-end justify-between gap-6 max-[640.01px]:grid max-[640.01px]:items-start">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">At a glance</p>
-        <h1 class="leading-1.04 text-[clamp(34px,3.5vw,42px)]">Price highlights</h1>
+        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Price highlights</h1>
         <p>Recent activity and notable price movement.</p>
       </div>
-      <div class="highlights-actions flex items-end gap-2.5">
-        <UFormField label="Period" class="period-field w-60">
+      <div class="flex items-end gap-2.5 max-[640.01px]:justify-between">
+        <UFormField label="Period" class="period-field w-60 max-[640.01px]:w-[min(240px,_100%)]">
           <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" :content="{ bodyLock: false }" />
         </UFormField>
       </div>
@@ -338,18 +338,18 @@ function unitCurrency(value: number) {
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
     <template v-else-if="data">
-      <p class="coverage-line m-[13px_2px_24px] text-[13px] text-(--muted)">
+      <p class="m-[13px_2px_24px] text-[13px] text-(--muted)">
         {{ coverageText }}
       </p>
 
-      <section class="highlight-stats mb-5 grid grid-cols-[repeat(3,1fr)] gap-3.5" aria-label="Receipt Box summary">
+      <section class="highlight-stats mb-5 grid grid-cols-[repeat(3,1fr)] gap-3.5 max-[900.01px]:grid-cols-3 max-[640.01px]:grid-cols-2" aria-label="Receipt Box summary">
         <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
         <UCard class="stat-card"><UIcon name="i-lucide-dollar-sign" /><strong>{{ wholeNumber(monthlySpendTotal) }}</strong><span>total spend</span></UCard>
       </section>
 
       <UCard class="price-index-panel highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
-        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5">
+        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5 max-[640.01px]:items-start">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Same-item prices</p>
             <div class="price-index-title flex items-center gap-[5px]">
@@ -358,8 +358,8 @@ function unitCurrency(value: number) {
                 <UButton type="button" icon="i-lucide-circle-help" color="neutral" variant="ghost" size="sm" aria-label="How the price index is calculated" title="How the price index is calculated" />
                 <template #content>
                   <div class="price-index-help w-[min(390px,calc(100vw-32px))] p-[15px_17px] text-left text-(--ink)">
-                    <strong>How the index is calculated</strong>
-                    <ol>
+                    <strong class="block mb-[9px] text-[14px]">How the index is calculated</strong>
+                    <ol class="grid gap-[7px] [margin:0] [padding-left:20px] text-(--muted) text-[12px] leading-[1.45]">
                       <li>Find items purchased in both the current and previous month.</li>
                       <li>Compare each item using its normalized, non-sale price.</li>
                       <li>Calculate the percentage price movement for each item.</li>
@@ -374,8 +374,8 @@ function unitCurrency(value: number) {
           </div>
           <UBadge v-if="priceIndexSummary" :label="`${changeLabel(priceIndexSummary.change)} overall`" :color="priceIndexSummary.change > 0 ? 'error' : priceIndexSummary.change < 0 ? 'success' : 'neutral'" variant="soft" />
         </div>
-        <div v-if="priceIndexChart" ref="priceIndexContainer" class="price-index-chart w-full max-w-full overflow-hidden">
-          <svg :viewBox="`0 0 ${priceIndexChart.width} ${priceIndexChart.height}`" role="img" aria-label="Same-item regular purchase price index over time">
+        <div v-if="priceIndexChart" ref="priceIndexContainer" class="w-full max-w-full overflow-hidden">
+          <svg :viewBox="`0 0 ${priceIndexChart.width} ${priceIndexChart.height}`" role="img" aria-label="Same-item regular purchase price index over time" class="block w-full h-[260px]">
             <title>Regular purchase price index</title>
             <g class="price-index-grid">
               <g v-for="tick in priceIndexChart.ticks" :key="tick.y">
@@ -385,17 +385,17 @@ function unitCurrency(value: number) {
             </g>
             <polyline v-for="segment in priceIndexChart.segments" :key="segment" class="price-index-line fill-none stroke-(--accent) stroke-3 [stroke-linecap:round] [stroke-linejoin:round]" :points="segment" />
             <g v-for="point in priceIndexChart.positioned" :key="point.month">
-              <circle v-if="point.y !== null && point.value !== null" class="price-index-point fill-(--accent) stroke-(--surface) stroke-2" :cx="point.x" :cy="point.y" r="4"><title>{{ monthLabel(point.month) }} · {{ point.value.toFixed(1) }} · {{ point.matchedItems }} matched items</title></circle>
+              <circle v-if="point.y !== null && point.value !== null" class="fill-(--accent) stroke-(--surface) stroke-2" :cx="point.x" :cy="point.y" r="4"><title>{{ monthLabel(point.month) }} · {{ point.value.toFixed(1) }} · {{ point.matchedItems }} matched items</title></circle>
               <text v-if="point.showLabel" class="price-index-month" :x="point.x" :y="priceIndexChart.height - 16" :text-anchor="point.x < priceIndexChart.plot.left + 20 ? 'start' : point.x > priceIndexChart.width - priceIndexChart.plot.right - 20 ? 'end' : 'middle'">{{ monthLabel(point.month, true) }}</text>
             </g>
           </svg>
         </div>
-        <div v-else class="chart-empty grid min-h-[130px] place-items-center text-center text-(--muted)">At least three matched regular items across consecutive months are needed.</div>
-        <p v-if="priceIndexSummary" class="index-coverage m-[6px_0_0] text-right text-xs text-(--muted)">Latest month uses {{ priceIndexSummary.latest.matchedItems }} matched {{ priceIndexSummary.latest.matchedItems === 1 ? 'item' : 'items' }}.</p>
+        <div v-else class="grid min-h-[130px] place-items-center text-center text-(--muted)">At least three matched regular items across consecutive months are needed.</div>
+        <p v-if="priceIndexSummary" class="m-[6px_0_0] text-right text-xs text-(--muted)">Latest month uses {{ priceIndexSummary.latest.matchedItems }} matched {{ priceIndexSummary.latest.matchedItems === 1 ? 'item' : 'items' }}.</p>
       </UCard>
 
       <UCard class="category-price-panel highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="category-price-heading">
-        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5">
+        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5 max-[640.01px]:items-start">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">By category</p>
             <h2 id="category-price-heading">Category price movement</h2>
@@ -405,15 +405,15 @@ function unitCurrency(value: number) {
         <ul v-if="data.categoryPriceChanges.length" class="category-price-list m-0 grid list-none gap-0 p-0">
           <li v-for="entry in data.categoryPriceChanges.slice(0, 5)" :key="entry.category">
             <strong>{{ entry.category }}</strong>
-            <span class="category-price-range text-xs text-(--muted)">{{ monthLabel(entry.startMonth) }}–{{ monthLabel(entry.endMonth) }} · {{ entry.matchedItems }} matched items</span>
-            <UBadge class="category-price-change" :label="changeLabel(entry.change)" :color="entry.change > 0 ? 'error' : entry.change < 0 ? 'success' : 'neutral'" variant="soft" />
+            <span class="text-xs text-(--muted) max-[640.01px]:col-start-1">{{ monthLabel(entry.startMonth) }}–{{ monthLabel(entry.endMonth) }} · {{ entry.matchedItems }} matched items</span>
+            <UBadge class="max-[640.01px]:col-start-2 max-[640.01px]:[grid-row:1_/_span_2]" :label="changeLabel(entry.change)" :color="entry.change > 0 ? 'error' : entry.change < 0 ? 'success' : 'neutral'" variant="soft" />
           </li>
         </ul>
         <p v-else class="category-price-empty m-0 text-[13px] text-(--muted)">No category has enough regular-price history to compare yet. <NuxtLink to="/data/items">Assign categories to more items</NuxtLink>.</p>
       </UCard>
 
       <UCard class="monthly-spend-panel highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
-        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5">
+        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5 max-[640.01px]:items-start">
           <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Monthly spending</p><h2>Purchases by month</h2></div>
         </div>
         <div v-if="monthlySpendChart" ref="monthlySpendContainer" class="monthly-spend-scroll w-full max-w-full overflow-hidden pb-[5px]">
@@ -421,7 +421,7 @@ function unitCurrency(value: number) {
             :viewBox="`0 0 ${monthlySpendChart.width} ${monthlySpendChart.height}`"
             role="img"
             aria-label="Total purchase dollars by month"
-          >
+           class="block w-full h-[300px]">
             <title>Monthly purchase spending</title>
             <g class="monthly-spend-grid">
               <g v-for="tick in monthlySpendChart.ticks" :key="tick.y">
@@ -429,7 +429,7 @@ function unitCurrency(value: number) {
                 <text :x="monthlySpendChart.plot.left - 10" :y="tick.y + 4" text-anchor="end">{{ wholeCurrency(tick.value) }}</text>
               </g>
             </g>
-            <g class="monthly-spend-bars">
+            <g>
               <g
                 v-for="bar in monthlySpendChart.bars"
                 :key="bar.month"
@@ -442,7 +442,7 @@ function unitCurrency(value: number) {
                 @keydown.space.prevent="selectedSpendMonth = bar.month"
               >
                 <rect
-                  class="monthly-spend-hit cursor-pointer fill-transparent"
+                  class="cursor-pointer fill-transparent"
                   :x="bar.x - bar.hitWidth / 2"
                   :y="monthlySpendChart.plot.top"
                   :width="bar.hitWidth"
@@ -463,8 +463,8 @@ function unitCurrency(value: number) {
             </g>
           </svg>
         </div>
-        <div v-else class="chart-empty grid min-h-[130px] place-items-center text-center text-(--muted)">No purchases in this period.</div>
-        <div v-if="selectedSpendChange" class="spend-explanation mt-2 grid grid-cols-[repeat(4,1fr)] gap-px overflow-hidden rounded-xl [background:var(--line)] [border:1px_solid_var(--line)]" aria-live="polite">
+        <div v-else class="grid min-h-[130px] place-items-center text-center text-(--muted)">No purchases in this period.</div>
+        <div v-if="selectedSpendChange" class="spend-explanation mt-2 grid grid-cols-[repeat(4,1fr)] gap-px overflow-hidden rounded-xl [background:var(--line)] [border:1px_solid_var(--line)] max-[640.01px]:grid-cols-[1fr_1fr]" aria-live="polite">
           <div><strong>{{ monthLabel(selectedSpendChange.month) }}</strong><span>{{ wholeCurrency(selectedSpendChange.totalSpent) }} spent</span></div>
           <template v-if="selectedSpendChange.change !== null">
             <div><span>Change from prior month</span><strong>{{ signedCurrency(selectedSpendChange.change) }}</strong></div>
@@ -475,7 +475,7 @@ function unitCurrency(value: number) {
         </div>
       </UCard>
 
-      <UCard class="core-items-panel highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="core-items-heading">
+      <UCard class="highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="core-items-heading">
         <div class="core-items-heading mb-0 flex items-start justify-between gap-5 pb-3">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Regular purchases</p>
@@ -483,7 +483,7 @@ function unitCurrency(value: number) {
             <p>Items bought on 3+ receipts across 2+ months; velocity compares non-sale prices.</p>
           </div>
         </div>
-        <div v-if="data.coreItems.length" class="core-items-table-wrap overflow-x-auto">
+        <div v-if="data.coreItems.length" class="overflow-x-auto max-[640.01px]:[overflow:visible]">
           <table class="core-items-table w-full border-collapse text-sm [&_th]:text-[11px]">
             <thead>
               <tr><th>Item</th><th>Regularity</th><th>Price behavior</th><th>Trend</th><th>Net change</th></tr>
@@ -495,9 +495,9 @@ function unitCurrency(value: number) {
                     <strong>{{ item.name }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
                 </td>
-                <td data-label="Regularity"><div class="core-item-inline flex items-center gap-2 whitespace-nowrap"><strong>{{ item.purchases }} receipts</strong><span class="text-xs">{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
+                <td data-label="Regularity"><div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-[640.01px]:grid max-[640.01px]:[justify-items:start] max-[640.01px]:gap-[5px] max-[640.01px]:[white-space:normal]"><strong>{{ item.purchases }} receipts</strong><span class="text-xs">{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
                 <td data-label="Price behavior">
-                  <div class="core-item-inline flex items-center gap-2 whitespace-nowrap">
+                  <div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-[640.01px]:grid max-[640.01px]:[justify-items:start] max-[640.01px]:gap-[5px] max-[640.01px]:[white-space:normal]">
                     <UBadge v-bind="stabilityDetails[item.stability]" variant="soft" />
                     <span class="text-xs">{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
                   </div>
@@ -506,7 +506,7 @@ function unitCurrency(value: number) {
                   <svg v-if="item.priceSeries.length > 1" class="core-sparkline block h-6 w-full max-w-30 min-w-20" viewBox="0 0 120 32" role="img" :aria-label="`${item.name} regular price trend`">
                     <polyline :points="sparklinePoints(item.priceSeries)" />
                   </svg>
-                  <span v-else class="sparkline-empty text-(--muted)">—</span>
+                  <span v-else class="text-(--muted)">—</span>
                 </td>
                 <td data-label="Net change" class="core-item-change">
                   <UBadge
@@ -520,10 +520,10 @@ function unitCurrency(value: number) {
             </tbody>
           </table>
         </div>
-        <p v-else class="panel-empty m-[18px_0_4px] text-[13px] text-(--muted)">Not enough repeat purchases in this period yet.</p>
+        <p v-else class="m-[18px_0_4px] text-[13px] text-(--muted)">Not enough repeat purchases in this period yet.</p>
       </UCard>
 
-      <UCard class="shrinkflation-panel highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="shrinkflation-heading">
+      <UCard class="highlight-panel mb-5 rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="shrinkflation-heading">
         <div class="core-items-heading mb-0 flex items-start justify-between gap-5 pb-3">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Package changes</p>
@@ -531,7 +531,7 @@ function unitCurrency(value: number) {
             <p>Smaller packaged goods whose shelf price stayed the same or increased. Variable-weight and per-item purchases are excluded.</p>
           </div>
         </div>
-        <div v-if="data.shrinkflation.length" class="shrinkflation-table-wrap overflow-x-auto">
+        <div v-if="data.shrinkflation.length" class="overflow-x-auto max-[640.01px]:[overflow:visible]">
           <table class="shrinkflation-table w-full table-fixed border-collapse text-sm [&_th]:text-[11px]">
             <thead>
               <tr>
@@ -547,7 +547,7 @@ function unitCurrency(value: number) {
                 <td data-label="Package change"><strong>{{ entry.previousSize }} → {{ entry.size }} {{ entry.unit }}</strong><span>{{ changeLabel(entry.sizeChangePercent) }}</span></td>
                 <td data-label="Shelf price"><strong>{{ wholeCurrency(entry.previousPrice) }} → {{ wholeCurrency(entry.price) }}</strong></td>
                 <td data-label="Unit-cost impact">
-                  <div class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap">
+                  <div class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap max-[640.01px]:grid max-[640.01px]:[justify-items:start] max-[640.01px]:[white-space:normal]">
                     <strong>{{ unitCurrency(entry.previousUnitPrice) }} → {{ unitCurrency(entry.unitPrice) }}</strong>
                     <span>{{ entry.unitPriceLabel }}</span>
                     <UBadge :label="wholeChangeLabel(entry.unitCostChangePercent)" color="error" variant="soft" />
@@ -557,15 +557,15 @@ function unitCurrency(value: number) {
             </tbody>
           </table>
         </div>
-        <p v-else class="panel-empty m-[18px_0_4px] text-[13px] text-(--muted)">No smaller same-price packages found in this period.</p>
+        <p v-else class="m-[18px_0_4px] text-[13px] text-(--muted)">No smaller same-price packages found in this period.</p>
       </UCard>
 
-      <div class="highlights-grid grid grid-cols-[minmax(420px,1.15fr)_minmax(340px,.85fr)] items-start gap-5">
+      <div class="grid grid-cols-[minmax(420px,1.15fr)_minmax(340px,.85fr)] items-start gap-5 max-[900.01px]:grid-cols-1">
         <UCard class="highlight-panel movers-panel rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="movers-heading">
             <div class="mb-2 flex items-end justify-between gap-5 pb-5">
               <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
             </div>
-            <div v-if="data.movers.length" class="movers-table-wrap overflow-x-auto">
+            <div v-if="data.movers.length" class="overflow-x-auto max-[640.01px]:[overflow:visible]">
               <table class="movers-table w-full table-fixed border-collapse text-sm [&_th]:text-[11px]">
                 <thead><tr><th>Item</th><th>Comparison</th><th>Change</th></tr></thead>
                 <tbody>
@@ -592,24 +592,24 @@ function unitCurrency(value: number) {
                 </tbody>
               </table>
             </div>
-            <p v-else class="panel-empty m-[18px_0_4px] text-[13px] text-(--muted)">No significant price changes in this period.</p>
+            <p v-else class="m-[18px_0_4px] text-[13px] text-(--muted)">No significant price changes in this period.</p>
         </UCard>
 
-        <UCard class="highlight-panel stores-panel rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+        <UCard class="highlight-panel rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
             <div class="mb-2 flex items-end justify-between gap-5 pb-5">
               <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Highest spending</p><h2>Top stores</h2></div>
               <UButton to="/data/stores" label="Manage stores" icon="i-lucide-settings-2" color="neutral" variant="outline" size="sm" />
             </div>
             <ul v-if="data.topStores.length" class="store-rank-list m-0 grid list-none gap-[9px] p-0">
-              <li v-for="store in data.topStores" :key="store.name">
-                <strong class="store-name-label min-w-0 truncate" :title="store.name">{{ store.name }}</strong>
-                <div class="store-spend-visual grid min-w-0 gap-[3px]">
-                  <span class="store-spend-value text-right text-xs leading-none whitespace-nowrap text-(--muted) tabular-nums" :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }">{{ wholeCurrency(store.totalSpent) }}</span>
-                  <span class="store-bar h-2 overflow-hidden rounded-full [background:var(--surface-muted)]"><i :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }" /></span>
+              <li v-for="store in data.topStores" :key="store.name" class="grid grid-cols-[minmax(105px,_.7fr)_1fr] gap-[14px] items-end">
+                <strong class="store-name-label min-w-0 truncate block" :title="store.name">{{ store.name }}</strong>
+                <div class="grid min-w-0 gap-[3px]">
+                  <span class="store-spend-value text-right text-xs leading-none whitespace-nowrap text-(--muted) tabular-nums block" :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }">{{ wholeCurrency(store.totalSpent) }}</span>
+                  <span class="store-bar h-2 overflow-hidden rounded-full [background:var(--surface-muted)] block"><i :style="{ width: `${(store.totalSpent / maxStoreSpend) * 100}%` }" class="block h-full rounded-[inherit] bg-(--accent)" /></span>
                 </div>
               </li>
             </ul>
-            <p v-else class="panel-empty m-[18px_0_4px] text-[13px] text-(--muted)">No store activity in this period.</p>
+            <p v-else class="m-[18px_0_4px] text-[13px] text-(--muted)">No store activity in this period.</p>
         </UCard>
 
       </div>

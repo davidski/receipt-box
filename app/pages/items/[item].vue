@@ -201,11 +201,11 @@ function packageLabel(entry: HistoryEntry) {
 </script>
 
 <template>
-  <div class="item-history-page mx-auto w-full max-w-300">
-    <header class="page-heading item-history-heading my-[15px] mb-8 flex items-end justify-between gap-6">
+  <div class="mx-auto w-full max-w-300">
+    <header class="page-heading my-[15px] mb-8 flex items-end justify-between gap-6 max-[640.01px]:grid max-[640.01px]:items-start">
       <div>
         <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Normalized price history</p>
-        <h1 class="leading-1.04 text-[clamp(34px,3.5vw,42px)]">{{ data?.item || routeItem }}</h1>
+        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">{{ data?.item || routeItem }}</h1>
         <p v-if="data">{{ data.entries.length.toLocaleString() }} recorded {{ data.entries.length === 1 ? 'purchase' : 'purchases' }}</p>
       </div>
       <UButton to="/history/receipts/calendar" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
@@ -231,7 +231,7 @@ function packageLabel(entry: HistoryEntry) {
         />
       </div>
 
-      <div v-if="summary" class="item-price-stats mb-4.5 grid grid-cols-[repeat(3,1fr)] gap-3.5">
+      <div v-if="summary" class="item-price-stats mb-4.5 grid grid-cols-[repeat(3,1fr)] gap-3.5 max-[900.01px]:grid-cols-3 max-[640.01px]:grid-cols-1">
         <UCard><span>Latest normalized</span><strong>{{ currency(summary.latest.normalizedPrice) }}</strong><small>{{ summary.latest.basisLabel }}</small></UCard>
         <UCard><span>Historical low</span><strong>{{ currency(summary.low) }}</strong><small>{{ chartPoints.length }} charted purchases</small></UCard>
         <UCard><span>Historical high</span><strong>{{ currency(summary.high) }}</strong><small>{{ dateLabel(summary.latest.purchasedOn) }} latest</small></UCard>
@@ -243,17 +243,17 @@ function packageLabel(entry: HistoryEntry) {
         variant="soft"
         icon="i-lucide-triangle-alert"
         :description="`${excludedOutliers} unusually high normalized ${excludedOutliers === 1 ? 'value is' : 'values are'} excluded from the chart scale but retained in the purchase table for review.`"
-        class="outlier-notice m-[0_0_18px]"
+        class="m-[0_0_18px]"
       />
 
-      <UCard v-if="chart" class="price-chart-card">
-        <div class="chart-heading mb-4.5 flex items-end justify-between gap-4.5">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Price trend</p><h2>{{ visiblePoints[0]?.basisLabel }}</h2></div>
-          <div class="chart-legend flex gap-3.5 text-xs text-(--muted)"><span><i />Regular</span><span><i class="sale" />Sale</span></div>
+      <UCard v-if="chart" class="mt-[18px] [border:1px_solid_var(--line)] rounded-[22px] bg-(--surface) shadow-(--shadow)">
+        <div class="mb-4.5 flex items-end justify-between gap-4.5">
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Price trend</p><h2 class="text-[25px]">{{ visiblePoints[0]?.basisLabel }}</h2></div>
+          <div class="chart-legend flex gap-3.5 text-xs text-(--muted)"><span class="inline-flex items-center gap-[6px]"><i  class="w-[10px] h-[10px] rounded-[50%] bg-(--accent)" />Regular</span><span class="inline-flex items-center gap-[6px]"><i class="sale w-[10px] h-[10px] rounded-[50%] bg-(--accent)" />Sale</span></div>
         </div>
-        <div v-if="chartPoints.length < 2" class="chart-empty grid min-h-[130px] place-items-center text-center text-(--muted)">Add another comparable purchase to draw a trend line.</div>
+        <div v-if="chartPoints.length < 2" class="grid min-h-[130px] place-items-center text-center text-(--muted)">Add another comparable purchase to draw a trend line.</div>
         <div v-else class="price-chart-scroll min-w-0 overflow-hidden">
-          <svg :viewBox="`0 0 ${chart.width} ${chart.height}`" role="img" :aria-label="`${data.item} normalized price chart, ${visiblePoints[0]?.basisLabel}`">
+          <svg :viewBox="`0 0 ${chart.width} ${chart.height}`" role="img" :aria-label="`${data.item} normalized price chart, ${visiblePoints[0]?.basisLabel}`" class="block w-full h-[300px]">
             <title>{{ data.item }} normalized price history</title>
             <g class="chart-grid">
               <g v-for="tick in chart.ticks" :key="tick.y">
@@ -267,7 +267,7 @@ function packageLabel(entry: HistoryEntry) {
                 <text :x="tick.x" :y="chart.height - 11" :text-anchor="tick.anchor">{{ tick.label }}</text>
               </g>
             </g>
-            <polyline class="price-chart-line fill-none stroke-(--accent) stroke-3 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
+            <polyline class="fill-none stroke-(--accent) stroke-3 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
             <g
               v-for="point in chart.positioned"
               :key="point.id"
@@ -287,18 +287,18 @@ function packageLabel(entry: HistoryEntry) {
             </g>
           </svg>
         </div>
-        <div v-if="selectedPoint" class="chart-point-detail mt-2 flex min-h-12 flex-wrap items-center gap-[7px_14px] rounded-xl p-[10px_13px] text-[13px] [background:var(--surface-muted)] [border:1px_solid_var(--line)]" aria-live="polite">
+        <div v-if="selectedPoint" class="mt-2 flex min-h-12 flex-wrap items-center gap-[7px_14px] rounded-xl p-[10px_13px] text-[13px] [background:var(--surface-muted)] [border:1px_solid_var(--line)]" aria-live="polite">
           <strong>{{ currency(selectedPoint.normalizedPrice) }}</strong>
-          <span>{{ dateLabel(selectedPoint.purchasedOn) }}</span>
-          <span>{{ selectedPoint.location }}</span>
+          <span class="text-(--muted)">{{ dateLabel(selectedPoint.purchasedOn) }}</span>
+          <span class="text-(--muted)">{{ selectedPoint.location }}</span>
           <UBadge v-if="selectedPoint.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" />
         </div>
       </UCard>
 
-      <UCard class="item-purchases-card">
-        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Source purchases</p><h2>Comparable history</h2></div></div>
-        <div v-if="!newestFirst.length" class="chart-empty grid min-h-[130px] place-items-center text-center text-(--muted)">No entries have enough information to calculate a normalized price.</div>
-        <div v-else class="item-purchases-table-wrap">
+      <UCard class="mt-[18px] [border:1px_solid_var(--line)] rounded-[22px] bg-(--surface) shadow-(--shadow)">
+        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Source purchases</p><h2 class="text-[25px]">Comparable history</h2></div></div>
+        <div v-if="!newestFirst.length" class="grid min-h-[130px] place-items-center text-center text-(--muted)">No entries have enough information to calculate a normalized price.</div>
+        <div v-else class="max-[640.01px]:[overflow:visible]">
           <table class="item-purchases-table w-full border-collapse">
             <thead><tr><th>Date</th><th>Store</th><th>Package</th><th>Price</th><th>Normalized</th><th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>
