@@ -1039,6 +1039,7 @@ async function exportXlsx() {
             :disabled="!backfillPromptsLoaded"
             label="Prompt before updating previous entries"
             description="When enabled, ask before filling missing quantity or unit values in older entries for the same item. When disabled, older entries stay unchanged."
+            :ui="{ description: 'max-w-[620px]' }"
             @update:model-value="saveBackfillPrompts($event === true)"
           />
         </div>
