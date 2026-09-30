@@ -134,11 +134,8 @@ it('renames, merges, and deletes managed categories with impact confirmation', a
   await vi.waitFor(() => expect(wrapper.find('form.store-edit').exists()).toBe(false))
   expect(wrapper.text()).toContain('Milk')
 
-  const mergeButton = wrapper.findAll('button').find(button => button.text() === 'Merge')!
-  expect(mergeButton.attributes('disabled')).toBeDefined()
   await wrapper.get('select[aria-label="Merge Milk into"]').setValue('cat-beverages')
-  expect(mergeButton.attributes('disabled')).toBeUndefined()
-  await mergeButton.trigger('click')
+  await flushPromises()
   const mergeDialog = wrapper.get('[data-dialog="Merge categories?"]')
   expect(mergeDialog.text()).toContain('2 items and 5 unique purchase entries')
   await mergeDialog.findAll('button').at(-1)!.trigger('click')

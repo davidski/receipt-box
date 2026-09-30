@@ -70,7 +70,7 @@ const newCategoryName = ref('')
 const categoryAdding = ref(false)
 const editingCategoryId = ref<string | null>(null)
 const editingCategoryName = ref('')
-const categoryTargets = reactive<Record<string, string>>({})
+const categoryMergeSelection = reactive<Record<string, string | undefined>>({})
 const categoryBusyId = ref<string | null>(null)
 const categoryError = ref('')
 const itemTargets = reactive<Record<string, string>>({})
@@ -185,14 +185,6 @@ watch(activeSection, (section) => {
   }
 }, { immediate: true })
 
-watch(categories, (value) => {
-  for (const category of value || []) {
-    if (!value?.some(candidate => candidate.id === categoryTargets[category.id])) {
-      categoryTargets[category.id] = ''
-    }
-  }
-})
-
 onMounted(() => { void loadBackfillPrompts() })
 
 function storeErrorMessage(error: any, fallback: string) {
@@ -228,8 +220,14 @@ async function saveCategory(category: ManagedCategory) {
   }
 }
 
-function requestCategoryMerge(source: ManagedCategory) {
-  const target = categories.value?.find(category => category.id === categoryTargets[source.id])
+async function handleCategoryMergeSelect(source: ManagedCategory, targetId: string) {
+  requestCategoryMerge(source, targetId)
+  await nextTick()
+  categoryMergeSelection[source.id] = undefined
+}
+
+function requestCategoryMerge(source: ManagedCategory, targetId: string) {
+  const target = categories.value?.find(category => category.id === targetId)
   if (!target) return
   requestConfirmation({
     title: 'Merge categories?',
@@ -821,15 +819,17 @@ async function exportXlsx() {
               <div class="flex gap-1 max-[640.01px]:flex-col">
                 <UButton class="touch-target" type="button" label="Rename" icon="i-lucide-pencil" size="sm" color="neutral" variant="ghost" :disabled="categoryBusyId !== null" @click="startCategoryEdit(category)" />
                 <USelectMenu
-                  v-model="categoryTargets[category.id]"
+                  v-model="categoryMergeSelection[category.id]"
                   :items="categoryTargetOptions(category)"
                   value-key="value"
                   label-key="label"
                   :aria-label="`Merge ${category.name} into`"
+                  :disabled="categoryBusyId !== null"
                   placeholder="Merge into…"
-                  class="min-w-[170px]"
+                  icon="i-lucide-git-merge"
+                  class="w-[190px]"
+                  @update:model-value="(targetId: string) => handleCategoryMergeSelect(category, targetId)"
                 />
-                <UButton class="touch-target" type="button" label="Merge" icon="i-lucide-git-merge" size="sm" color="neutral" variant="outline" :disabled="!categoryTargets[category.id] || categoryBusyId !== null" :loading="categoryBusyId === category.id && confirmationBusy" @click="requestCategoryMerge(category)" />
                 <UButton class="touch-target" type="button" label="Delete" icon="i-lucide-trash-2" size="sm" color="error" variant="ghost" :disabled="categoryBusyId !== null" @click="requestCategoryDelete(category)" />
               </div>
             </template>
