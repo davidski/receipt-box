@@ -448,7 +448,7 @@ function unitCurrency(value: number) {
                   :height="monthlySpendChart.plotBottom - monthlySpendChart.plot.top"
                 />
                 <rect
-                  :class="['monthly-spend-bar', { selected: selectedSpendMonth === bar.month }]"
+                  :class="['monthly-spend-bar', 'fill-(--accent)', { selected: selectedSpendMonth === bar.month }]"
                   :x="bar.x - bar.barWidth / 2"
                   :y="bar.y"
                   :width="bar.barWidth"
