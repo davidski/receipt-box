@@ -98,7 +98,7 @@ async function openConflict() {
   await flushPromises()
   await wrapper.get('select[placeholder="Choose an item"]').setValue('Soy milk')
   await flushPromises()
-  await wrapper.get('input[aria-label="Item name"]').setValue('Milk')
+  await wrapper.get('input[aria-label="Rename to"]').setValue('Milk')
   await wrapper.get('form.item-history-editor').trigger('submit')
   await wrapper.get('[data-dialog="Apply item changes?"] button:last-child').trigger('click')
   await flushPromises()

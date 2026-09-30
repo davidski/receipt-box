@@ -838,7 +838,8 @@ async function exportXlsx() {
       </div>
     </UCard>
 
-    <UCard v-else-if="activeSection === 'items'" class="mt-4.5 grid grid-cols-[54px_1fr] gap-5 p-[clamp(22px,4vw,34px)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
+    <template v-else-if="activeSection === 'items'">
+    <UCard class="mt-4.5 grid grid-cols-[54px_1fr] gap-5 p-[clamp(22px,4vw,34px)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
       <div class="grid size-[50px] place-items-center rounded-[15px] text-2xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-package-search" /></div>
       <div>
         <h2 class="text-[26px]">Edit item history</h2>
@@ -860,14 +861,14 @@ async function exportXlsx() {
             />
           </label>
           <label class="field relative grid min-w-0 gap-[7px]">
-            <span>Item name</span>
-            <UInput v-model="renameItemTarget" aria-label="Item name" :disabled="!renameItemSource" size="xl" />
+            <span>Rename to</span>
+            <UInput v-model="renameItemTarget" aria-label="Rename to" :disabled="!renameItemSource" size="xl" />
           </label>
 
           <div v-if="renameItemSource" class="field relative grid min-w-0 gap-[7px]">
             <span>Category</span>
             <CategoryInput v-model="renameItemCategory" aria-label="Item category" :items="(categories || []).map(category => category.name)" />
-            <small class="text-(--muted) text-[12px] leading-[1.4]">Applies to all {{ selectedItemUses }} historical {{ selectedItemUses === 1 ? 'entry' : 'entries' }} for this item.</small>
+            <small class="text-(--muted) text-[12px] leading-[1.4]">Applies to {{ selectedItemUses }} historical {{ selectedItemUses === 1 ? 'entry' : 'entries' }} for this item.</small>
           </div>
           <UAlert v-if="renameItemSource && categoriesLoadError" color="warning" variant="soft" icon="i-lucide-circle-alert" description="Existing categories could not be loaded. You can still enter a new category.">
             <template #actions><UButton type="button" label="Retry" color="neutral" variant="outline" size="sm" @click="loadCategories()" /></template>
@@ -927,11 +928,14 @@ async function exportXlsx() {
             <UButton type="submit" :label="itemEditButtonLabel" icon="i-lucide-pencil" :loading="itemRenameBusy" :disabled="!renameItemSource || !renameItemTarget.trim() || (!nameWillChange && !categoryWillChange && !packageWillChange)" />
           </div>
         </form>
+      </div>
+    </UCard>
 
-        <div class="mt-7">
-          <h3 class="[margin:0]">Review likely duplicate names</h3>
-          <p class="max-w-[620px] text-(--muted) leading-[1.55] mt-1 mb-0">Choose the name to keep for each suggested group.</p>
-        </div>
+    <UCard class="mt-4.5 grid grid-cols-[54px_1fr] gap-5 p-[clamp(22px,4vw,34px)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
+      <div class="grid size-[50px] place-items-center rounded-[15px] text-2xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-copy-check" /></div>
+      <div>
+        <h2 class="text-[26px]">Review likely duplicate names</h2>
+        <p class="max-w-[620px] text-(--muted) leading-[1.55]">Choose the name to keep for each suggested group.</p>
 
         <UAlert v-if="itemMergeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="itemMergeError" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
         <UAlert v-if="itemMergeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="itemMergeNotice" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
@@ -963,7 +967,7 @@ async function exportXlsx() {
               </label>
             </div>
             <div class="item-merge-action flex items-center justify-between gap-4.5 p-[14px_17px] [border-top:1px_solid_var(--line)] max-[640.01px]:[align-items:stretch] max-[640.01px]:flex-col">
-              <span class="max-w-[480px] text-(--muted) text-[12px] leading-[1.45]">The other {{ group.variants.length - 1 }} {{ group.variants.length === 2 ? 'name' : 'names' }} will be replaced throughout purchase history.</span>
+              <span class="max-w-[480px] text-(--muted) text-[12px] leading-[1.45]">The other{{ group.variants.length > 2 ? ` ${group.variants.length - 1}` : '' }} {{ group.variants.length === 2 ? 'name' : 'names' }} will be replaced throughout purchase history.</span>
               <div class="flex gap-2">
                 <UButton type="button" label="Hide suggestion" icon="i-lucide-eye-off" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="setItemGroupHidden(group, true)" />
                 <UButton type="button" label="Merge variants" icon="i-lucide-git-merge" :loading="itemMergeBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="mergeItemGroup(group)" />
@@ -993,6 +997,7 @@ async function exportXlsx() {
         </template>
       </div>
     </UCard>
+    </template>
 
     <section v-else-if="activeSection === 'transfer'" class="mt-0" aria-label="Import and export tools">
       <UCard class="mt-4.5 grid grid-cols-[54px_1fr] gap-5 p-[clamp(22px,4vw,34px)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
