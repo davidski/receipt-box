@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 
 const page = await readFile(new URL('../app/components/HistoryPage.vue', import.meta.url), 'utf8')
+const receiptEntryLine = await readFile(new URL('../app/components/ReceiptEntryLine.vue', import.meta.url), 'utf8')
 const indexRoute = await readFile(new URL('../app/pages/history/index.vue', import.meta.url), 'utf8')
 const viewRoute = await readFile(new URL('../app/pages/history/[...view].vue', import.meta.url), 'utf8')
 const middleware = await readFile(new URL('../app/middleware/history.ts', import.meta.url), 'utf8')
@@ -93,7 +94,7 @@ test('History filters entries by category and labels categorized receipt lines',
   const entriesApi = await readFile(new URL('../server/api/entries/index.get.ts', import.meta.url), 'utf8')
   assert.match(entriesApi, /const category = String\(query\.category \?\? ''\)\.trim\(\)/)
   assert.equal((entriesApi.match(/category = \$\{category\}/g) || []).length, 3)
-  assert.match(page, /UBadge v-if="entry\.category" :label="entry\.category"/)
+  assert.match(receiptEntryLine, /UBadge v-if="entry\.category" :label="entry\.category"/)
 })
 
 test('Receipts keeps headings intact and uses tablet space without widening mobile pages', () => {

@@ -232,6 +232,16 @@ function clearSearch() {
   requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.search-control input')?.focus())
 }
 
+const receiptLinePreviewCount = 8
+
+function previewEntries(receipt: Receipt) {
+  return receipt.entries.slice(0, receiptLinePreviewCount)
+}
+
+function overflowEntries(receipt: Receipt) {
+  return receipt.entries.slice(receiptLinePreviewCount)
+}
+
 function currency(value: string | number | null) {
   return value === null ? '—' : new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value))
 }
@@ -468,8 +478,8 @@ async function confirmRemoveEntry() {
           <div v-if="receiptsLoadingVisible" class="grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Gathering receipts…</div>
           <div v-else-if="receiptsError" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Could not load receipts for this date.</div>
           <div v-else-if="!receiptData?.receipts.length" class="receipt-empty-state grid min-h-65 content-center justify-items-center gap-[9px] rounded-[18px] p-7 text-center text-(--muted) [background:var(--surface)] [border:1px_dashed_var(--line)]"><UIcon name="i-lucide-receipt-text" aria-hidden="true" /><strong>No receipts for this date</strong><span>Add the first receipt for {{ dateLabel(selectedDate) }}.</span></div>
-          <div v-else class="grid grid-cols-[repeat(auto-fit,minmax(min(360px,100%),1fr))] items-start gap-6 max-[900.01px]:grid-cols-1">
-          <article v-for="receipt in receiptData.receipts" :key="receipt.id" class="relative overflow-hidden rounded-[8px_8px_18px_18px] p-[26px_26px_22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[22px_16px_18px]">
+          <div v-else class="[column-width:360px] gap-6 max-[900.01px]:[columns:1]">
+          <article v-for="receipt in receiptData.receipts" :key="receipt.id" class="relative mb-6 break-inside-avoid overflow-hidden rounded-[8px_8px_18px_18px] p-[26px_26px_22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[22px_16px_18px]">
             <header class="receipt-heading flex items-center gap-[13px] pb-5 text-left max-[640.01px]:flex-wrap">
               <div class="grid size-[42px] flex-[0_0_auto] place-items-center rounded-[13px] text-xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
               <div class="min-w-0 flex-1">
@@ -480,22 +490,18 @@ async function confirmRemoveEntry() {
             </header>
             <div class="flex justify-between p-[8px_0] text-[11px] font-[750] tracking-widest text-(--muted) uppercase [border-block:1px_dashed_var(--line)]"><span>Item</span><span>Price</span></div>
             <ul class="receipt-lines m-0 list-none p-0">
-              <li v-for="entry in receipt.entries" :key="entry.id">
-                <div class="min-w-0">
-                  <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[7px] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
-                    <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
-                  </NuxtLink>
-                  <span class="mt-1 flex flex-wrap items-center gap-[5px] text-xs text-(--muted)">
-                    {{ packageSize(entry.size, entry.unit) }}
-                    <UBadge v-if="entry.category" :label="entry.category" color="primary" variant="soft" size="sm" />
-                    <UBadge v-if="entry.saleItem" label="Sale" color="warning" variant="soft" size="sm" />
-                    <UBadge v-if="entry.nonGrocery" label="Non-grocery" color="neutral" variant="soft" size="sm" />
-                  </span>
-                  <small v-if="entry.notes" class="block mt-[5px] text-(--muted) text-[12px] leading-[1.4]">{{ entry.notes }}</small>
-                </div>
-                <strong class="pt-[2px] text-sm tabular-nums">{{ currency(entry.price) }}</strong>
-              </li>
+              <ReceiptEntryLine v-for="entry in previewEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" :price="currency(entry.price)" />
             </ul>
+            <UCollapsible v-if="receipt.entries.length > receiptLinePreviewCount" class="mt-1">
+              <template #default="{ open }">
+                <UButton class="touch-target" :label="open ? 'Show fewer items' : `Show ${receipt.entries.length - receiptLinePreviewCount} more ${receipt.entries.length - receiptLinePreviewCount === 1 ? 'item' : 'items'}`" color="neutral" variant="ghost" :trailing-icon="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" size="sm" />
+              </template>
+              <template #content>
+                <ul class="receipt-lines m-0 list-none p-0">
+                  <ReceiptEntryLine v-for="entry in overflowEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" :price="currency(entry.price)" />
+                </ul>
+              </template>
+            </UCollapsible>
             <footer class="flex items-baseline justify-between gap-5 pt-4.5 [font-family:var(--font-display)]">
               <span class="text-[18px] font-[600]">Total</span>
               <strong class="text-(--accent-strong) text-[30px] [font-variant-numeric:tabular-nums]">{{ currency(receipt.total) }}</strong>
