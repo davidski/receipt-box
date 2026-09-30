@@ -46,7 +46,7 @@ html { min-height: 100%; background: var(--bg); overflow-y: scroll; scrollbar-gu
 body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 16px; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
-a { color: inherit; }
+@layer base { a { color: inherit; } }
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;

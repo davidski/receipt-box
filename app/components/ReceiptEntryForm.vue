@@ -1262,7 +1262,6 @@ async function deleteReceipt() {
   <form class="receipt-entry-form overflow-visible rounded-3xl shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:rounded-[20px]" @submit.prevent>
     <header class="flex items-start justify-between gap-8 p-[clamp(24px,3vw,36px)] [border-bottom:1px_solid_var(--line)] max-[900.01px]:grid max-[640.01px]:p-[22px_18px]">
       <div>
-        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Shopping trip editor</p>
         <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">{{ hasReceipt ? 'Edit receipt' : 'Add receipt' }}</h1>
         <p class="mt-[10px] text-(--muted)">{{ hasReceipt ? 'Date and store are locked unless you allow a change.' : 'Choose a store and enter its purchases. Completed rows save automatically.' }}</p>
         <UButton :to="{ path: '/', query: { date: form.purchasedOn } }" label="Return to selected day" icon="i-lucide-calendar-days" color="neutral" variant="outline" class="mt-3" />
@@ -1467,7 +1466,7 @@ async function deleteReceipt() {
     <template #body>
       <div class="grid min-w-0 gap-4.5">
         <div>
-          <p class="m-[0_0_8px] text-[13px] text-(--muted)">From {{ form.location }} · {{ dateDisplayLabel(form.purchasedOn) }}</p>
+          <p class="m-[0_0_8px] text-[13px] text-(--muted)">From {{ form.location }} on {{ dateDisplayLabel(form.purchasedOn) }}</p>
           <ul class="m-0 grid max-h-[190px] list-none overflow-auto rounded-xl p-0 [border:1px_solid_var(--line)]">
             <li v-for="line in selectedSplitLines" :key="line.id" class="flex items-center justify-between gap-3 border-t border-(--line) px-3 py-[9px] first:border-t-0">
               <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-(--ink)">{{ line.item }}</span>

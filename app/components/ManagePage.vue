@@ -700,7 +700,6 @@ async function exportXlsx() {
 <template>
   <div class="mx-auto w-full max-w-300">
     <header class="page-heading my-[15px] mb-8">
-      <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Settings and data</p>
       <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Manage Receipt Box</h1>
     </header>
 
@@ -710,7 +709,7 @@ async function exportXlsx() {
         label="Stores"
         icon="i-lucide-store"
         size="lg"
-        :variant="activeSection === 'stores' ? 'solid' : 'ghost'"
+        :variant="activeSection === 'stores' ? 'soft' : 'ghost'"
         :color="activeSection === 'stores' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'stores' ? 'page' : undefined"
       />
@@ -719,7 +718,7 @@ async function exportXlsx() {
         label="Categories"
         icon="i-lucide-tags"
         size="lg"
-        :variant="activeSection === 'categories' ? 'solid' : 'ghost'"
+        :variant="activeSection === 'categories' ? 'soft' : 'ghost'"
         :color="activeSection === 'categories' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'categories' ? 'page' : undefined"
       />
@@ -728,7 +727,7 @@ async function exportXlsx() {
         label="Items"
         icon="i-lucide-package-search"
         size="lg"
-        :variant="activeSection === 'items' ? 'solid' : 'ghost'"
+        :variant="activeSection === 'items' ? 'soft' : 'ghost'"
         :color="activeSection === 'items' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'items' ? 'page' : undefined"
       />
@@ -737,7 +736,7 @@ async function exportXlsx() {
         label="Import & export"
         icon="i-lucide-arrow-left-right"
         size="lg"
-        :variant="activeSection === 'transfer' ? 'solid' : 'ghost'"
+        :variant="activeSection === 'transfer' ? 'soft' : 'ghost'"
         :color="activeSection === 'transfer' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'transfer' ? 'page' : undefined"
       />
@@ -746,7 +745,7 @@ async function exportXlsx() {
         label="Preferences"
         icon="i-lucide-sliders-horizontal"
         size="lg"
-        :variant="activeSection === 'preferences' ? 'solid' : 'ghost'"
+        :variant="activeSection === 'preferences' ? 'soft' : 'ghost'"
         :color="activeSection === 'preferences' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'preferences' ? 'page' : undefined"
       />
@@ -755,7 +754,7 @@ async function exportXlsx() {
         label="Maintenance"
         icon="i-lucide-wrench"
         size="lg"
-        :variant="activeSection === 'maintenance' ? 'solid' : 'ghost'"
+        :variant="activeSection === 'maintenance' ? 'soft' : 'ghost'"
         :color="activeSection === 'maintenance' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'maintenance' ? 'page' : undefined"
       />
@@ -817,7 +816,7 @@ async function exportXlsx() {
             <template v-else>
               <div class="store-name">
                 <strong class="block">{{ category.name }}</strong>
-                <span class="block mt-[3px] text-(--muted) text-[12px]">{{ category.itemCount.toLocaleString() }} {{ category.itemCount === 1 ? 'item' : 'items' }} · {{ category.entryCount.toLocaleString() }} unique {{ category.entryCount === 1 ? 'entry' : 'entries' }}</span>
+                <span class="block mt-[3px] text-(--muted) text-[12px]">{{ category.itemCount.toLocaleString() }} {{ category.itemCount === 1 ? 'item' : 'items' }} across {{ category.entryCount.toLocaleString() }} unique {{ category.entryCount === 1 ? 'entry' : 'entries' }}</span>
               </div>
               <div class="flex gap-1 max-[640.01px]:flex-col">
                 <UButton class="touch-target" type="button" label="Rename" icon="i-lucide-pencil" size="sm" color="neutral" variant="ghost" :disabled="categoryBusyId !== null" @click="startCategoryEdit(category)" />
@@ -952,14 +951,14 @@ async function exportXlsx() {
             <div class="flex items-center justify-between gap-3.5 p-[15px_17px] [background:var(--surface-muted)]">
               <div>
                 <strong class="block">{{ group.variants.length }} similar names</strong>
-                <span class="block mt-[3px] text-(--muted) text-[12px]">{{ group.reasons.join(' · ') }}</span>
+                <span class="block mt-[3px] text-(--muted) text-[12px]">{{ group.reasons.join(', ') }}</span>
               </div>
               <UBadge :label="`${group.variants.reduce((total, variant) => total + variant.uses, 0)} entries`" color="neutral" variant="soft" />
             </div>
             <div class="item-variant-list grid">
               <label v-for="variant in group.variants" :key="variant.name" :class="{ selected: itemTargets[group.id] === variant.name }" class="grid grid-cols-[auto_minmax(0,_1fr)_auto] gap-[11px] items-center min-h-[62px] p-[10px_17px] [border-top:1px_solid_var(--line)] cursor-pointer">
                 <input v-model="itemTargets[group.id]" type="radio" :name="`item-target-${group.id}`" :value="variant.name" class="w-[17px] h-[17px] [accent-color:var(--accent)]">
-                <span><strong class="block">{{ variant.name }}</strong><small class="block mt-[3px] text-(--muted) text-[12px]">{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }} · last used {{ variant.lastUsed }}</small></span>
+                <span><strong class="block">{{ variant.name }}</strong><small class="block mt-[3px] text-(--muted) text-[12px]">{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }}, last used {{ variant.lastUsed }}</small></span>
                 <span class="item-target-label text-xs font-bold text-(--muted) max-[640.01px]:col-start-2">{{ itemTargets[group.id] === variant.name ? 'Keep this name' : 'Merge this name' }}</span>
               </label>
             </div>
@@ -986,7 +985,7 @@ async function exportXlsx() {
             <UButton type="button" :label="showHiddenItemGroups ? 'Hide dismissed suggestions' : `Show ${duplicateItems.hiddenGroups.length} hidden ${duplicateItems.hiddenGroups.length === 1 ? 'suggestion' : 'suggestions'}`" :icon="showHiddenItemGroups ? 'i-lucide-eye-off' : 'i-lucide-eye'" color="neutral" variant="outline" @click="showHiddenItemGroups = !showHiddenItemGroups" />
             <ul v-if="displayedHiddenItemGroups.length" class="item-hidden-list m-0 w-full list-none rounded-[14px] p-0 [border:1px_solid_var(--line)]">
               <li v-for="group in displayedHiddenItemGroups" :key="group.id" class="flex items-center justify-between gap-3 p-[10px_12px_10px_16px] [border-top:1px_solid_var(--line)]">
-                <span><strong class="block">{{ group.variants.map(variant => variant.name).join(' · ') }}</strong><small class="block mt-[3px] text-(--muted)">{{ group.variants.reduce((total, variant) => total + variant.uses, 0) }} entries</small></span>
+                <span><strong class="block">{{ group.variants.map(variant => variant.name).join(', ') }}</strong><small class="block mt-[3px] text-(--muted)">{{ group.variants.reduce((total, variant) => total + variant.uses, 0) }} entries</small></span>
                 <UButton type="button" label="Unhide" icon="i-lucide-undo-2" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemReviewBusy !== null" @click="setItemGroupHidden(group, false)" />
               </li>
             </ul>

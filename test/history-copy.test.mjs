@@ -9,7 +9,6 @@ const middleware = await readFile(new URL('../app/middleware/history.ts', import
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('History keeps its page heading stable across views', () => {
-  assert.match(page, /Purchase records<\/p>/)
   assert.match(page, /<h1 class="(?=[^"]*text-\[clamp\(34px,3\.5vw,42px\)\])(?=[^"]*leading-\[1\.04\])[^"]*">Receipts<\/h1>/)
   assert.match(page, /Browse receipts by date\./)
   assert.match(page, /class="[^"]*page-heading[^"]*history-heading[^"]*">[\s\S]*class="[^"]*receipt-mode-switcher[^"]*receipt-views[^"]*" aria-label="Receipts view"/)

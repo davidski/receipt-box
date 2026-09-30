@@ -321,7 +321,6 @@ function unitCurrency(value: number) {
   <div class="highlights-page mx-auto w-full max-w-300">
     <header class="page-heading my-[15px] mb-8 flex items-end justify-between gap-6 max-[640.01px]:grid max-[640.01px]:items-start">
       <div>
-        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">At a glance</p>
         <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Price highlights</h1>
         <p>Recent activity and notable price movement.</p>
       </div>

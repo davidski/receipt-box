@@ -357,7 +357,6 @@ async function confirmRemoveEntry() {
   <div class="mx-auto w-full max-w-300">
     <header class="page-heading history-heading my-[15px] mb-8 items-end flex items-start justify-between gap-5 max-[900.01px]:grid max-[900.01px]:items-start max-[640.01px]:grid max-[640.01px]:items-start">
       <div>
-        <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Purchase records</p>
         <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Receipts</h1>
         <p>{{ view === 'receipts' ? 'Browse receipts by date.' : 'Browse individual purchase entries.' }}</p>
       </div>
@@ -507,7 +506,7 @@ async function confirmRemoveEntry() {
         </template>
         <section v-else class="col-span-full min-w-0 rounded-[18px] p-6 shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[18px_14px]" aria-labelledby="receipt-list-heading">
           <header class="receipt-list-heading mb-4 flex items-end justify-between gap-4.5 max-[640.01px]:items-start">
-            <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">All receipts</p><h2 id="receipt-list-heading">Shopping history</h2></div>
+            <div><h2 id="receipt-list-heading">Shopping history</h2></div>
             <div class="flex items-center gap-3.5">
               <span v-if="receiptData" class="text-[13px] text-(--muted)">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
             </div>

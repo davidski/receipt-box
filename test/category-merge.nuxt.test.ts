@@ -125,7 +125,7 @@ it('renames, merges, and deletes managed categories with impact confirmation', a
     global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
   })
   await flushPromises()
-  expect(wrapper.text()).toContain('2 items · 5 unique entries')
+  expect(wrapper.text()).toContain('2 items across 5 unique entries')
   await wrapper.findAll('button').find(button => button.text() === 'Rename')!.trigger('click')
   await wrapper.get('input[aria-label="Rename Dairy"]').setValue('Milk')
   await wrapper.get('form.store-edit').trigger('submit')
@@ -145,7 +145,7 @@ it('renames, merges, and deletes managed categories with impact confirmation', a
   await flushPromises()
   expect(categoryRequests[1]).toMatchObject({ method: 'POST', body: { sourceId: 'cat-dairy', targetId: 'cat-beverages' } })
   await vi.waitFor(() => expect(wrapper.find('[data-dialog="Merge categories?"]').exists()).toBe(false))
-  await vi.waitFor(() => expect(wrapper.text()).toContain('3 items · 7 unique entries'))
+  await vi.waitFor(() => expect(wrapper.text()).toContain('3 items across 7 unique entries'))
 
   await wrapper.findAll('button').find(button => button.text() === 'Delete')!.trigger('click')
   const deleteDialog = wrapper.get('[data-dialog="Delete category?"]')
@@ -169,7 +169,7 @@ it('adds a category and reports a duplicate name', async () => {
   await flushPromises()
   expect(categoryRequests[0]).toMatchObject({ method: 'POST', body: { name: 'Frozen Foods' } })
   await vi.waitFor(() => expect(wrapper.text()).toContain('Frozen Foods'))
-  expect(wrapper.text()).toContain('0 items · 0 unique entries')
+  expect(wrapper.text()).toContain('0 items across 0 unique entries')
 
   await wrapper.get('input[aria-label="New category name"]').setValue('frozen foods')
   await wrapper.get('form.store-add').trigger('submit')
