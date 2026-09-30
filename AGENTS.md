@@ -1,5 +1,9 @@
 # Repository instructions
 
+## Repository boundaries
+
+- Do not modify repository instruction files unless the user explicitly requests an instruction change.
+
 ## Interface components
 
 - Prefer Nuxt UI components over native HTML controls or custom replacements when Nuxt UI provides a suitable element.
