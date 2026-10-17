@@ -18,6 +18,6 @@ if (!enabled.value || loggedIn.value) await navigateTo('/')
     <p v-if="route.query.error === 'oidc'" class="notice error w-full -mt-2 mb-5 rounded-[10px] p-[11px_13px] text-sm" role="alert">
       Sign-in did not complete. Please try again.
     </p>
-    <UButton :href="loginURL" label="Continue to sign in" class="min-h-12 min-w-[210px] justify-center rounded-xl px-4.5 font-[750] text-white bg-(--accent) hover:bg-(--accent-strong) dark:text-[#102015]" />
+    <UButton :href="loginURL" external label="Continue to sign in" class="min-h-12 min-w-[210px] justify-center rounded-xl px-4.5 font-[750] text-white bg-(--accent) hover:bg-(--accent-strong) dark:text-[#102015]" />
   </section>
 </template>
