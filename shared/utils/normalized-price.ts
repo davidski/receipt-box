@@ -6,14 +6,14 @@ type NormalizedPrice = {
   value: number
 }
 
-const MASS_GRAMS: Record<string, number> = {
+export const MASS_GRAMS: Record<string, number> = {
   g: 1,
   kg: 1000,
   oz: 28.349523125,
   lb: 453.59237
 }
 
-const VOLUME_MILLILITERS: Record<string, number> = {
+export const VOLUME_MILLILITERS: Record<string, number> = {
   mL: 1,
   L: 1000,
   'fl oz': 29.5735295625,

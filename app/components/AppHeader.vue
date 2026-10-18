@@ -10,6 +10,7 @@ const displayName = computed(() => userDisplayName(user.value))
 const links = [
   { to: '/', label: 'Receipts', icon: 'i-lucide-receipt-text' },
   { to: '/highlights', label: 'Highlights', icon: 'i-lucide-sparkles' },
+  { to: '/recipe', label: 'Recipe', icon: 'i-lucide-chef-hat' },
   { to: '/data/stores', label: 'Manage', icon: 'i-lucide-settings' }
 ]
 
