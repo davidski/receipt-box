@@ -70,7 +70,8 @@ describe('Recipe cost page', () => {
       total: 0, excluded: 1
     })
     const wrapper = await mountAt('?l=Flour|1|cup')
-    expect(wrapper.get('[data-recipe-cost]').text()).toContain(`This unit can't be converted to ${purchaseUnit}, the unit of the latest purchase.`)
+    expect(wrapper.get('[data-recipe-cost] p').text()).toBe(`This unit can't be converted to ${purchaseUnit}, the unit of the latest purchase.`)
+    expect(wrapper.get('[data-recipe-cost]').find('strong').exists()).toBe(false)
     expect(bodies).toHaveLength(1)
   })
 
@@ -78,11 +79,22 @@ describe('Recipe cost page', () => {
     const wrapper = await mountAt('')
     expect(wrapper.get('[data-recipe-headers]').text()).toBe('ItemQuantityUnitCost')
     expect(wrapper.findAll('label').map(label => label.text())).toEqual(['Item', 'Quantity', 'Unit'])
-    const remove = wrapper.get('button[aria-label="Remove line"]')
+    const remove = wrapper.get('button[aria-label="Remove line 1"]')
     expect(remove.html()).toContain('i-lucide:x')
     expect(remove.find('.i-lucide-trash-2').exists()).toBe(false)
     await remove.trigger('click')
     expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(0)
+  })
+
+  it('counts only the response lines beside the total when blank or duplicate rows exist', async () => {
+    reply = () => ({ lines: [{ item: 'Flour', cost: 1, sale: false, error: null }], total: 1, excluded: 0 })
+    const wrapper = await mountAt('?l=Flour|100|g&l=flour|100|g')
+    expect(wrapper.get('[data-recipe-total]').text()).toContain('1 line')
+    await wrapper.findAll('button').find(button => button.text().includes('Add another line'))!.trigger('click')
+    expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(3)
+    expect(wrapper.get('[data-recipe-total]').text()).toContain('1 line')
+    expect(wrapper.get('[data-recipe-total]').text()).not.toContain('3 lines')
+    expect(wrapper.find('button[aria-label="Remove line 3"]').exists()).toBe(true)
   })
 
   it('offers grams for a pound ingredient and sends the selected unit', async () => {
@@ -107,7 +119,8 @@ describe('Recipe cost page', () => {
     expect(wrapper.text()).toContain('flour is already in this recipe')
     expect(wrapper.text()).not.toContain('Flour is already in this recipe')
     expect(bodies[0]!.lines).toEqual([{ item: 'Flour', quantity: 500, unit: 'g' }])
-    expect(wrapper.findAll('[data-recipe-cost]')[1]!.text()).toBe('Cost')
+    expect(wrapper.findAll('[data-recipe-cost]')[1]!.find('strong').exists()).toBe(false)
+    expect(wrapper.findAll('[data-recipe-cost]')[1]!.find('p').exists()).toBe(false)
   })
 
   it('keeps an item name containing a pipe and skips incomplete lines', async () => {
@@ -126,7 +139,7 @@ describe('Recipe cost page', () => {
 
     await wrapper.findAll('button').find(button => button.text().includes('Add another line'))!.trigger('click')
     expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(2)
-    await wrapper.get('button[aria-label="Remove line"]').trigger('click')
+    await wrapper.get('button[aria-label="Remove line 1"]').trigger('click')
     expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(1)
   })
 

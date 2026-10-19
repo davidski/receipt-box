@@ -150,7 +150,7 @@ onBeforeUnmount(() => {
           <UFormField label="Unit" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0">
             <UnitInput v-model="line.unit" ignore-filter class="w-full" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
           </UFormField>
-          <div data-recipe-cost aria-live="polite" class="flex min-h-11 min-w-0 items-center justify-end gap-2 text-right max-[900.01px]:flex-wrap max-[900.01px]:justify-start max-[900.01px]:text-left max-[640.01px]:col-span-2">
+          <div data-recipe-cost class="flex min-h-11 min-w-0 items-center justify-end gap-2 text-right max-[900.01px]:flex-wrap max-[900.01px]:justify-start max-[900.01px]:text-left max-[640.01px]:col-span-2">
             <span class="hidden text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase max-[900.01px]:block">Cost</span>
             <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ costErrorText(resultFor(line, index)!) }}</p>
             <template v-else-if="resultFor(line, index)">
@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
             </template>
           </div>
           <div class="flex min-h-11 items-center justify-end max-[900.01px]:absolute max-[900.01px]:right-2 max-[900.01px]:top-2">
-            <UButton icon="i-lucide-x" color="neutral" variant="ghost" :aria-label="`Remove ${line.item || 'line'}`" @click="lines.splice(index, 1)" />
+            <UButton icon="i-lucide-x" color="neutral" variant="ghost" :aria-label="`Remove line ${index + 1}`" @click="lines.splice(index, 1)" />
           </div>
         </li>
       </ul>
@@ -173,7 +173,7 @@ onBeforeUnmount(() => {
       <div v-if="response" data-recipe-total class="flex items-center justify-between gap-4 px-6 py-5 text-(--accent-strong) [border-top:1px_solid_var(--line)]" aria-live="polite">
         <span class="text-xs font-bold uppercase">Total<template v-if="response.excluded"> (partial, {{ response.excluded }} excluded)</template></span>
         <div class="text-right">
-          <span class="block text-xs text-(--muted)">{{ lines.length }} {{ lines.length === 1 ? 'line' : 'lines' }}</span>
+          <span class="block text-xs text-(--muted)">{{ response.lines.length }} {{ response.lines.length === 1 ? 'line' : 'lines' }}</span>
           <strong class="text-[28px]">{{ currency(response.total) }}</strong>
         </div>
       </div>
