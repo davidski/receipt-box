@@ -1,5 +1,6 @@
 import type postgres from 'postgres'
 import { categoryKey } from '../../shared/utils/category.ts'
+import { renameRecipeItems } from './recipe-query.ts'
 import { lockItemWrites, setItemCategory } from './category-query.ts'
 
 type Transaction = postgres.TransactionSql
@@ -92,5 +93,6 @@ export async function renameItemVariants(tx: Transaction, target: string, source
     `
     mergedEntries += updated.length
   }
+  if (sources.length) await renameRecipeItems(tx, target, sources)
   return mergedEntries
 }

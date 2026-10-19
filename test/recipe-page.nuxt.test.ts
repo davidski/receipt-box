@@ -4,13 +4,41 @@ import { createError, readBody } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RecipePage from '../app/pages/recipe.vue'
 
+const SAVED_AT = '2026-09-02T12:00:00.000Z'
+const savedRecipe = { id: '7', name: 'Pancakes', lines: [{ item: 'Flour', quantity: 500, unit: 'g' }], savedTotal: 12.35, savedAt: SAVED_AT, createdBy: null, updatedAt: SAVED_AT }
+const savedDate = new Date(SAVED_AT).toLocaleDateString(undefined, { dateStyle: 'medium' })
 const mounted: Array<{ unmount: () => void }> = []
 let bodies: Array<{ lines: Array<{ item: string, quantity: number, unit: string }> }>
 let reply: () => unknown
+let calls: Array<{ method: string, url: string, body?: any }>
+let listFails: boolean
+let recipeOverride: Record<string, unknown>
+let failWith: { statusCode: number, statusMessage: string } | null
 
 beforeEach(() => {
   bodies = []
   reply = () => ({ lines: [], total: 0, excluded: 0 })
+  calls = []
+  failWith = null
+  recipeOverride = {}
+  listFails = false
+  const recipeHandler = async (event: any) => {
+    const body = event.method === 'GET' || event.method === 'DELETE' ? undefined : await readBody(event)
+    const path = event.path.replace(/^\/_/, '')
+    calls.push({ method: event.method, url: path, body })
+    if (failWith && event.method !== 'GET') throw createError(failWith)
+    if (event.method === 'DELETE') return null
+    if (path === '/api/recipes' && event.method === 'GET' && listFails) throw createError({ statusCode: 500, statusMessage: 'down' })
+    if (path === '/api/recipes' && event.method === 'GET') return [{ id: '7', name: 'Pancakes', lineCount: 1, savedTotal: 12.35, savedAt: SAVED_AT, updatedAt: SAVED_AT }]
+    if (event.method === 'GET') return { ...savedRecipe, ...recipeOverride }
+    return event.method === 'POST' ? { ...savedRecipe, id: '8', name: body.name, lines: body.lines } : { ...savedRecipe, ...body, savedTotal: body.updateSavedPrice ? 14.2 : 12.35 }
+  }
+  registerEndpoint('/api/recipes', { method: 'GET', handler: recipeHandler })
+  registerEndpoint('/api/recipes', { method: 'POST', handler: recipeHandler })
+  registerEndpoint('/api/recipes/7', { method: 'GET', handler: recipeHandler })
+  registerEndpoint('/api/recipes/7', { method: 'PUT', handler: recipeHandler })
+  registerEndpoint('/api/recipes/7', { method: 'DELETE', handler: recipeHandler })
+  registerEndpoint('/api/recipes/99', { method: 'GET', handler: () => { throw createError({ statusCode: 404, statusMessage: 'Recipe not found' }) } })
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
   registerEndpoint('/api/suggestions', () => [])
   registerEndpoint('/api/recipe-cost', {
@@ -166,6 +194,227 @@ describe('Recipe cost page', () => {
 
     expect(wrapper.text()).toContain('Flour needs a quantity above zero')
     expect(wrapper.find('[data-recipe-total]').exists()).toBe(false)
+  })
+
+  describe('saved recipes', () => {
+    const settle = async () => { await new Promise(resolve => setTimeout(resolve, 60)); await flushPromises() }
+    const costOf = (total: number) => () => ({ lines: [{ item: 'Flour', cost: total, sale: false, error: null }], total, excluded: 0 })
+    const button = (wrapper: any, label: string) => wrapper.findAll('button').find((b: any) => b.text().includes(label))
+    const typeName = async (wrapper: any, value: string) => wrapper.get('input[aria-label="Recipe name"]').setValue(value)
+
+    it('links to the recipe list page', async () => {
+      const wrapper = await mountAt('')
+      expect(wrapper.findAll('a').find(a => a.text().includes('All recipes'))!.attributes('href')).toBe('/recipes')
+    })
+
+    it('lists saved recipes and creates a new one with POST', async () => {
+      reply = costOf(12.35)
+      const wrapper = await mountAt('?l=Flour|500|g')
+      expect(button(wrapper, 'Save recipe')!.attributes('disabled')).toBeDefined()
+      await typeName(wrapper, '  Crepes ')
+      await button(wrapper, 'Save recipe')!.trigger('click')
+      await settle()
+
+      const post = calls.find(call => call.method === 'POST')!
+      expect(post.body).toEqual({ name: 'Crepes', lines: [{ item: 'Flour', quantity: 500, unit: 'g' }] })
+      expect(wrapper.get('[data-recipe-snapshot]').text()).toContain('Saved at $12.35')
+      expect(button(wrapper, 'Save changes')!.attributes('disabled')).toBeDefined()
+      expect(button(wrapper, 'Delete')).toBeTruthy()
+    })
+
+    it('loads a recipe by ?recipe= and ignores ?l= lines', async () => {
+      reply = costOf(14.2)
+      const wrapper = await mountAt('?recipe=7&l=Salt|1|g')
+
+      expect(calls.some(call => call.method === 'GET' && call.url === '/api/recipes/7')).toBe(true)
+      expect((wrapper.get('input[aria-label="Recipe name"]').element as HTMLInputElement).value).toBe('Pancakes')
+      expect(bodies.at(-1)!.lines).toEqual([{ item: 'Flour', quantity: 500, unit: 'g' }])
+      expect(bodies.every(body => !body.lines.some(line => line.item === 'Salt'))).toBe(true)
+    })
+
+    it('shows the saved snapshot with an upward change in warning color', async () => {
+      reply = costOf(14.2)
+      const wrapper = await mountAt('?recipe=7')
+      const snapshot = wrapper.get('[data-recipe-snapshot]')
+
+      expect(snapshot.text()).toContain(`Saved at $12.35 on ${savedDate} · now $14.20`)
+      expect(snapshot.get('[data-recipe-change]').text()).toBe('(+$1.85)')
+      expect(snapshot.get('[data-recipe-change]').classes()).toContain('text-warning')
+    })
+
+    it('shows a downward change in success color', async () => {
+      reply = costOf(10.35)
+      const wrapper = await mountAt('?recipe=7')
+      const change = wrapper.get('[data-recipe-change]')
+      expect(change.text()).toBe('(-$2.00)')
+      expect(change.classes()).toContain('text-success')
+    })
+
+    it('hides the change and the Update saved price button when the price is unchanged', async () => {
+      reply = costOf(12.35)
+      const wrapper = await mountAt('?recipe=7')
+      expect(wrapper.get('[data-recipe-snapshot]').text()).toContain('now $12.35')
+      expect(wrapper.find('[data-recipe-change]').exists()).toBe(false)
+      expect(button(wrapper, 'Update saved price')).toBeUndefined()
+    })
+
+    it('hides the change when there is no live total', async () => {
+      const wrapper = await mountAt('?recipe=7')
+      reply = () => ({ lines: [], total: 0, excluded: 0 })
+      await wrapper.get('button[aria-label="Remove line 1"]').trigger('click')
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(wrapper.get('[data-recipe-snapshot]').text()).not.toContain('now')
+      expect(wrapper.find('[data-recipe-change]').exists()).toBe(false)
+      expect(button(wrapper, 'Update saved price')).toBeUndefined()
+    })
+
+    const allExcluded = () => ({ lines: [{ item: 'Flour', cost: null, sale: false, error: 'NO_PRICE' }], total: 0, excluded: 1 })
+
+    it('treats an all-excluded response as no live total for a recipe with no saved price', async () => {
+      recipeOverride = { savedTotal: null }
+      reply = allExcluded
+      const wrapper = await mountAt('?recipe=7')
+
+      expect(wrapper.get('[data-recipe-snapshot]').text()).toContain('with no priced lines')
+      expect(wrapper.get('[data-recipe-snapshot]').text()).not.toContain('$0.00')
+      expect(button(wrapper, 'Update saved price')).toBeUndefined()
+    })
+
+    it('shows no "now" or change for a priced recipe whose lines have all become unpriceable', async () => {
+      reply = allExcluded
+      const wrapper = await mountAt('?recipe=7')
+
+      expect(wrapper.get('[data-recipe-snapshot]').text()).toContain('Saved at $12.35')
+      expect(wrapper.get('[data-recipe-snapshot]').text()).not.toContain('now')
+      expect(wrapper.get('[data-recipe-snapshot]').text()).not.toContain('$0.00')
+      expect(wrapper.find('[data-recipe-change]').exists()).toBe(false)
+      expect(button(wrapper, 'Update saved price')).toBeUndefined()
+    })
+
+    it('offers Update saved price when a recipe saved without a price becomes priceable', async () => {
+      recipeOverride = { savedTotal: null }
+      reply = costOf(5)
+      const wrapper = await mountAt('?recipe=7')
+      expect(button(wrapper, 'Update saved price')).toBeTruthy()
+    })
+
+    it('hides Update saved price while there are unsaved edits and restores it when they are undone', async () => {
+      reply = costOf(14.2)
+      const wrapper = await mountAt('?recipe=7')
+      expect(button(wrapper, 'Update saved price')).toBeTruthy()
+
+      await typeName(wrapper, 'Pancakes v2')
+      expect(button(wrapper, 'Update saved price')).toBeUndefined()
+      expect(calls.some(call => call.method === 'PUT')).toBe(false)
+
+      await typeName(wrapper, 'Pancakes')
+      expect(button(wrapper, 'Update saved price')).toBeTruthy()
+    })
+
+    it('names the picker after the selected recipe and announces errors', async () => {
+      const wrapper = await mountAt('?recipe=7')
+      expect(wrapper.get('button[aria-haspopup="listbox"]').attributes('aria-label')).toBe('Saved recipe: Pancakes')
+
+      failWith = { statusCode: 409, statusMessage: 'duplicate' }
+      await typeName(wrapper, 'Crepes')
+      await button(wrapper, 'Save changes')!.trigger('click')
+      await settle()
+      expect(wrapper.get('[data-recipe-error]').attributes('role')).toBe('alert')
+    })
+
+    it('shows an inline error when the saved recipe list cannot load', async () => {
+      listFails = true
+      const wrapper = await mountAt('')
+      expect(wrapper.get('[data-recipe-list-error]').text()).toContain('Could not load the saved recipes')
+      expect(wrapper.get('[data-recipe-list-error]').attributes('role')).toBe('alert')
+    })
+
+    it('Update saved price sends the flag', async () => {
+      reply = costOf(14.2)
+      const wrapper = await mountAt('?recipe=7')
+      await button(wrapper, 'Update saved price')!.trigger('click')
+      await settle()
+
+      const put = calls.find(call => call.method === 'PUT')!
+      expect(put.url).toBe('/api/recipes/7')
+      expect(put.body).toMatchObject({ name: 'Pancakes', updateSavedPrice: true })
+      expect(wrapper.get('[data-recipe-snapshot]').text()).toContain('Saved at $14.20')
+      expect(button(wrapper, 'Update saved price')).toBeUndefined()
+    })
+
+    it('saving edits sends a PUT without the update flag', async () => {
+      reply = costOf(12.35)
+      const wrapper = await mountAt('?recipe=7')
+      expect(button(wrapper, 'Save changes')!.attributes('disabled')).toBeDefined()
+      await typeName(wrapper, 'Crepes')
+      await button(wrapper, 'Save changes')!.trigger('click')
+      await settle()
+
+      const put = calls.find(call => call.method === 'PUT')!
+      expect(put.body.name).toBe('Crepes')
+      expect(put.body).not.toHaveProperty('updateSavedPrice')
+    })
+
+    it('shows a plain error when the name is taken', async () => {
+      reply = costOf(12.35)
+      failWith = { statusCode: 409, statusMessage: 'duplicate' }
+      const wrapper = await mountAt('?l=Flour|500|g')
+      await typeName(wrapper, 'pancakes')
+      await button(wrapper, 'Save recipe')!.trigger('click')
+      await settle()
+
+      expect(wrapper.get('[data-recipe-error]').text()).toBe('A recipe named “pancakes” already exists. Choose a different name.')
+      expect(wrapper.find('[data-recipe-snapshot]').exists()).toBe(false)
+    })
+
+    it('reports a recipe deleted elsewhere when saving and detaches it', async () => {
+      reply = costOf(12.35)
+      const wrapper = await mountAt('?recipe=7')
+      failWith = { statusCode: 404, statusMessage: 'gone' }
+      await typeName(wrapper, 'Crepes')
+      await button(wrapper, 'Save changes')!.trigger('click')
+      await settle()
+
+      expect(wrapper.get('[data-recipe-error]').text()).toContain('no longer exists')
+      expect(wrapper.find('[data-recipe-snapshot]').exists()).toBe(false)
+      expect(button(wrapper, 'Save recipe')).toBeTruthy()
+    })
+
+    it('shows an error and falls back to a blank recipe when ?recipe= is missing', async () => {
+      const wrapper = await mountAt('?recipe=99')
+      expect(wrapper.get('[data-recipe-error]').text()).toContain('no longer exists')
+      expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(1)
+      expect(wrapper.find('[data-recipe-snapshot]').exists()).toBe(false)
+    })
+
+    it('requires confirmation before deleting', async () => {
+      reply = costOf(12.35)
+      const wrapper = await mountAt('?recipe=7')
+      await button(wrapper, 'Delete')!.trigger('click')
+      await settle()
+
+      expect(calls.some(call => call.method === 'DELETE')).toBe(false)
+      expect(document.body.textContent).toContain('Delete recipe?')
+      const confirm = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Delete recipe')!
+      confirm.click()
+      await settle()
+
+      expect(calls.filter(call => call.method === 'DELETE')).toHaveLength(1)
+      expect(wrapper.find('[data-recipe-snapshot]').exists()).toBe(false)
+      expect((wrapper.get('input[aria-label="Recipe name"]').element as HTMLInputElement).value).toBe('')
+    })
+
+    it('cancelling the confirmation keeps the recipe', async () => {
+      reply = costOf(12.35)
+      const wrapper = await mountAt('?recipe=7')
+      await button(wrapper, 'Delete')!.trigger('click')
+      await settle()
+      Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Cancel')!.click()
+      await settle()
+
+      expect(calls.some(call => call.method === 'DELETE')).toBe(false)
+      expect(wrapper.find('[data-recipe-snapshot]').exists()).toBe(true)
+    })
   })
 
   it('reorders a line from the keyboard, keeps focus on its handle and syncs the query', async () => {

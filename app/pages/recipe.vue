@@ -4,6 +4,9 @@ type Line = { key: number, item: string, quantity: number | string | undefined, 
 type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'INCOMPATIBLE_UNIT'
 type CostResult = { item: string, cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null }
 type CostResponse = { lines: CostResult[], total: number, excluded: number }
+type RecipeLine = { item: string, quantity: number, unit: string }
+type RecipeSummary = { id: string, name: string, lineCount: number }
+type Recipe = { id: string, name: string, lines: RecipeLine[], savedTotal: number | string | null, savedAt: string }
 
 const errorText: Record<CostError, string> = {
   NO_PRICE: 'No purchases recorded for this item.',
@@ -29,7 +32,10 @@ function parseLine(value: string): Line {
   return { key: nextKey++, item, quantity: quantity > 0 ? quantity : undefined, unit, options: item ? [{ value: item }] : [] }
 }
 
-const queryLines = [route.query.l].flat().filter((value): value is string => typeof value === 'string' && value.includes('|'))
+// A valid ?recipe=<id> wins over ?l= lines.
+const recipeParam = String([route.query.recipe].flat()[0] ?? '')
+const queryRecipeId = /^[1-9]\d*$/.test(recipeParam) ? recipeParam : null
+const queryLines = queryRecipeId ? [] : [route.query.l].flat().filter((value): value is string => typeof value === 'string' && value.includes('|'))
 const lines = ref<Line[]>(queryLines.length ? queryLines.map(parseLine) : [blankLine()])
 const { dragIndex, handle, rowStyle } = useLineReorder(lines)
 const response = ref<CostResponse | null>(null)
@@ -47,6 +53,122 @@ const sendable = computed(() => lines.value
 const results = computed(() => new Map((response.value?.lines ?? []).map(result => [itemKey(result.item), result])))
 
 const resultFor = (line: Line, index: number) => isDuplicate(line, index) ? undefined : results.value.get(itemKey(line.item))
+
+const recipes = ref<RecipeSummary[]>([])
+const loaded = ref<Recipe | null>(null)
+const loadedId = ref<string | null>(null)
+const name = ref('')
+const saving = ref(false)
+const deleteConfirmOpen = ref(false)
+const recipeError = ref('')
+const listError = ref('')
+
+const NEW_RECIPE = 'new'
+const recipeItems = computed(() => [
+  { label: 'New recipe', value: NEW_RECIPE },
+  ...recipes.value.map(recipe => ({ label: recipe.name, value: recipe.id, description: `${recipe.lineCount} ${recipe.lineCount === 1 ? 'line' : 'lines'}` }))
+])
+const signature = (value: string, recipeLines: RecipeLine[]) => JSON.stringify([value.trim(), recipeLines.map(line => [line.item.trim(), Number(line.quantity), line.unit])])
+const dirty = computed(() => !!loaded.value && signature(name.value, sendable.value) !== signature(loaded.value.name, loaded.value.lines))
+const canSave = computed(() => !saving.value && !!name.value.trim() && sendable.value.length > 0 && (!loaded.value || dirty.value))
+
+const cents = (value: number | string) => Math.round(Number(value) * 100)
+const savedTotal = computed(() => loaded.value?.savedTotal == null ? null : Number(loaded.value.savedTotal))
+// The cost API reports a total of 0 when every line is excluded; treat that as "no live total", like the server snapshot and the list page.
+const liveTotal = computed(() => response.value && response.value.excluded < response.value.lines.length ? response.value.total : null)
+const change = computed(() => savedTotal.value === null || liveTotal.value === null ? null : (cents(liveTotal.value) - cents(savedTotal.value)) / 100)
+// Updating the snapshot also saves the page's lines, so only offer it for the lines as saved.
+const canUpdateSavedPrice = computed(() => !dirty.value && liveTotal.value !== null && (savedTotal.value === null || cents(liveTotal.value) !== cents(savedTotal.value)))
+const savedDate = computed(() => loaded.value ? new Date(loaded.value.savedAt).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '')
+
+function recipeErrorText(error: any, fallback: string) {
+  const status = error?.statusCode ?? error?.status
+  if (status === 409) return `A recipe named “${name.value.trim()}” already exists. Choose a different name.`
+  if (status === 404) return 'This recipe no longer exists. It may have been deleted by someone else.'
+  return error?.data?.statusMessage || error?.message || fallback
+}
+
+function resetRecipe() {
+  loaded.value = null
+  loadedId.value = null
+  name.value = ''
+  lines.value = [blankLine()]
+}
+
+function adopt(recipe: Recipe) {
+  loaded.value = recipe
+  loadedId.value = recipe.id
+  name.value = recipe.name
+}
+
+async function refreshRecipes() {
+  try {
+    recipes.value = await $fetch<RecipeSummary[]>(apiUrl('/recipes'))
+    listError.value = ''
+  } catch {
+    listError.value = 'Could not load the saved recipes. Reload the page to try again.'
+  }
+}
+
+async function loadRecipe(id: string) {
+  recipeError.value = ''
+  try {
+    const recipe = await $fetch<Recipe>(apiUrl(`/recipes/${id}`))
+    lines.value = recipe.lines.length
+      ? recipe.lines.map(line => ({ key: nextKey++, item: line.item, quantity: line.quantity, unit: line.unit, options: [{ value: line.item }] }))
+      : [blankLine()]
+    adopt(recipe)
+  } catch (error: any) {
+    recipeError.value = recipeErrorText(error, 'Could not load the recipe.')
+    resetRecipe()
+    router.replace({ query: {} })
+  }
+}
+
+function pickRecipe(value: string) {
+  recipeError.value = ''
+  if (value === NEW_RECIPE) resetRecipe()
+  else loadRecipe(value)
+}
+
+async function saveRecipe(updateSavedPrice = false) {
+  const id = loadedId.value
+  saving.value = true
+  recipeError.value = ''
+  try {
+    const saved = await $fetch<Recipe>(apiUrl(id ? `/recipes/${id}` : '/recipes'), {
+      method: id ? 'PUT' : 'POST',
+      body: { name: name.value.trim(), lines: sendable.value, ...(updateSavedPrice ? { updateSavedPrice: true } : {}) }
+    })
+    adopt(saved)
+    await refreshRecipes()
+  } catch (error: any) {
+    recipeError.value = recipeErrorText(error, 'Could not save the recipe.')
+    if (id && (error?.statusCode ?? error?.status) === 404) {
+      loaded.value = null
+      loadedId.value = null
+      refreshRecipes()
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+async function deleteRecipe() {
+  saving.value = true
+  recipeError.value = ''
+  try {
+    await $fetch(apiUrl(`/recipes/${loadedId.value}`), { method: 'DELETE' })
+    resetRecipe()
+  } catch (error: any) {
+    recipeError.value = recipeErrorText(error, 'Could not delete the recipe.')
+    if ((error?.statusCode ?? error?.status) === 404) resetRecipe()
+  } finally {
+    saving.value = false
+    deleteConfirmOpen.value = false
+    refreshRecipes()
+  }
+}
 
 function costErrorText(result: CostResult) {
   if (result.error === 'INCOMPATIBLE_UNIT' && result.purchaseUnit) {
@@ -83,7 +205,8 @@ function searchItems(line: Line, term: string) {
   }, 160)
 }
 
-watch(lines, (current) => {
+watch([lines, loadedId], ([current, id]) => {
+  if (id) return router.replace({ query: { recipe: String(id) } })
   const l = current.filter(line => line.item).map(line => `${line.item}|${line.quantity ?? ''}|${line.unit}`)
   router.replace({ query: l.length ? { l } : {} })
 }, { deep: true })
@@ -113,6 +236,11 @@ watch(sendable, (current) => {
   costTimer = setTimeout(loadCosts, 300)
 }, { deep: true, immediate: true })
 
+onMounted(() => {
+  refreshRecipes()
+  if (queryRecipeId) loadRecipe(queryRecipeId)
+})
+
 onBeforeUnmount(() => {
   clearTimeout(searchTimer)
   clearTimeout(costTimer)
@@ -125,6 +253,26 @@ onBeforeUnmount(() => {
       <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Recipe cost</h1>
       <p>Add ingredients to price them at what you last paid.</p>
     </header>
+
+    <div data-recipe-toolbar class="mb-4 flex flex-wrap items-center gap-2.5">
+      <USelectMenu
+        :model-value="loadedId ?? NEW_RECIPE"
+        :items="recipeItems"
+        value-key="value"
+        :aria-label="`Saved recipe: ${loaded?.name ?? 'New recipe'}`"
+        icon="i-lucide-book-open"
+        class="w-full sm:w-64"
+        :ui="{ base: 'min-h-11' }"
+        @update:model-value="pickRecipe"
+      />
+      <UInput v-model="name" aria-label="Recipe name" placeholder="Recipe name" maxlength="120" class="min-w-48 flex-1" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
+      <UButton icon="i-lucide-save" :label="loadedId ? 'Save changes' : 'Save recipe'" :disabled="!canSave" :loading="saving" @click="saveRecipe()" />
+      <UButton to="/recipes" icon="i-lucide-list" label="All recipes" color="neutral" variant="ghost" />
+      <UButton v-if="loadedId" icon="i-lucide-trash-2" label="Delete" color="error" variant="outline" :disabled="saving" @click="deleteConfirmOpen = true" />
+    </div>
+
+    <UAlert v-if="listError" data-recipe-list-error role="alert" class="mb-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="listError" />
+    <UAlert v-if="recipeError" data-recipe-error role="alert" class="mb-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="recipeError" />
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden rounded-[24px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
       <div data-recipe-headers aria-hidden="true" class="grid grid-cols-[minmax(230px,2fr)_120px_130px_minmax(180px,1fr)_40px] items-center gap-2.5 p-[12px_24px_10px_54px] text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)] max-[900.01px]:hidden">
@@ -171,7 +319,7 @@ onBeforeUnmount(() => {
       <UButton class="mx-6 my-4 max-[640.01px]:mx-3" icon="i-lucide-plus" label="Add another line" color="neutral" variant="outline" @click="lines.push(blankLine())" />
 
       <div v-if="requestError" class="px-6 pb-4">
-        <UAlert color="error" variant="soft" icon="i-lucide-circle-alert" :description="requestError" />
+        <UAlert role="alert" color="error" variant="soft" icon="i-lucide-circle-alert" :description="requestError" />
       </div>
 
       <div v-if="response" data-recipe-total class="flex items-center justify-between gap-4 px-6 py-5 text-(--accent-strong) [border-top:1px_solid_var(--line)]" aria-live="polite">
@@ -181,6 +329,26 @@ onBeforeUnmount(() => {
           <strong class="text-[28px]">{{ currency(response.total) }}</strong>
         </div>
       </div>
+
+      <div v-if="loaded" data-recipe-snapshot class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 text-sm [border-top:1px_solid_var(--line)]">
+        <p class="m-0 text-(--muted)">
+          <template v-if="savedTotal === null">Saved on {{ savedDate }} with no priced lines</template>
+          <template v-else>Saved at {{ currency(savedTotal) }} on {{ savedDate }}</template>
+          <template v-if="liveTotal !== null"> · now {{ currency(liveTotal) }}</template>
+          <strong v-if="change" data-recipe-change :class="change > 0 ? 'text-warning' : 'text-success'"> ({{ change > 0 ? '+' : '-' }}{{ currency(Math.abs(change)) }})</strong>
+        </p>
+        <UButton v-if="canUpdateSavedPrice" label="Update saved price" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :disabled="saving" @click="saveRecipe(true)" />
+      </div>
     </UCard>
+
+    <ConfirmModal
+      v-model:open="deleteConfirmOpen"
+      title="Delete recipe?"
+      :description="`Delete “${loaded?.name ?? ''}”? This cannot be undone.`"
+      confirm-label="Delete recipe"
+      confirm-color="error"
+      :loading="saving"
+      @confirm="deleteRecipe"
+    />
   </div>
 </template>

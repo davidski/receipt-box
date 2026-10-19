@@ -10,12 +10,12 @@ const displayName = computed(() => userDisplayName(user.value))
 const links = [
   { to: '/', label: 'Receipts', icon: 'i-lucide-receipt-text' },
   { to: '/highlights', label: 'Highlights', icon: 'i-lucide-sparkles' },
-  { to: '/recipe', label: 'Recipe', icon: 'i-lucide-chef-hat' },
+  { to: '/recipes', label: 'Recipes', icon: 'i-lucide-chef-hat' },
   { to: '/data/stores', label: 'Manage', icon: 'i-lucide-settings' }
 ]
 
 function isActive(to: string) {
-  return route.path === to || (to === '/' && (route.path.startsWith('/receipts/') || route.path.startsWith('/history/') || route.path.startsWith('/items/'))) || (to === '/data/stores' && (route.path === '/data' || route.path.startsWith('/data/')))
+  return route.path === to || (to === '/' && (route.path.startsWith('/receipts/') || route.path.startsWith('/history/') || route.path.startsWith('/items/'))) || (to === '/recipes' && route.path === '/recipe') || (to === '/data/stores' && (route.path === '/data' || route.path.startsWith('/data/')))
 }
 
 async function logout() {

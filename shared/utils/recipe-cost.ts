@@ -40,3 +40,17 @@ export function summarizeRecipeCost(lines: RecipeLineCost[]) {
   const cents = lines.reduce((sum, line) => sum + (line.cost === null ? 0 : Math.round(line.cost * 100)), 0)
   return { total: cents / 100, excluded: lines.filter(line => line.error).length }
 }
+
+/** Points every line named like `target` or a source at `target`, keeping the first of any duplicates. */
+export function renameRecipeLineItems(lines: RecipeLine[], target: string, sources: string[]): RecipeLine[] {
+  const matches = new Set([target, ...sources].map(name => name.trim().toLowerCase()))
+  const seen = new Set<string>()
+  return lines.flatMap((line) => {
+    const key = line.item.trim().toLowerCase()
+    const item = matches.has(key) ? target : line.item
+    const itemKey = item.trim().toLowerCase()
+    if (seen.has(itemKey)) return []
+    seen.add(itemKey)
+    return [{ ...line, item }]
+  })
+}
