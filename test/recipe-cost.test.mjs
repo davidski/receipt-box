@@ -32,6 +32,11 @@ describe('costLine', () => {
     assert.equal(costLine(line({ quantity: 4, unit: 'oz' }), purchase()).cost, 0.91)
   })
 
+  test('converts pounds and grams in both directions, including the gr alias', () => {
+    assert.equal(costLine(line({ quantity: 100, unit: 'gr' }), purchase({ price: 10, size: 1, unit: 'lb' })).cost, 2.2)
+    assert.equal(costLine(line({ quantity: 1, unit: 'lb' }), purchase({ price: 10, size: 1000, unit: 'g' })).cost, 4.54)
+  })
+
   test('converts cups against a millilitre package', () => {
     // 1 cup = 236.588 mL of a $3.00 / 1000 mL package
     assert.equal(costLine(line({ item: 'Milk', unit: 'cup', quantity: 1 }), purchase({ price: 3, size: 1, unit: 'L' })).cost, 0.71)
