@@ -64,6 +64,16 @@ describe('Recipe cost page', () => {
     expect(wrapper.get('[data-recipe-total]').text()).toContain('partial, 3 excluded')
   })
 
+  it.each(['lb', 'g', 'ea', 'bunch'])('shows the latest purchase unit %s when conversion is impossible', async (purchaseUnit) => {
+    reply = () => ({
+      lines: [{ item: 'Flour', cost: null, sale: false, error: 'INCOMPATIBLE_UNIT', purchaseUnit }],
+      total: 0, excluded: 1
+    })
+    const wrapper = await mountAt('?l=Flour|1|cup')
+    expect(wrapper.get('[data-recipe-cost]').text()).toBe(`This unit can't be converted to ${purchaseUnit}, the unit of the latest purchase.`)
+    expect(bodies).toHaveLength(1)
+  })
+
   it('offers grams for a pound ingredient and sends the selected unit', async () => {
     const wrapper = await mountAt('?l=Flour|100|lb')
     const unit = wrapper.findAll('input[role="combobox"]')[1]!
