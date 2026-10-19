@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
             <UInput v-model.number="line.quantity" type="number" min="0" step="any" inputmode="decimal" placeholder="0" class="w-full" />
           </UFormField>
           <UFormField label="Unit">
-            <UnitInput v-model="line.unit" class="w-full" />
+            <UnitInput v-model="line.unit" ignore-filter class="w-full" />
           </UFormField>
           <div data-recipe-cost class="flex min-h-[52px] min-w-0 items-center justify-end gap-2 self-start mt-6 text-right max-[640.01px]:col-span-2 max-[640.01px]:justify-start max-[640.01px]:text-left">
             <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ errorText[resultFor(line, index)!.error!] }}</p>

@@ -27,7 +27,7 @@ afterEach(() => {
 })
 
 async function mountAt(query: string) {
-  const wrapper = await mountSuspended(RecipePage, { route: `/recipe${query}` })
+  const wrapper = await mountSuspended(RecipePage, { route: `/recipe${query}`, attachTo: document.body })
   mounted.push(wrapper)
   await new Promise(resolve => setTimeout(resolve, 450))
   await flushPromises()
@@ -62,6 +62,21 @@ describe('Recipe cost page', () => {
     expect(text).toContain('This unit can\'t be converted to the unit it was bought in.')
     expect(text).toContain('The latest purchase has no package size.')
     expect(wrapper.get('[data-recipe-total]').text()).toContain('partial, 3 excluded')
+  })
+
+  it('offers grams for a pound ingredient and sends the selected unit', async () => {
+    const wrapper = await mountAt('?l=Flour|100|lb')
+    const unit = wrapper.findAll('input[role="combobox"]')[1]!
+    await unit.trigger('focus')
+    await unit.trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+    const options = Array.from(document.querySelectorAll('[role="option"]'))
+    expect(options.map(option => option.textContent?.trim())).toContain('g')
+    const grams = options.find(option => option.textContent?.trim() === 'g')!
+    ;(grams as HTMLElement).click()
+    await new Promise(resolve => setTimeout(resolve, 450))
+    await flushPromises()
+    expect(bodies.at(-1)!.lines).toEqual([{ item: 'Flour', quantity: 100, unit: 'g' }])
   })
 
   it('flags a duplicate item and does not send it', async () => {
