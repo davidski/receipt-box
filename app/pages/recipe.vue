@@ -125,47 +125,57 @@ onBeforeUnmount(() => {
       <p>Add ingredients to price them at what you last paid.</p>
     </header>
 
-    <UCard class="rounded-[22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
-      <ul class="m-0 grid list-none gap-4 p-0">
-        <li v-for="(line, index) in lines" :key="line.key" data-recipe-line class="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-3 max-[640.01px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-          <UFormField label="Item" class="max-[640.01px]:col-span-3" :error="isDuplicate(line, index) ? `${line.item} is already in this recipe` : undefined">
+    <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden rounded-[24px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+      <div data-recipe-headers aria-hidden="true" class="grid grid-cols-[minmax(230px,2fr)_120px_130px_minmax(180px,1fr)_40px] items-center gap-2.5 p-[12px_24px_10px_54px] text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)] max-[900.01px]:hidden">
+        <span>Item</span><span>Quantity</span><span>Unit</span><span class="text-right">Cost</span><span />
+      </div>
+      <ul class="m-0 grid list-none p-0 max-[900.01px]:gap-3 max-[900.01px]:p-3">
+        <li v-for="(line, index) in lines" :key="line.key" data-recipe-line class="relative grid grid-cols-[minmax(230px,2fr)_120px_130px_minmax(180px,1fr)_40px] items-start gap-2.5 p-[12px_24px_12px_54px] [border-top:1px_solid_var(--line)] max-[900.01px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] max-[900.01px]:rounded-[16px] max-[900.01px]:p-[42px_14px_14px] max-[900.01px]:[border:1px_solid_var(--line)] max-[640.01px]:grid-cols-2">
+          <span aria-hidden="true" class="absolute left-4 top-5 flex size-6 items-center justify-center rounded-lg bg-(--surface-muted) text-xs font-bold text-(--muted) max-[900.01px]:left-3 max-[900.01px]:top-3">{{ index + 1 }}</span>
+          <UFormField label="Item" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0 max-[900.01px]:col-span-3 max-[640.01px]:col-span-2" :error="isDuplicate(line, index) ? `${line.item} is already in this recipe` : undefined">
             <UInputMenu
               v-model="line.item"
               :items="itemOptions(line)"
               value-key="value"
               ignore-filter
               class="w-full"
-              icon="i-lucide-search"
+              :ui="{ base: 'min-h-11 px-2.5 py-2' }"
               placeholder="Start typing an item…"
               @update:search-term="searchItems(line, $event)"
             />
           </UFormField>
-          <UFormField label="Quantity">
-            <UInput v-model.number="line.quantity" type="number" min="0" step="any" inputmode="decimal" placeholder="0" class="w-full" />
+          <UFormField label="Quantity" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0">
+            <UInput v-model.number="line.quantity" type="number" min="0" step="any" inputmode="decimal" placeholder="0" class="w-full" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
           </UFormField>
-          <UFormField label="Unit">
-            <UnitInput v-model="line.unit" ignore-filter class="w-full" />
+          <UFormField label="Unit" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0">
+            <UnitInput v-model="line.unit" ignore-filter class="w-full" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
           </UFormField>
-          <div data-recipe-cost class="flex min-h-[52px] min-w-0 items-center justify-end gap-2 self-start mt-6 text-right max-[640.01px]:col-span-2 max-[640.01px]:justify-start max-[640.01px]:text-left">
+          <div data-recipe-cost aria-live="polite" class="flex min-h-11 min-w-0 items-center justify-end gap-2 text-right max-[900.01px]:flex-wrap max-[900.01px]:justify-start max-[900.01px]:text-left max-[640.01px]:col-span-2">
+            <span class="hidden text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase max-[900.01px]:block">Cost</span>
             <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ costErrorText(resultFor(line, index)!) }}</p>
             <template v-else-if="resultFor(line, index)">
               <strong class="text-(--accent-strong)">{{ currency(resultFor(line, index)!.cost!) }}</strong>
               <UBadge v-if="resultFor(line, index)!.sale" label="Sale" color="warning" variant="soft" />
             </template>
           </div>
-          <div class="mt-6 flex min-h-[52px] items-center self-start">
-            <UButton icon="i-lucide-trash-2" color="neutral" variant="ghost" :aria-label="`Remove ${line.item || 'line'}`" @click="lines.splice(index, 1)" />
+          <div class="flex min-h-11 items-center justify-end max-[900.01px]:absolute max-[900.01px]:right-2 max-[900.01px]:top-2">
+            <UButton icon="i-lucide-x" color="neutral" variant="ghost" :aria-label="`Remove ${line.item || 'line'}`" @click="lines.splice(index, 1)" />
           </div>
         </li>
       </ul>
 
-      <UButton class="mt-4" icon="i-lucide-plus" label="Add item" color="neutral" variant="outline" @click="lines.push(blankLine())" />
+      <UButton class="mx-6 my-4 max-[640.01px]:mx-3" icon="i-lucide-plus" label="Add another line" color="neutral" variant="outline" @click="lines.push(blankLine())" />
 
-      <UAlert v-if="requestError" class="mt-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="requestError" />
+      <div v-if="requestError" class="px-6 pb-4">
+        <UAlert color="error" variant="soft" icon="i-lucide-circle-alert" :description="requestError" />
+      </div>
 
-      <div v-if="response" data-recipe-total class="mt-6 flex items-center justify-between rounded-xl px-4 py-3 text-(--accent-strong) [background:var(--accent-soft)]" aria-live="polite">
+      <div v-if="response" data-recipe-total class="flex items-center justify-between gap-4 px-6 py-5 text-(--accent-strong) [border-top:1px_solid_var(--line)]" aria-live="polite">
         <span class="text-xs font-bold uppercase">Total<template v-if="response.excluded"> (partial, {{ response.excluded }} excluded)</template></span>
-        <strong class="text-[22px]">{{ currency(response.total) }}</strong>
+        <div class="text-right">
+          <span class="block text-xs text-(--muted)">{{ lines.length }} {{ lines.length === 1 ? 'line' : 'lines' }}</span>
+          <strong class="text-[28px]">{{ currency(response.total) }}</strong>
+        </div>
       </div>
     </UCard>
   </div>

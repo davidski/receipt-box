@@ -70,8 +70,19 @@ describe('Recipe cost page', () => {
       total: 0, excluded: 1
     })
     const wrapper = await mountAt('?l=Flour|1|cup')
-    expect(wrapper.get('[data-recipe-cost]').text()).toBe(`This unit can't be converted to ${purchaseUnit}, the unit of the latest purchase.`)
+    expect(wrapper.get('[data-recipe-cost]').text()).toContain(`This unit can't be converted to ${purchaseUnit}, the unit of the latest purchase.`)
     expect(bodies).toHaveLength(1)
+  })
+
+  it('uses shared column headers, accessible row labels, and an X remove button', async () => {
+    const wrapper = await mountAt('')
+    expect(wrapper.get('[data-recipe-headers]').text()).toBe('ItemQuantityUnitCost')
+    expect(wrapper.findAll('label').map(label => label.text())).toEqual(['Item', 'Quantity', 'Unit'])
+    const remove = wrapper.get('button[aria-label="Remove line"]')
+    expect(remove.html()).toContain('i-lucide:x')
+    expect(remove.find('.i-lucide-trash-2').exists()).toBe(false)
+    await remove.trigger('click')
+    expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(0)
   })
 
   it('offers grams for a pound ingredient and sends the selected unit', async () => {
@@ -96,7 +107,7 @@ describe('Recipe cost page', () => {
     expect(wrapper.text()).toContain('flour is already in this recipe')
     expect(wrapper.text()).not.toContain('Flour is already in this recipe')
     expect(bodies[0]!.lines).toEqual([{ item: 'Flour', quantity: 500, unit: 'g' }])
-    expect(wrapper.findAll('[data-recipe-cost]')[1]!.text()).toBe('')
+    expect(wrapper.findAll('[data-recipe-cost]')[1]!.text()).toBe('Cost')
   })
 
   it('keeps an item name containing a pipe and skips incomplete lines', async () => {
@@ -113,7 +124,7 @@ describe('Recipe cost page', () => {
     expect(wrapper.find('[data-recipe-total]').exists()).toBe(false)
     expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(1)
 
-    await wrapper.findAll('button').find(button => button.text().includes('Add item'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('Add another line'))!.trigger('click')
     expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(2)
     await wrapper.get('button[aria-label="Remove line"]').trigger('click')
     expect(wrapper.findAll('[data-recipe-line]')).toHaveLength(1)
