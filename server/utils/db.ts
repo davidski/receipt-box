@@ -111,6 +111,19 @@ export async function migrate() {
         backfill_prompts_enabled BOOLEAN NOT NULL DEFAULT TRUE
       )
     `
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_recipes (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        lines JSONB NOT NULL,
+        saved_total NUMERIC(10, 2),
+        saved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `
+    await tx`CREATE UNIQUE INDEX IF NOT EXISTS grocery_recipes_name_idx ON grocery_recipes (lower(name))`
     await seedInitialCategories(tx)
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
     const existingUnits = await tx<{ unit: string }[]>`
