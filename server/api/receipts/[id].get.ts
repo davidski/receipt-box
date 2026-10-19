@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   if (!receipt) throw createError({ statusCode: 404, statusMessage: 'Receipt not found' })
 
   const entries = await sql<GroceryEntry[]>`
-    SELECT * FROM grocery_entry_details WHERE receipt_id = ${id} ORDER BY id
+    SELECT * FROM grocery_entry_details WHERE receipt_id = ${id} ORDER BY position, id
   `
   const purchasedOn = receipt.purchasedOn instanceof Date
     ? receipt.purchasedOn.toISOString().slice(0, 10)

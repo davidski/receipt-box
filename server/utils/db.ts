@@ -220,6 +220,7 @@ export async function migrate() {
     `
     await tx`CREATE INDEX IF NOT EXISTS grocery_receipts_date_idx ON grocery_receipts (purchased_on DESC, id DESC)`
     await tx`ALTER TABLE grocery_entries ADD COLUMN IF NOT EXISTS receipt_id BIGINT`
+    await tx`ALTER TABLE grocery_entries ADD COLUMN IF NOT EXISTS position INT`
 
     const receiptColumns = await tx<{ columnName: string }[]>`
       SELECT column_name
@@ -281,7 +282,7 @@ export async function migrate() {
           SELECT DISTINCT ON (receipt_id) receipt_id, purchased_on, location, updated_at
           FROM grocery_entries
           WHERE receipt_id IS NOT NULL
-          ORDER BY receipt_id, id
+          ORDER BY receipt_id, position NULLS LAST, id
         ) canonical
         WHERE receipts.id = canonical.receipt_id
           AND (receipts.purchased_on, receipts.location) IS DISTINCT FROM
@@ -331,6 +332,17 @@ export async function migrate() {
       `
     }
     await tx`ALTER TABLE grocery_entries ALTER COLUMN receipt_id SET NOT NULL`
+    await tx`
+      UPDATE grocery_entries entries
+      SET position = numbered.position
+      FROM (
+        SELECT id, row_number() OVER (PARTITION BY receipt_id ORDER BY position NULLS LAST, id)::int AS position
+        FROM grocery_entries
+        WHERE receipt_id IN (SELECT receipt_id FROM grocery_entries WHERE position IS NULL)
+      ) numbered
+      WHERE entries.id = numbered.id
+    `
+    await tx`ALTER TABLE grocery_entries ALTER COLUMN position SET NOT NULL`
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS purchased_on`
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS location`
     await tx`DROP INDEX IF EXISTS grocery_entries_location_idx`
@@ -363,7 +375,8 @@ export async function migrate() {
       SELECT entries.id, entries.receipt_id, receipts.purchased_on,
         entries.item, stores.name AS location, entries.size, entries.unit,
         entries.price, entries.cost_per_unit, entries.sale_item, entries.non_grocery,
-        entries.notes, entries.created_at, entries.updated_at, categories.name AS category
+        entries.notes, entries.created_at, entries.updated_at, categories.name AS category,
+        entries.position
       FROM grocery_entries entries
       INNER JOIN grocery_receipts receipts ON receipts.id = entries.receipt_id
       INNER JOIN grocery_stores stores ON stores.id = receipts.store_id
@@ -387,6 +400,7 @@ export type GroceryEntry = {
   nonGrocery: boolean
   notes: string | null
   category: string | null
+  position: number
   createdAt: string
   updatedAt: string
 }

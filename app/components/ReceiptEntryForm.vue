@@ -340,7 +340,41 @@ const autosaveStatus = computed(() => {
   return 'Complete a row to save it'
 })
 
+const orderStatus = ref<'' | 'saving' | 'saved' | 'error'>('')
+const orderError = ref('')
+const orderStatusText = computed(() => ({ '': '', saving: 'Saving order…', saved: 'Order saved', error: orderError.value })[orderStatus.value])
+let orderTimer: ReturnType<typeof setTimeout> | undefined
+let orderRequest = 0
+
+async function saveOrder() {
+  const entryIds = form.lines.flatMap(line => line.id ? [line.id] : [])
+  if (!currentReceiptId.value || entryIds.length < 2) {
+    orderStatus.value = ''
+    return
+  }
+  const request = ++orderRequest
+  orderStatus.value = 'saving'
+  try {
+    await $fetch(apiUrl(`/receipts/${currentReceiptId.value}/order`), { method: 'PUT', body: { entryIds } })
+    if (request === orderRequest) orderStatus.value = 'saved'
+  } catch (error: any) {
+    if (request !== orderRequest) return
+    orderError.value = error?.data?.statusMessage || error?.message || 'Could not save the line order'
+    orderStatus.value = 'error'
+  }
+}
+
+function scheduleOrderSave() {
+  clearTimeout(orderTimer)
+  orderTimer = setTimeout(saveOrder, 400)
+}
+
+const { dragIndex, handle, rowStyle } = useLineReorder(() => form.lines, scheduleOrderSave)
+
 function loadReceipt(receipt: EditableReceipt) {
+  clearTimeout(orderTimer)
+  orderRequest++
+  orderStatus.value = ''
   form.purchasedOn = receipt.purchasedOn
   form.location = receipt.location
   form.lines = receipt.entries.map(lineFromEntry)
@@ -761,6 +795,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(autosaveTimer)
+  clearTimeout(orderTimer)
   window.removeEventListener('beforeunload', handleBeforeUnload)
   window.removeEventListener('keydown', handleAddLineShortcut, { capture: true })
   window.removeEventListener('keydown', handleAddReceiptShortcut, { capture: true })
@@ -1103,8 +1138,11 @@ async function saveCompletedRows(updateReceiptRoute = true) {
         method: line.id ? 'PUT' : 'POST',
         body: entryBody(line, savesCategory && !categoriesSaved.has(submittedItem))
       })
+      const created = !line.id
       line.id = saved.id
       currentReceiptId.value = saved.receiptId
+      // New lines are appended server-side; resend the order if this one sits above a saved line.
+      if (created && form.lines.slice(form.lines.indexOf(line) + 1).some(candidate => candidate.id)) scheduleOrderSave()
       savedLineSnapshots.set(line.key, snapshot)
       if (savesCategory && line.category === savedCategory && line.item.trim() === submittedItem) {
         categoriesSaved.add(submittedItem)
@@ -1308,7 +1346,7 @@ async function deleteReceipt() {
     </div>
 
     <ol v-if="canEnterLines" class="m-0 list-none p-0 [counter-reset:receipt-line] max-[900.01px]:grid max-[900.01px]:gap-3 max-[900.01px]:p-[16px] max-[900.01px]:bg-(--bg) max-[640.01px]:p-[12px]">
-      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" class="receipt-entry-line relative grid grid-cols-[minmax(230px,2fr)_120px_100px_130px_126px] items-center gap-2.5 p-[12px_24px_12px_54px] [border-top:1px_solid_var(--line)] max-[900.01px]:grid-cols-[minmax(0,_1fr)_112px_100px_96px_126px] max-[900.01px]:p-[42px_14px_14px] max-[900.01px]:[border:1px_solid_var(--line)] max-[900.01px]:rounded-[16px] max-[900.01px]:bg-(--surface) max-[900.01px]:[box-shadow:0_8px_24px_rgb(34_49_38_/_7%)] max-[640.01px]:grid-cols-[1fr_1fr] max-[640.01px]:gap-[12px_10px]">
+      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" :style="rowStyle(index)" :class="dragIndex === index ? 'z-10 bg-(--accent-soft) shadow-lg' : 'transition-transform duration-150 motion-reduce:transition-none'" class="receipt-entry-line relative grid grid-cols-[minmax(230px,2fr)_120px_100px_130px_126px] items-center gap-2.5 p-[12px_24px_12px_54px] [border-top:1px_solid_var(--line)] max-[900.01px]:grid-cols-[minmax(0,_1fr)_112px_100px_96px_126px] max-[900.01px]:p-[42px_14px_14px] max-[900.01px]:[border:1px_solid_var(--line)] max-[900.01px]:rounded-[16px] max-[900.01px]:bg-(--surface) max-[900.01px]:[box-shadow:0_8px_24px_rgb(34_49_38_/_7%)] max-[640.01px]:grid-cols-[1fr_1fr] max-[640.01px]:gap-[12px_10px]">
         <UCheckbox
           v-if="splitSelectionMode && line.id"
           class="receipt-split-line-checkbox absolute top-[50%] left-3 z-2 transform-[translateY(-50%)] max-[900.01px]:top-[7px] max-[900.01px]:left-[8px] max-[900.01px]:transform-none"
@@ -1317,7 +1355,10 @@ async function deleteReceipt() {
           :aria-label="`Select ${line.item} to move`"
           @update:model-value="toggleSplitEntry(line.id, $event === true)"
         />
-        <span v-else class="receipt-line-number absolute top-[22px] left-5 grid size-6 place-items-center rounded-lg text-xs font-[750] text-(--muted) [background:var(--surface-muted)] max-[900.01px]:top-[10px] max-[900.01px]:left-[14px]" :aria-label="`Line ${index + 1}`">{{ index + 1 }}</span>
+        <UButton v-else v-bind="handle(index, line.item)" color="neutral" variant="ghost" :class="dragIndex === index ? 'cursor-grabbing' : 'cursor-grab'" class="receipt-line-number group absolute top-[22px] left-5 size-6 touch-none select-none justify-center rounded-lg p-0 text-xs font-[750] text-(--muted) [background:var(--surface-muted)] max-[900.01px]:top-[10px] max-[900.01px]:left-[14px]">
+          <span :class="dragIndex === index ? 'hidden' : 'group-hover:hidden group-focus-visible:hidden'">{{ index + 1 }}</span>
+          <UIcon name="i-lucide-grip-vertical" :class="dragIndex === index ? 'block' : 'hidden group-hover:block group-focus-visible:block'" class="size-4" aria-hidden="true" />
+        </UButton>
         <div class="receipt-line-content contents" :inert="splitSelectionMode">
         <UFormField :name="`item-${line.key}`" class="field relative grid min-w-0 gap-[7px] max-[640.01px]:col-span-full">
           <span class="hidden max-[900.01px]:block max-[900.01px]:mb-[5px] max-[900.01px]:text-(--muted) max-[900.01px]:text-[11px] max-[900.01px]:font-[750] max-[900.01px]:tracking-[.07em] max-[900.01px]:uppercase">Item</span>
@@ -1444,6 +1485,10 @@ async function deleteReceipt() {
           <UIcon :name="saving || checkingReceiptMatch ? 'i-lucide-loader-circle' : hasUnsavedChanges ? 'i-lucide-pencil-line' : 'i-lucide-cloud-check'" :class="{ 'animate-spin [animation-duration:.9s]': saving || checkingReceiptMatch }" aria-hidden="true" />
           <span>{{ autosaveStatus }}</span>
           <UButton v-if="autosaveFailed" type="button" label="Retry" size="xs" color="error" variant="soft" @click="retryAutosave" />
+        </div>
+        <div v-if="orderStatusText" class="flex items-center gap-2 text-sm" :class="orderStatus === 'error' ? 'text-(--error)' : 'text-(--muted)'" data-order-status role="status" aria-live="polite">
+          <span>{{ orderStatusText }}</span>
+          <UButton v-if="orderStatus === 'error'" type="button" label="Retry" size="xs" color="error" variant="soft" @click="saveOrder" />
         </div>
         <div class="receipt-footer-total">
           <span>{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>

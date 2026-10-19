@@ -1,7 +1,7 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { createError, readBody } from 'h3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RecipePage from '../app/pages/recipe.vue'
 
 const mounted: Array<{ unmount: () => void }> = []
@@ -33,6 +33,20 @@ async function mountAt(query: string) {
   await flushPromises()
   return wrapper
 }
+
+const expectQuery = (wrapper: Awaited<ReturnType<typeof mountAt>>, expected: string[]) => vi.waitFor(() => expect(wrapper.vm.$router.currentRoute.value.query.l).toEqual(expected))
+
+function layoutRows(wrapper: Awaited<ReturnType<typeof mountAt>>) {
+  wrapper.findAll('[data-recipe-line]').forEach((row, index) => {
+    row.element.getBoundingClientRect = () => ({ top: index * 50, bottom: index * 50 + 50, height: 50 } as DOMRect)
+  })
+}
+
+function pointer(handle: Element, type: string, clientY: number) {
+  handle.dispatchEvent(new PointerEvent(type, { bubbles: true, clientY, button: 0, pointerId: 1 }))
+}
+
+const order = (wrapper: Awaited<ReturnType<typeof mountAt>>) => wrapper.findAll('[data-recipe-line] input[role="combobox"]').map(input => (input.element as HTMLInputElement).value)
 
 describe('Recipe cost page', () => {
   it('restores lines from the query and shows cost, sale badge, errors and a partial total', async () => {
@@ -152,5 +166,86 @@ describe('Recipe cost page', () => {
 
     expect(wrapper.text()).toContain('Flour needs a quantity above zero')
     expect(wrapper.find('[data-recipe-total]').exists()).toBe(false)
+  })
+
+  it('reorders a line from the keyboard, keeps focus on its handle and syncs the query', async () => {
+    const wrapper = await mountAt('?l=Flour|1|g&l=Salt|2|g&l=Rice|3|g')
+    const handle = wrapper.get('button[aria-label="Reorder line 1, Flour"]')
+    expect(handle.text()).toBe('1')
+
+    await handle.trigger('keydown', { key: 'ArrowDown', altKey: true })
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-recipe-line] input[role="combobox"]').filter((_, i) => i % 2 === 0).map(input => (input.element as HTMLInputElement).value)).toEqual(['Salt', 'Flour', 'Rice'])
+    await expectQuery(wrapper, ['Salt|2|g', 'Flour|1|g', 'Rice|3|g'])
+    expect(document.activeElement).toBe(wrapper.get('button[aria-label="Reorder line 2, Flour"]').element)
+
+    await wrapper.get('button[aria-label="Reorder line 2, Flour"]').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await flushPromises()
+    await expectQuery(wrapper, ['Flour|1|g', 'Salt|2|g', 'Rice|3|g'])
+    expect(document.activeElement).toBe(wrapper.get('button[aria-label="Reorder line 1, Flour"]').element)
+  })
+
+  it('ignores plain arrows and moves past either end', async () => {
+    const wrapper = await mountAt('?l=Flour|1|g&l=Salt|2|g')
+    await wrapper.get('button[aria-label="Reorder line 1, Flour"]').trigger('keydown', { key: 'ArrowDown' })
+    await wrapper.get('button[aria-label="Reorder line 1, Flour"]').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await wrapper.get('button[aria-label="Reorder line 2, Salt"]').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    await flushPromises()
+    await expectQuery(wrapper, ['Flour|1|g', 'Salt|2|g'])
+  })
+
+  it('drags a line past the others with live room-making and drops it in place', async () => {
+    const wrapper = await mountAt('?l=Flour|1|g&l=Salt|2|g&l=Rice|3|g')
+    layoutRows(wrapper)
+    const handle = wrapper.get('button[aria-label="Reorder line 1, Flour"]').element
+    handle.setPointerCapture = () => {}
+
+    pointer(handle, 'pointerdown', 25)
+    pointer(handle, 'pointermove', 27)
+    await flushPromises()
+    expect(wrapper.findAll('[data-recipe-line]')[0]!.attributes('style') ?? '').not.toContain('translateY')
+
+    pointer(handle, 'pointermove', 100)
+    await flushPromises()
+    const rows = wrapper.findAll('[data-recipe-line]')
+    expect(rows[0]!.attributes('style')).toContain('translateY(75px)')
+    expect(rows[0]!.classes()).toContain('bg-(--accent-soft)')
+    expect(rows[1]!.attributes('style')).toContain('translateY(-50px)')
+    expect(rows[2]!.attributes('style') ?? '').not.toContain('translateY')
+
+    pointer(handle, 'pointermove', 400)
+    await flushPromises()
+    expect(wrapper.findAll('[data-recipe-line]')[2]!.attributes('style')).toContain('translateY(-50px)')
+    pointer(handle, 'pointerup', 400)
+    await flushPromises()
+
+    await expectQuery(wrapper, ['Salt|2|g', 'Rice|3|g', 'Flour|1|g'])
+    expect(wrapper.findAll('[data-recipe-line]').every(row => !(row.attributes('style') ?? '').includes('translateY'))).toBe(true)
+  })
+
+  it('drags a line upward, and cancelled or tiny drags change nothing', async () => {
+    const wrapper = await mountAt('?l=Flour|1|g&l=Salt|2|g&l=Rice|3|g')
+    layoutRows(wrapper)
+    const handle = wrapper.get('button[aria-label="Reorder line 3, Rice"]').element
+    handle.setPointerCapture = () => {}
+
+    pointer(handle, 'pointerdown', 125)
+    pointer(handle, 'pointermove', 128)
+    pointer(handle, 'pointerup', 128)
+    pointer(handle, 'pointerdown', 125)
+    pointer(handle, 'pointermove', 40)
+    pointer(handle, 'pointercancel', 40)
+    pointer(handle, 'pointermove', 40)
+    await flushPromises()
+    await expectQuery(wrapper, ['Flour|1|g', 'Salt|2|g', 'Rice|3|g'])
+
+    pointer(handle, 'pointerdown', 125)
+    pointer(handle, 'pointermove', 20)
+    await flushPromises()
+    expect(wrapper.findAll('[data-recipe-line]')[0]!.attributes('style')).toContain('translateY(50px)')
+    pointer(handle, 'pointerup', 20)
+    await flushPromises()
+    await expectQuery(wrapper, ['Rice|3|g', 'Flour|1|g', 'Salt|2|g'])
   })
 })

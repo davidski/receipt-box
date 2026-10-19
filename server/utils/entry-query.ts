@@ -1,8 +1,8 @@
 import { db, publicEntry, type GroceryEntry } from './db'
-import { ensureStore, upsertReceipt } from './receipt-query'
+import { ensureStore, nextPosition, upsertReceipt } from './receipt-query'
 import { applyCategoryAssignments, categoryAssignments, lockItemWrites } from './category-query'
 
-export async function insertEntry(entry: Omit<GroceryEntry, 'id' | 'receiptId' | 'createdAt' | 'updatedAt' | 'costPerUnit' | 'category'> & { category?: string | null }) {
+export async function insertEntry(entry: Omit<GroceryEntry, 'id' | 'receiptId' | 'createdAt' | 'updatedAt' | 'costPerUnit' | 'category' | 'position'> & { category?: string | null }) {
   const sql = db()
   const row = await sql.begin(async (tx) => {
     await lockItemWrites(tx)
@@ -10,10 +10,10 @@ export async function insertEntry(entry: Omit<GroceryEntry, 'id' | 'receiptId' |
     const receiptId = await upsertReceipt(tx, entry.purchasedOn, canonicalLocation)
     const [inserted] = await tx<{ id: string }[]>`
       INSERT INTO grocery_entries (
-        receipt_id, item, size, unit, price,
+        receipt_id, position, item, size, unit, price,
         sale_item, non_grocery, notes
       ) VALUES (
-        ${receiptId}, ${entry.item}, ${entry.size}, ${entry.unit}, ${entry.price}, ${entry.saleItem},
+        ${receiptId}, ${await nextPosition(tx, receiptId)}, ${entry.item}, ${entry.size}, ${entry.unit}, ${entry.price}, ${entry.saleItem},
         ${entry.nonGrocery}, ${entry.notes}
       )
       RETURNING id

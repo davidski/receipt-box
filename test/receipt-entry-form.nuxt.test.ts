@@ -1,6 +1,6 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { getQuery, readBody } from 'h3'
+import { createError, getQuery, readBody } from 'h3'
 import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterView } from 'vue-router'
@@ -139,6 +139,8 @@ let entryBodies: Array<{ method: string, body: any }>
 let splitRequests: Array<{ method: string, body: any }>
 let splitResult: any
 let splitUndoResult: any
+let orderRequests: Array<{ method: string, body: any }>
+let failOrder: boolean
 const mountedForms: Array<{ unmount: () => void }> = []
 let mountedRouter: any
 
@@ -179,6 +181,8 @@ beforeEach(() => {
   splitRequests = []
   splitResult = null
   splitUndoResult = null
+  orderRequests = []
+  failOrder = false
   localStorageStub.clear()
   failReceiptMatch = false
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
@@ -211,6 +215,14 @@ beforeEach(() => {
       const body = await readBody(event)
       splitRequests.push({ method: 'UNDO', body })
       return splitUndoResult
+    }
+  })
+  registerEndpoint('/api/receipts/receipt-1/order', {
+    method: 'PUT',
+    handler: async (event: any) => {
+      orderRequests.push({ method: 'PUT', body: await readBody(event) })
+      if (failOrder) throw createError({ statusCode: 409, statusMessage: 'Entries changed' })
+      return { ok: true }
     }
   })
   registerEndpoint('/api/suggestions', () => suggestions)
@@ -899,5 +911,200 @@ describe('receipt item entry interactions', () => {
 
     const csv = await exportedBlob!.text()
     expect(csv.split('\r\n')[1]).toBe('2026-08-10,Coffee,Produce,Test Store,12,oz,4.99,,,false,true,Farmers market')
+  })
+})
+
+describe('receipt line reordering', () => {
+  function twoLineReceipt() {
+    const base = receipt()
+    return {
+      ...base,
+      itemCount: 2,
+      entries: [
+        base.entries[0]!,
+        { ...base.entries[0]!, id: 'entry-2', item: 'Tea', price: '3.50' }
+      ]
+    }
+  }
+  const handleFor = (wrapper: Awaited<ReturnType<typeof mountForm>>, label: string) => wrapper.get(`button[aria-label="${label}"]`)
+  const itemOrder = (wrapper: Awaited<ReturnType<typeof mountForm>>) => wrapper.findAll('[data-line-item]').map(input => (input.element as HTMLInputElement).value)
+
+  it('moves a line with Alt+Arrow, keeps focus on its handle and saves the order after a debounce', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    const wrapper = await mountForm('', 'receipt-1')
+
+    await handleFor(wrapper, 'Reorder line 1, Coffee').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(itemOrder(wrapper)).toEqual(['Tea', 'Coffee'])
+    expect(document.activeElement).toBe(handleFor(wrapper, 'Reorder line 2, Coffee').element)
+    expect(orderRequests).toHaveLength(0)
+
+    await vi.advanceTimersByTimeAsync(399)
+    expect(orderRequests).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.get('[data-order-status]').text()).toBe('Saving order…')
+    await vi.advanceTimersByTimeAsync(50)
+    await flushPromises()
+
+    expect(orderRequests).toEqual([{ method: 'PUT', body: { entryIds: ['entry-2', 'entry-1'] } }])
+    expect(wrapper.get('[data-order-status]').text()).toBe('Order saved')
+    expect(entryBodies).toHaveLength(0)
+  })
+
+  it('sends one request with the final order after several quick moves', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    const wrapper = await mountForm('', 'receipt-1')
+
+    await handleFor(wrapper, 'Reorder line 1, Coffee').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    await vi.advanceTimersByTimeAsync(100)
+    await handleFor(wrapper, 'Reorder line 2, Coffee').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+
+    expect(orderRequests.map(request => request.body.entryIds)).toEqual([['entry-1', 'entry-2']])
+  })
+
+  it('sends only saved lines and ignores plain arrows and moves past the ends', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    const wrapper = await mountForm('', 'receipt-1')
+    await wrapper.findAll('button').find(button => button.text() === 'Add another line')!.trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+
+    await handleFor(wrapper, 'Reorder line 3').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    await handleFor(wrapper, 'Reorder line 1, Coffee').trigger('keydown', { key: 'ArrowDown' })
+    await handleFor(wrapper, 'Reorder line 1, Coffee').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await vi.advanceTimersByTimeAsync(500)
+    expect(orderRequests).toHaveLength(0)
+
+    await handleFor(wrapper, 'Reorder line 3').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+
+    expect(orderRequests.map(request => request.body.entryIds)).toEqual([['entry-1', 'entry-2']])
+  })
+
+  it('does not call the server when fewer than two lines are saved', async () => {
+    const wrapper = await mountForm('', 'receipt-1')
+    await wrapper.findAll('button').find(button => button.text() === 'Add another line')!.trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+
+    await handleFor(wrapper, 'Reorder line 2').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+
+    expect(orderRequests).toHaveLength(0)
+    expect(wrapper.find('[data-order-status]').exists()).toBe(false)
+  })
+
+  it('shows the server error and retries the order save', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    failOrder = true
+    const wrapper = await mountForm('', 'receipt-1')
+
+    await handleFor(wrapper, 'Reorder line 1, Coffee').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+    expect(wrapper.get('[data-order-status]').text()).toContain('Entries changed')
+
+    failOrder = false
+    await wrapper.get('[data-order-status] button').trigger('click')
+    await vi.advanceTimersByTimeAsync(50)
+    await flushPromises()
+    expect(orderRequests).toHaveLength(2)
+    expect(orderRequests[1]!.body.entryIds).toEqual(['entry-2', 'entry-1'])
+    expect(wrapper.get('[data-order-status]').text()).toBe('Order saved')
+  })
+
+  it('hides the reorder handles while selecting lines to split', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    const wrapper = await mountForm('', 'receipt-1')
+    expect(wrapper.findAll('[data-reorder-handle]')).toHaveLength(2)
+
+    await wrapper.findAll('button').find(button => button.text() === 'Split receipt')!.trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(wrapper.findAll('[data-reorder-handle]')).toHaveLength(0)
+  })
+
+  it('drags a line to a new position and saves the order', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    const wrapper = await mountForm('', 'receipt-1')
+    wrapper.findAll('[data-receipt-line]').forEach((row, index) => {
+      row.element.getBoundingClientRect = () => ({ top: index * 60, bottom: index * 60 + 60, height: 60 } as DOMRect)
+    })
+    const handle = handleFor(wrapper, 'Reorder line 1, Coffee').element
+    handle.setPointerCapture = () => {}
+    const fire = (type: string, clientY: number) => handle.dispatchEvent(new PointerEvent(type, { bubbles: true, clientY, button: 0, pointerId: 1 }))
+
+    fire('pointerdown', 30)
+    fire('pointermove', 100)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wrapper.findAll('[data-receipt-line]')[1]!.attributes('style')).toContain('translateY(-60px)')
+    fire('pointerup', 100)
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+
+    expect(itemOrder(wrapper)).toEqual(['Tea', 'Coffee'])
+    expect(orderRequests.map(request => request.body.entryIds)).toEqual([['entry-2', 'entry-1']])
+  })
+
+  function saveNewLinesToReceipt1() {
+    registerEndpoint('/api/entries', {
+      method: 'POST',
+      handler: async (event: any) => {
+        const body = await readBody(event)
+        entryBodies.push({ method: 'POST', body })
+        return {
+          id: 'entry-new', receiptId: 'receipt-1', purchasedOn: '2026-08-10', location: 'Test Store',
+          item: body.item, price: body.price, size: null, unit: null, saleItem: false, nonGrocery: false, notes: body.notes, category: null
+        }
+      }
+    })
+  }
+
+  async function addFilledLine(wrapper: Awaited<ReturnType<typeof mountForm>>) {
+    await wrapper.findAll('button').find(button => button.text() === 'Add another line')!.trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+    await wrapper.findAll('[data-line-item]')[2]!.setValue('Milk')
+    await wrapper.findAll('[data-line-price]')[2]!.setValue('2.50')
+  }
+
+  it('resends the order when a new line moved above saved lines is autosaved', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    saveNewLinesToReceipt1()
+    const wrapper = await mountForm('', 'receipt-1')
+    await addFilledLine(wrapper)
+
+    await handleFor(wrapper, 'Reorder line 3, Milk').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await vi.advanceTimersByTimeAsync(450)
+    await flushPromises()
+    expect(orderRequests.map(request => request.body.entryIds)).toEqual([['entry-1', 'entry-2']])
+
+    await vi.advanceTimersByTimeAsync(200)
+    await flushPromises()
+    expect(entryBodies.filter(request => request.method === 'POST')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+
+    expect(itemOrder(wrapper)).toEqual(['Coffee', 'Milk', 'Tea'])
+    expect(orderRequests).toHaveLength(2)
+    expect(orderRequests[1]!.body.entryIds).toEqual(['entry-1', 'entry-new', 'entry-2'])
+    expect(wrapper.get('[data-order-status]').text()).toBe('Order saved')
+  })
+
+  it('does not send an order when a new line appended at the bottom is autosaved', async () => {
+    sourceReceiptForTests = twoLineReceipt()
+    saveNewLinesToReceipt1()
+    const wrapper = await mountForm('', 'receipt-1')
+    await addFilledLine(wrapper)
+
+    await vi.advanceTimersByTimeAsync(1500)
+    await flushPromises()
+
+    expect(entryBodies.filter(request => request.method === 'POST')).toHaveLength(1)
+    expect(itemOrder(wrapper)).toEqual(['Coffee', 'Tea', 'Milk'])
+    expect(orderRequests).toHaveLength(0)
+    expect(wrapper.find('[data-order-status]').exists()).toBe(false)
   })
 })
