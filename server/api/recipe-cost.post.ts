@@ -30,6 +30,9 @@ export default defineEventHandler(async (event) => {
     `
     : []
   const latest = new Map(purchases.map(row => [row.item, row]))
-  const costed = lines.map(line => costLine(line, latest.get(line.item) ?? null))
+  const costed = lines.map(line => ({
+    ...costLine(line, latest.get(line.item) ?? null),
+    purchaseUnit: latest.get(line.item)?.unit ?? null
+  }))
   return { lines: costed, ...summarizeRecipeCost(costed) }
 })

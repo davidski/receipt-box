@@ -2,7 +2,7 @@
 type Suggestion = { value: string, location?: string, size?: string | null, unit?: string | null, price?: string | null }
 type Line = { key: number, item: string, quantity: number | string | undefined, unit: string, options: Suggestion[] }
 type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'INCOMPATIBLE_UNIT'
-type CostResult = { item: string, cost: number | null, sale: boolean, error: CostError | null }
+type CostResult = { item: string, cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null }
 type CostResponse = { lines: CostResult[], total: number, excluded: number }
 
 const errorText: Record<CostError, string> = {
@@ -46,6 +46,13 @@ const sendable = computed(() => lines.value
 const results = computed(() => new Map((response.value?.lines ?? []).map(result => [itemKey(result.item), result])))
 
 const resultFor = (line: Line, index: number) => isDuplicate(line, index) ? undefined : results.value.get(itemKey(line.item))
+
+function costErrorText(result: CostResult) {
+  if (result.error === 'INCOMPATIBLE_UNIT' && result.purchaseUnit) {
+    return `This unit can't be converted to ${result.purchaseUnit}, the unit of the latest purchase.`
+  }
+  return result.error ? errorText[result.error] : ''
+}
 
 function currency(value: number) {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(value)
@@ -140,7 +147,7 @@ onBeforeUnmount(() => {
             <UnitInput v-model="line.unit" ignore-filter class="w-full" />
           </UFormField>
           <div data-recipe-cost class="flex min-h-[52px] min-w-0 items-center justify-end gap-2 self-start mt-6 text-right max-[640.01px]:col-span-2 max-[640.01px]:justify-start max-[640.01px]:text-left">
-            <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ errorText[resultFor(line, index)!.error!] }}</p>
+            <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ costErrorText(resultFor(line, index)!) }}</p>
             <template v-else-if="resultFor(line, index)">
               <strong class="text-(--accent-strong)">{{ currency(resultFor(line, index)!.cost!) }}</strong>
               <UBadge v-if="resultFor(line, index)!.sale" label="Sale" color="warning" variant="soft" />

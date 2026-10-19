@@ -45,9 +45,9 @@ describe('POST /api/recipe-cost', () => {
 
     expect(result).toEqual({
       lines: [
-        { item: 'Flour', quantity: 4, unit: 'oz', cost: 0.91, sale: true, error: null },
-        { item: 'Salt', quantity: 1, unit: 'tsp', cost: null, sale: false, error: 'NO_PACKAGE_SIZE' },
-        { item: 'Saffron', quantity: 1, unit: 'g', cost: null, sale: false, error: 'NO_PRICE' }
+        { item: 'Flour', quantity: 4, unit: 'oz', cost: 0.91, sale: true, error: null, purchaseUnit: 'g' },
+        { item: 'Salt', quantity: 1, unit: 'tsp', cost: null, sale: false, error: 'NO_PACKAGE_SIZE', purchaseUnit: null },
+        { item: 'Saffron', quantity: 1, unit: 'g', cost: null, sale: false, error: 'NO_PRICE', purchaseUnit: null }
       ],
       total: 0.91,
       excluded: 2
@@ -57,6 +57,13 @@ describe('POST /api/recipe-cost', () => {
     expect(mockDatabase.queries[0].sql).toContain('JOIN grocery_receipts receipts ON receipts.id = entries.receipt_id')
     expect(mockDatabase.queries[0].sql).toContain('ORDER BY entries.item, receipts.purchased_on DESC, entries.id DESC')
     expect(mockDatabase.queries[0].values).toEqual([['Flour', 'Salt', 'Saffron']])
+  })
+
+  it('includes the purchase unit for incompatible recipe units using the same query', async () => {
+    mockDatabase.responses = [[{ item: 'Flour', price: '4.00', size: '1', unit: 'lb', saleItem: false }]]
+    const result = await run([{ item: 'Flour', quantity: 1, unit: 'cup' }])
+    expect(result.lines[0]).toMatchObject({ cost: null, error: 'INCOMPATIBLE_UNIT', purchaseUnit: 'lb' })
+    expect(mockDatabase.queries).toHaveLength(1)
   })
 
   it('returns an empty result without querying when there are no lines', async () => {
@@ -84,6 +91,6 @@ describe('POST /api/recipe-cost', () => {
   it('treats a missing unit as an unconvertible blank unit', async () => {
     mockDatabase.responses = [[{ item: 'Flour', price: '4.00', size: '500', unit: 'g', saleItem: false }]]
     const result = await run([{ item: 'Flour', quantity: 1 }])
-    expect(result.lines[0]).toMatchObject({ unit: '', error: 'INCOMPATIBLE_UNIT' })
+    expect(result.lines[0]).toMatchObject({ unit: '', error: 'INCOMPATIBLE_UNIT', purchaseUnit: 'g' })
   })
 })
