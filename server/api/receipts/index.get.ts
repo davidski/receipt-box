@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
       SELECT entries.*, summaries.receipt_total, summaries.receipt_item_count
       FROM grocery_entry_details entries
       INNER JOIN receipt_summaries summaries ON summaries.receipt_id = entries.receipt_id
-      ORDER BY entries.purchased_on DESC, lower(entries.location), entries.location, entries.receipt_id DESC, entries.id
+      ORDER BY entries.purchased_on DESC, lower(entries.location), entries.location, entries.receipt_id DESC, entries.position, entries.id
     `,
     sql<{ count: string }[]>`
       SELECT count(*)::text AS count

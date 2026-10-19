@@ -1,7 +1,7 @@
 import { db, publicEntry, type GroceryEntry } from '../../utils/db'
 import { normalizeEntry, type EntryInput } from '../../utils/entry-input'
 import { normalizeStoreName } from '../../../shared/utils/store-name'
-import { ensureStore, upsertReceipt } from '../../utils/receipt-query'
+import { ensureStore, nextPosition, upsertReceipt } from '../../utils/receipt-query'
 import { applyCategoryAssignments, categoryAssignments, lockItemWrites } from '../../utils/category-query'
 
 export default defineEventHandler(async (event) => {
@@ -44,8 +44,10 @@ export default defineEventHandler(async (event) => {
     await lockItemWrites(tx)
     const canonicalLocation = await ensureStore(tx, location)
     const receiptId = await upsertReceipt(tx, purchasedOn, canonicalLocation)
-    const rows = entries.map(entry => ({
+    const firstPosition = await nextPosition(tx, receiptId)
+    const rows = entries.map((entry, index) => ({
       receipt_id: receiptId,
+      position: firstPosition + index,
       item: entry.item,
       size: entry.size,
       unit: entry.unit,
@@ -57,7 +59,7 @@ export default defineEventHandler(async (event) => {
     await tx`INSERT INTO grocery_entries ${tx(rows)}`
     await applyCategoryAssignments(tx, assignments)
     const savedEntries = await tx<GroceryEntry[]>`
-      SELECT * FROM grocery_entry_details WHERE receipt_id = ${receiptId} ORDER BY id
+      SELECT * FROM grocery_entry_details WHERE receipt_id = ${receiptId} ORDER BY position, id
     `
     return { receiptId, location: canonicalLocation, entries: savedEntries.map(publicEntry) }
   })

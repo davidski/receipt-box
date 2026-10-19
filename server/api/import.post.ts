@@ -1,6 +1,6 @@
 import { db } from '../utils/db'
 import { normalizeEntry, type EntryInput } from '../utils/entry-input'
-import { ensureStore, upsertReceipt } from '../utils/receipt-query'
+import { ensureStore, nextPosition, upsertReceipt } from '../utils/receipt-query'
 import { applyCategoryAssignments, categoryAssignments, lockItemWrites } from '../utils/category-query'
 
 async function saveEntries(entries: EntryInput[]) {
@@ -17,8 +17,10 @@ async function saveEntries(entries: EntryInput[]) {
       const first = group[0]!
       const canonicalLocation = await ensureStore(tx, first.location)
       const receiptId = await upsertReceipt(tx, first.purchasedOn, canonicalLocation)
-      const rows = group.map(entry => ({
+      const firstPosition = await nextPosition(tx, receiptId)
+      const rows = group.map((entry, index) => ({
         receipt_id: receiptId,
+        position: firstPosition + index,
         item: entry.item,
         size: entry.size,
         unit: entry.unit,

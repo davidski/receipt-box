@@ -36,7 +36,7 @@ describe('GET /api/receipts/:id', () => {
       entries: [{ id: '31', item: 'Coffee' }]
     })
     expect(mockDatabase.queries[0]).toContain('WHERE receipts.id = ?')
-    expect(mockDatabase.queries[1]).toContain('WHERE receipt_id = ?')
+    expect(mockDatabase.queries[1]).toContain('WHERE receipt_id = ? ORDER BY position, id')
   })
 
   it('rejects a malformed receipt ID before querying', async () => {

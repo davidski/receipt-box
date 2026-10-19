@@ -2,7 +2,7 @@ import type postgres from 'postgres'
 import { createError } from 'h3'
 import { normalizeStoreName } from '../../shared/utils/store-name'
 import { db, publicEntry, type GroceryEntry } from './db'
-import { ensureStore } from './receipt-query'
+import { ensureStore, moveEntries } from './receipt-query'
 
 type Transaction = postgres.TransactionSql
 
@@ -72,7 +72,7 @@ async function receiptView(tx: Transaction, id: string): Promise<ReceiptView> {
   `
   if (!receipt) throw createError({ statusCode: 404, statusMessage: 'Receipt not found' })
   const entries = await tx<GroceryEntry[]>`
-    SELECT * FROM grocery_entry_details WHERE receipt_id = ${id} ORDER BY id
+    SELECT * FROM grocery_entry_details WHERE receipt_id = ${id} ORDER BY position, id
   `
   return {
     ...receipt,
@@ -149,11 +149,7 @@ export async function splitReceipt(tx: Transaction, input: SplitReceiptInput) {
     targetWasCreated = true
   }
 
-  await tx`
-    UPDATE grocery_entries
-    SET receipt_id = ${targetReceiptId}, updated_at = now()
-    WHERE receipt_id = ${input.sourceId} AND id = ANY(${input.entryIds}::bigint[])
-  `
+  await moveEntries(tx, targetReceiptId, [input.sourceId], { entryIds: input.entryIds, touch: true })
 
   return {
     source: await receiptView(tx, input.sourceId),
@@ -197,11 +193,7 @@ export async function undoReceiptSplit(tx: Transaction, input: UndoReceiptSplitI
   if (selected.length !== input.entryIds.length) {
     throw createError({ statusCode: 409, statusMessage: 'One or more moved lines have changed. This move can no longer be undone.' })
   }
-  await tx`
-    UPDATE grocery_entries
-    SET receipt_id = ${input.sourceId}, updated_at = now()
-    WHERE receipt_id = ${input.targetReceiptId} AND id = ANY(${input.entryIds}::bigint[])
-  `
+  await moveEntries(tx, input.sourceId, [input.targetReceiptId], { entryIds: input.entryIds, touch: true })
   if (input.targetWasCreated) {
     await tx`
       DELETE FROM grocery_receipts

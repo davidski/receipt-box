@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
     SELECT *
     FROM grocery_entry_details
     WHERE receipt_id = ${receipt.id}
-    ORDER BY id
+    ORDER BY position, id
   `
 
   const receiptDate = receipt.purchasedOn instanceof Date

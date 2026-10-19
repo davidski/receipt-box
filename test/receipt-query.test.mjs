@@ -3,8 +3,10 @@ import { describe, test } from 'node:test'
 import {
   ensureStore,
   mergeDuplicateReceipts,
+  moveEntries,
   moveReceiptToKey,
   moveStoreReceipts,
+  nextPosition,
   upsertReceipt
 } from '../server/utils/receipt-query.ts'
 
@@ -46,6 +48,34 @@ describe('ensureStore', () => {
   test('fails if the store cannot be found after insertion', async () => {
     const { tx } = fakeTransaction([[], []])
     await assert.rejects(ensureStore(tx, 'Market'), /Could not create or find store/)
+  })
+})
+
+describe('nextPosition', () => {
+  test('returns one past the highest line position of the receipt', async () => {
+    const { tx, queries } = fakeTransaction([[{ next: 4 }]])
+
+    assert.equal(await nextPosition(tx, '4'), 4)
+    assert.match(queries[0].sql, /coalesce\(max\(position\), 0\) \+ 1/)
+    assert.deepEqual(queries[0].values, ['4'])
+  })
+})
+
+describe('moveEntries', () => {
+  test('appends lines after the target receipt in their existing relative order', async () => {
+    const { tx, queries } = fakeTransaction([[]])
+
+    await moveEntries(tx, '9', ['4'], { entryIds: ['11', '12'], touch: true })
+    assert.match(queries[0].sql, /ORDER BY array_position\(\?::bigint\[\], receipt_id\), position, id/)
+    assert.match(queries[0].sql, /position = last\.position \+ moved\.rank/)
+    assert.deepEqual(queries[0].values, ['9', true, ['4'], ['4'], ['11', '12'], ['11', '12'], '9'])
+  })
+
+  test('moves every line and leaves updated_at alone by default', async () => {
+    const { tx, queries } = fakeTransaction([[]])
+
+    await moveEntries(tx, '9', ['4'])
+    assert.deepEqual(queries[0].values, ['9', false, ['4'], ['4'], null, null, '9'])
   })
 })
 
@@ -101,7 +131,8 @@ describe('mergeDuplicateReceipts', () => {
 
     assert.equal(await mergeDuplicateReceipts(tx), 2)
     assert.match(queries[1].sql, /SET receipt_id = \?/)
-    assert.deepEqual(queries[1].values, ['3', ['7', '8']])
+    assert.deepEqual(queries[1].values, ['3', false, ['7', '8'], ['7', '8'], null, null, '3'])
+    assert.match(queries[1].sql, /position = last\.position \+ moved\.rank/)
     assert.match(queries[2].sql, /DELETE FROM grocery_receipts/)
     assert.deepEqual(queries[3].values, ['2026-08-06T10:00:00Z', '2026-08-06T12:00:00Z', '3'])
   })

@@ -15,7 +15,7 @@ const selected = [{ id: '11' }]
 const entry = {
   id: '12', receiptId: '1', purchasedOn: '2026-08-10', item: 'Remain', location: 'Old Store',
   size: null, unit: null, price: '3.25', costPerUnit: null, saleItem: false, nonGrocery: false,
-  notes: null, category: null, createdAt: '2026-08-10T10:00:00Z', updatedAt: '2026-08-10T10:00:00Z'
+  notes: null, category: null, position: 1, createdAt: '2026-08-10T10:00:00Z', updatedAt: '2026-08-10T10:00:00Z'
 }
 const sourceView = [{ id: '1', purchasedOn: '2026-08-10', location: 'Old Store', itemCount: 1, total: '3.25' }]
 
@@ -33,8 +33,10 @@ describe('splitReceipt', () => {
     expect(result.targetWasCreated).toBe(true)
     expect(result.movedCount).toBe(1)
     expect(result.source.itemCount).toBe(1)
-    const move = queries.find(query => query.sql.startsWith('UPDATE grocery_entries SET receipt_id'))
-    expect(move?.values).toEqual(['2', '1', ['11']])
+    const move = queries.find(query => query.sql.startsWith('UPDATE grocery_entries entries SET receipt_id'))
+    expect(move?.values).toEqual(['2', true, ['1'], ['1'], ['11'], ['11'], '2'])
+    expect(move?.sql).toContain('position = last.position + moved.rank')
+    expect(move?.sql).toContain('ORDER BY array_position(?::bigint[], receipt_id), position, id')
   })
 
   it('requires the caller to identify a duplicate destination receipt', async () => {
@@ -45,7 +47,7 @@ describe('splitReceipt', () => {
     await expect(splitReceipt(tx, {
       sourceId: '1', entryIds: ['11'], purchasedOn: '2026-08-11', location: 'New Store'
     })).rejects.toMatchObject({ statusCode: 409 })
-    expect(queries.some(query => query.sql.startsWith('UPDATE grocery_entries SET receipt_id'))).toBe(false)
+    expect(queries.some(query => query.sql.startsWith('UPDATE grocery_entries entries SET receipt_id'))).toBe(false)
   })
 
   it('adds selected lines to the explicitly identified destination receipt', async () => {
@@ -60,7 +62,7 @@ describe('splitReceipt', () => {
     expect(result.targetReceiptId).toBe('2')
     expect(result.targetWasCreated).toBe(false)
     expect(queries.some(query => query.sql.startsWith('INSERT INTO grocery_receipts'))).toBe(false)
-    expect(queries.find(query => query.sql.startsWith('UPDATE grocery_entries SET receipt_id'))?.values).toEqual(['2', '1', ['11']])
+    expect(queries.find(query => query.sql.startsWith('UPDATE grocery_entries entries SET receipt_id'))?.values).toEqual(['2', true, ['1'], ['1'], ['11'], ['11'], '2'])
   })
 
   it('rejects moving selected lines back into their source receipt key', async () => {
@@ -98,6 +100,6 @@ describe('undoReceiptSplit', () => {
 
     expect(result.source.itemCount).toBe(1)
     expect(queries.some(query => query.sql.startsWith('DELETE FROM grocery_receipts'))).toBe(true)
-    expect(queries.find(query => query.sql.startsWith('UPDATE grocery_entries SET receipt_id'))?.values).toEqual(['1', '2', ['11']])
+    expect(queries.find(query => query.sql.startsWith('UPDATE grocery_entries entries SET receipt_id'))?.values).toEqual(['1', true, ['2'], ['2'], ['11'], ['11'], '1'])
   })
 })
