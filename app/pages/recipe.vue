@@ -280,11 +280,11 @@ onBeforeUnmount(() => {
       </div>
       <ul class="m-0 grid list-none p-0 max-[900.01px]:gap-3 max-[900.01px]:p-3">
         <li v-for="(line, index) in lines" :key="line.key" data-recipe-line :style="rowStyle(index)" :class="dragIndex === index ? 'z-10 bg-(--accent-soft) shadow-lg' : 'transition-transform duration-150 motion-reduce:transition-none'" class="relative grid grid-cols-[minmax(230px,2fr)_120px_130px_minmax(180px,1fr)_40px] items-start gap-2.5 p-[12px_24px_12px_54px] [border-top:1px_solid_var(--line)] max-[900.01px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] max-[900.01px]:rounded-[16px] max-[900.01px]:p-[42px_14px_14px] max-[900.01px]:[border:1px_solid_var(--line)] max-[640.01px]:grid-cols-2">
-          <UButton v-bind="handle(index, line.item)" color="neutral" variant="ghost" :class="dragIndex === index ? 'cursor-grabbing' : 'cursor-grab'" class="group absolute left-4 top-5 size-6 touch-none select-none justify-center rounded-lg bg-(--surface-muted) p-0 text-xs font-bold text-(--muted) max-[900.01px]:left-3 max-[900.01px]:top-3">
+          <UButton v-bind="handle(index, line.item)" color="neutral" variant="ghost" :class="dragIndex === index ? 'cursor-grabbing' : 'cursor-grab'" class="group absolute top-[22px] left-5 size-6 touch-none select-none justify-center rounded-lg bg-(--surface-muted) p-0 text-xs font-[750] text-(--muted) max-[900.01px]:top-[10px] max-[900.01px]:left-[14px]">
             <span :class="dragIndex === index ? 'hidden' : 'group-hover:hidden group-focus-visible:hidden'">{{ index + 1 }}</span>
             <UIcon name="i-lucide-grip-vertical" :class="dragIndex === index ? 'block' : 'hidden group-hover:block group-focus-visible:block'" class="size-4" aria-hidden="true" />
           </UButton>
-          <UFormField label="Item" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0 max-[900.01px]:col-span-3 max-[640.01px]:col-span-2" :error="isDuplicate(line, index) ? `${line.item} is already in this recipe` : undefined">
+          <UFormField label="Item" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0 max-[900.01px]:col-span-3 max-[640.01px]:col-span-2" :error="isDuplicate(line, index) ? `${line.item} is already in this recipe` : undefined">
             <UInputMenu
               v-model="line.item"
               :items="itemOptions(line)"
@@ -296,10 +296,10 @@ onBeforeUnmount(() => {
               @update:search-term="searchItems(line, $event)"
             />
           </UFormField>
-          <UFormField label="Quantity" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0">
+          <UFormField label="Quantity" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0">
             <UInput v-model.number="line.quantity" type="number" min="0" step="any" inputmode="decimal" placeholder="0" class="w-full" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
           </UFormField>
-          <UFormField label="Unit" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only' }" class="min-w-0">
+          <UFormField label="Unit" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0">
             <UnitInput v-model="line.unit" ignore-filter class="w-full" :ui="{ base: 'min-h-11 px-2.5 py-2' }" />
           </UFormField>
           <div data-recipe-cost class="flex min-h-11 min-w-0 items-center justify-end gap-2 text-right max-[900.01px]:flex-wrap max-[900.01px]:justify-start max-[900.01px]:text-left max-[640.01px]:col-span-2">
