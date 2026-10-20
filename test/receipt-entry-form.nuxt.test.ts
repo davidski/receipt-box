@@ -324,6 +324,10 @@ describe('receipt item entry interactions', () => {
     expect(footerContext.text()).toContain('DateAug 10, 2026')
     expect(footerContext.text()).toContain('StoreTest Store')
     expect(footerContext.find('input, button').exists()).toBe(false)
+    // The footer's muted 12px span rule must not shrink the store value.
+    const storeValue = footerContext.findAll('dd')[1]
+    expect(storeValue.attributes('title')).toBe('Test Store')
+    expect(storeValue.find('span').exists()).toBe(false)
 
     await wrapper.get('[data-receipt-store]').setValue('Other Store')
     await vi.waitFor(() => expect(wrapper.get('[data-receipt-footer-context]').text()).toContain('Other Store'))
@@ -911,6 +915,16 @@ describe('receipt item entry interactions', () => {
 
     const csv = await exportedBlob!.text()
     expect(csv.split('\r\n')[1]).toBe('2026-08-10,Coffee,Produce,Test Store,12,oz,4.99,,,false,true,Farmers market')
+  })
+
+  it('sizes saved-receipt footer actions xl so their text stays 16px', async () => {
+    sourceReceiptForTests = receipt()
+    const wrapper = await mountForm('', 'receipt-1')
+    const sizeOf = (label: string) => wrapper.findAll('button').find(button => button.text() === label)!.attributes('size')
+
+    expect(sizeOf('Delete receipt')).toBe('xl')
+    expect(sizeOf('Export receipt')).toBe('xl')
+    expect(sizeOf('Save and add another')).toBe('xl')
   })
 })
 

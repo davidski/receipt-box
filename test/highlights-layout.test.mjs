@@ -9,7 +9,7 @@ const endpoint = await readFile(new URL('../server/api/highlights.get.ts', impor
 test('the Highlights period field accommodates its longest option without overflowing', () => {
   assert.match(page, /class="period-field w-60[^"]*"/)
   assert.match(stylesheet, /\.period-field \[data-slot="base"\] \{ width: 100%; \}/)
-  assert.match(page, /max-\[640\.01px\]:w-\[min\(240px,_100%\)\]/)
+  assert.match(page, /max-\[640\.01px\]:w-\[min\(15rem,_100%\)\]/)
   assert.match(page, /:content="\{ bodyLock: false \}"/)
 })
 
@@ -29,7 +29,7 @@ test('category price movement is separated from monthly spending', () => {
 })
 
 test('Highlights cards share the Purchases by month heading size', () => {
-  assert.match(stylesheet, /\.highlights-page \.highlight-panel h2 \{ font-size: 25px; \}/)
+  assert.match(stylesheet, /\.highlights-page \.highlight-panel h2 \{ font-size: var\(--text-heading\); \}/)
   assert.doesNotMatch(stylesheet, /\.core-items-heading h2 \{[^}]*font-size:/)
   assert.doesNotMatch(stylesheet, /\.movers-panel \.section-heading h2 \{[^}]*font-size:/)
 })
@@ -64,24 +64,24 @@ test('Top stores anchors each spend amount to the end of its bar', () => {
   assert.match(page, /class="[^"]*store-spend-value[^"]*" :style="\{ width:/)
   assert.match(page, /class="store-bar h-2 overflow-hidden rounded-full \[background:var\(--surface-muted\)\][^"]*"><i :style="\{ width:/)
   assert.match(page, /class="[^"]*store-spend-value[^"]*text-right[^"]*whitespace-nowrap/)
-  assert.match(page, /class="[^"]*store-rank-list[^"]*list-none[^"]*gap-\[9px\][^"]*"/)
+  assert.match(page, /class="[^"]*store-rank-list[^"]*list-none[^"]*gap-\[0.5625rem\][^"]*"/)
   assert.match(page, /class="[^"]*store-name-label[^"]*" :title="store\.name"/)
 })
 
 test('Recent movers uses compact table rows with a mobile card fallback', () => {
   assert.match(page, /<table class="[^"]*movers-table[^"]*">/)
   assert.match(page, /<th>Item<\/th><th>Comparison<\/th><th>Change<\/th>/)
-  assert.match(page, /class="[^"]*mover-dates[^"]*text-xs[^"]+">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
+  assert.match(page, /class="[^"]*mover-dates[^"]*text-sm[^"]+">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
   assert.match(page, /class="[^"]*mover-stores[^"]*">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
   assert.doesNotMatch(page, /class="mover-list"/)
-  assert.match(stylesheet, /\.movers-table td \{ padding: 9px;/)
-  assert.match(page, /class="mover-context grid gap-\[2px\] overflow-hidden"/)
-  assert.match(stylesheet, /\.movers-table, \.movers-table tbody \{ display: grid; gap: 10px; \}/)
+  assert.match(stylesheet, /\.movers-table td \{ padding: 0.5625rem;/)
+  assert.match(page, /class="mover-context grid gap-\[0.125rem\] overflow-hidden"/)
+  assert.match(stylesheet, /\.movers-table, \.movers-table tbody \{ display: grid; gap: 0.625rem; \}/)
 })
 
 test('Highlights avoids undersized nine-pixel text', () => {
-  assert.doesNotMatch(stylesheet, /font-size: 9px/)
-  assert.match(page, /class="[^"]*mover-stores[^"]*text-xs/)
+  assert.doesNotMatch(stylesheet, /font-size: 0.5625rem/)
+  assert.match(page, /class="[^"]*mover-stores[^"]*text-sm/)
   assert.match(page, /class="[^"]*store-spend-value[^"]*text-xs/)
 })
 
@@ -90,7 +90,8 @@ test('Highlights renders the same-item price index with coverage context', () =>
   assert.match(page, /The first month is 100/)
   assert.match(page, /weighted by prior-month spending/)
   assert.match(page, /priceIndexSummary\.latest\.matchedItems/)
-  assert.match(page, /normalizedStep <= 1 \? 1 : normalizedStep <= 2 \? 2 : normalizedStep <= 5 \? 5 : 10/)
+  // Rounded 1-2-5 breaks now come from the shared prettyScale(), tested in chart-scale.test.mjs.
+  assert.match(page, /prettyScale\(rawMin, rawMax, \{ minStep: 1 \}\)/)
   assert.match(page, /tick\.value\.toFixed\(0\)/)
   assert.match(page, /v-for="segment in priceIndexChart\.segments"/)
   assert.match(page, /At least three matched regular items/)
@@ -100,7 +101,7 @@ test('Highlights renders the same-item price index with coverage context', () =>
   assert.match(page, /Find items purchased in both the current and previous month/)
   assert.match(page, /Weight each movement by spending on that item in the previous month/)
   assert.match(page, /weighted geometric mean/)
-  assert.match(page, /class="[^"]*price-index-help w-\[min\(390px,calc\(100vw-32px\)\)\]/)
+  assert.match(page, /class="[^"]*price-index-help w-\[min\(24.375rem,calc\(100vw-2rem\)\)\]/)
 })
 
 test('Highlights reports comparable regular-price movement by category', () => {

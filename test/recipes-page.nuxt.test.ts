@@ -81,12 +81,29 @@ describe('Recipes page', () => {
     expect(hrefs).toContain('/recipe?recipe=1')
     expect(hrefs).toContain('/recipe?recipe=6')
     expect(wrapper.findAll('a').find(a => a.text().includes('New recipe'))!.attributes('href')).toBe('/recipe')
+    // The create action sits with the list it adds to, beside search, not in the page header.
+    const toolbar = wrapper.get('[data-recipes-toolbar]')
+    expect(toolbar.find('input[aria-label="Search recipes"]').exists()).toBe(true)
+    expect(toolbar.find('a[href="/recipe"]').text()).toContain('New recipe')
+    expect(wrapper.get('header.page-heading').find('a[href="/recipe"]').exists()).toBe(false)
   })
 
   it('sorts by change, largest increase first, with missing values last by default', async () => {
     const wrapper = await mountPage()
     expect(names(wrapper)).toEqual(['Curry', 'Pancakes', 'Salad', 'Bread', 'Soup', 'Mystery'])
     expect(wrapper.get('th[aria-sort="descending"]').text()).toBe('Change')
+  })
+
+  it('aligns sortable header labels with the cell text below them', async () => {
+    const wrapper = await mountPage()
+    const sortButtons = wrapper.findAll('th button')
+    expect(sortButtons.length).toBe(3)
+    // Cancel the ghost button padding so labels sit on the column edge.
+    for (const button of sortButtons) expect(button.classes()).toContain('-mx-2')
+    // Right-aligned columns put the sort arrow before the label so the label ends on the column edge.
+    const change = wrapper.get('th[aria-sort="descending"] button')
+    expect(change.find('[data-slot="leadingIcon"]').exists()).toBe(true)
+    expect(change.find('[data-slot="trailingIcon"]').exists()).toBe(false)
   })
 
   it('toggles the change sort ascending while still putting missing values last', async () => {

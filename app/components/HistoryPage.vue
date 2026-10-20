@@ -365,24 +365,24 @@ async function confirmRemoveEntry() {
 
 <template>
   <div class="mx-auto w-full max-w-300">
-    <header class="page-heading history-heading my-[15px] mb-8 items-end flex items-start justify-between gap-5 max-[900.01px]:grid max-[900.01px]:items-start max-[640.01px]:grid max-[640.01px]:items-start">
+    <header class="page-heading history-heading my-[0.9375rem] mb-8 items-end flex items-start justify-between gap-5 max-[900.01px]:grid max-[900.01px]:items-start max-[640.01px]:grid max-[640.01px]:items-start">
       <div>
-        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Receipts</h1>
+        <h1 class="leading-[1.04] text-display">Receipts</h1>
         <p>{{ view === 'receipts' ? 'Browse receipts by date.' : 'Browse individual purchase entries.' }}</p>
       </div>
-      <nav class="receipt-mode-switcher receipt-views m-0 flex w-max shrink-0 items-center gap-[5px] rounded-[14px] p-1 [background:var(--surface)] [border:1px_solid_var(--line)] max-[900.01px]:w-full max-[900.01px]:mb-0 max-[640.01px]:w-full" aria-label="Receipts view">
+      <nav class="receipt-mode-switcher receipt-views m-0 flex w-max shrink-0 items-center gap-[0.3125rem] rounded-[0.875rem] p-1 [background:var(--surface)] [border:1px_solid_var(--line)] max-[900.01px]:w-full max-[900.01px]:mb-0 max-[640.01px]:w-full" aria-label="Receipts view">
         <UButton to="/" label="Calendar" icon="i-lucide-calendar-days" :color="historyView === 'receipts-calendar' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-calendar' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-calendar' ? 'page' : undefined" />
         <UButton to="/history/receipts/list" label="Receipt list" icon="i-lucide-receipt-text" :color="historyView === 'receipts-list' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-list' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-list' ? 'page' : undefined" />
         <UButton to="/history/entries" label="Item entries" icon="i-lucide-list" :color="historyView === 'entries' ? 'primary' : 'neutral'" :variant="historyView === 'entries' ? 'soft' : 'ghost'" :aria-current="historyView === 'entries' ? 'page' : undefined" />
       </nav>
     </header>
 
-    <div v-if="view === 'entries'" class="filter-bar sticky top-[87px] z-15 mb-5 grid grid-cols-[minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)] gap-3 rounded-2xl p-2.5 backdrop-blur-lg [background:color-mix(in_srgb,var(--bg),transparent_5%)] [border:1px_solid_var(--line)] max-[640.01px]:top-[78px] max-[640.01px]:grid-cols-1">
+    <div v-if="view === 'entries'" class="filter-bar sticky top-[5.4375rem] z-15 mb-5 grid grid-cols-[minmax(0,1fr)_minmax(0,13.75rem)_minmax(0,13.75rem)] gap-3 rounded-2xl p-2.5 backdrop-blur-lg [background:color-mix(in_srgb,var(--bg),transparent_5%)] [border:1px_solid_var(--line)] max-[640.01px]:top-[4.875rem] max-[640.01px]:grid-cols-1">
       <label class="search-control relative">
         <span class="sr-only">Search items</span>
         <UInput v-model="search" type="search" icon="i-lucide-search" placeholder="Search items or notes…" @keydown.esc="clearSearch">
           <template v-if="search" #trailing>
-            <UButton type="button" icon="i-lucide-x" aria-label="Clear search" color="neutral" variant="ghost" size="xs" @click="clearSearch" />
+            <UButton type="button" icon="i-lucide-x" aria-label="Clear search" color="neutral" variant="ghost" size="md" @click="clearSearch" />
           </template>
         </UInput>
       </label>
@@ -394,14 +394,14 @@ async function confirmRemoveEntry() {
         <span class="sr-only">Filter by category</span>
         <USelect v-model="categorySelection" :items="[{ label: 'All categories', value: 'all' }, ...(categories || []).map(name => ({ label: name, value: `category:${name}` }))]" aria-label="Filter by category" :content="{ bodyLock: false }" />
       </label>
-      <div class="col-span-full flex flex-wrap gap-[5px] pt-[2px] [border-top:1px_solid_color-mix(in_srgb,var(--line),transparent_35%)]" aria-label="Quick history filters">
+      <div class="col-span-full flex flex-wrap gap-[0.3125rem] pt-[0.125rem] [border-top:1px_solid_color-mix(in_srgb,var(--line),transparent_35%)]" aria-label="Quick history filters">
         <UButton
           v-for="filter in changeFilters"
           :key="filter.value"
           type="button"
           :label="filter.label"
           :icon="filter.icon"
-          size="sm"
+          size="md"
           class="touch-target"
           :color="changeFilter === filter.value ? filter.activeColor : 'neutral'"
           :variant="changeFilter === filter.value ? 'soft' : 'ghost'"
@@ -410,18 +410,18 @@ async function confirmRemoveEntry() {
       </div>
     </div>
 
-    <UAlert v-if="linkedEditError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="linkedEditError" class="notice m-[15px_0_0] rounded-[10px] p-[11px_13px] text-sm" />
+    <UAlert v-if="linkedEditError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="linkedEditError" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
 
     <template v-if="view === 'receipts'">
-      <div class="receipt-browser grid grid-cols-[330px_minmax(0,1fr)] items-start gap-6 max-[900.01px]:grid-cols-1 min-[760px]:max-[900.01px]:grid-cols-[280px_minmax(0,_1fr)]">
+      <div class="receipt-browser grid grid-cols-[20.625rem_minmax(0,1fr)] items-start gap-6 max-[900.01px]:grid-cols-1 min-[760px]:max-[900.01px]:grid-cols-[17.5rem_minmax(0,_1fr)]">
         <template v-if="receiptMode === 'calendar'">
-        <aside class="sticky top-24 rounded-[18px] p-4.5 shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[900.01px]:static max-[900.01px]:w-[min(330px,_100%)] min-[760px]:max-[900.01px]:w-full max-[640.01px]:w-full max-[640.01px]:p-[14px]" aria-label="Choose a receipt date">
-          <div class="calendar-heading grid grid-cols-[44px_1fr_44px] items-center gap-1.5">
+        <aside class="sticky top-24 rounded-[1.125rem] p-4.5 shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[900.01px]:static max-[900.01px]:w-[min(20.625rem,_100%)] min-[760px]:max-[900.01px]:w-full max-[640.01px]:w-full max-[640.01px]:p-[0.875rem]" aria-label="Choose a receipt date">
+          <div class="calendar-heading grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-1.5">
             <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" @click="moveCalendarMonth(-1)" />
             <h2 aria-live="polite">{{ selectedCalendarMonthLabel }}</h2>
             <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" @click="moveCalendarMonth(1)" />
           </div>
-          <table class="receipt-calendar mt-3 w-full table-fixed border-separate [border-spacing:3px]">
+          <table class="receipt-calendar mt-3 w-full table-fixed border-separate [border-spacing:0.1875rem]">
             <caption class="sr-only">Choose any calendar date</caption>
             <thead><tr><th v-for="weekday in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="weekday" scope="col">{{ weekday.slice(0, 1) }}</th></tr></thead>
             <tbody>
@@ -440,11 +440,11 @@ async function confirmRemoveEntry() {
               </tr>
             </tbody>
           </table>
-          <p class="calendar-legend m-[13px_0_0] flex items-center justify-center gap-[7px] text-[11px] text-(--muted)"><i aria-hidden="true" /> Dates with receipts</p>
+          <p class="calendar-legend m-[0.8125rem_0_0] flex items-center justify-center gap-[0.4375rem] text-xs text-(--muted)"><i aria-hidden="true" /> Dates with receipts</p>
         </aside>
 
         <section class="selected-receipts min-w-0" :aria-labelledby="'selected-receipt-date'">
-          <header class="selected-receipts-heading m-[0_0_14px] grid gap-3.5">
+          <header class="selected-receipts-heading m-[0_0_0.875rem] grid gap-3.5">
             <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Selected date</p><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
             <div class="selected-receipts-controls flex flex-wrap items-center justify-start gap-3.5 max-[640.01px]:justify-start">
               <span v-if="receiptData">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
@@ -455,7 +455,7 @@ async function confirmRemoveEntry() {
                   icon="i-lucide-chevron-left"
                   color="neutral"
                   variant="outline"
-                  size="sm"
+                  size="md"
                   :disabled="!olderReceiptDate"
                   :aria-label="olderReceiptDate ? `Older receipt day, ${dateLabel(olderReceiptDate.date)}` : 'No older receipt days'"
                   @click="olderReceiptDate && selectReceiptDateValue(olderReceiptDate.date)"
@@ -466,29 +466,29 @@ async function confirmRemoveEntry() {
                   trailing-icon="i-lucide-chevron-right"
                   color="neutral"
                   variant="outline"
-                  size="sm"
+                  size="md"
                   :disabled="!newerReceiptDate"
                   :aria-label="newerReceiptDate ? `Newer receipt day, ${dateLabel(newerReceiptDate.date)}` : 'No newer receipt days'"
                   @click="newerReceiptDate && selectReceiptDateValue(newerReceiptDate.date)"
                 />
               </nav>
-              <UButton :to="{ path: '/receipts/new', query: { date: selectedDate } }" label="Add receipt" icon="i-lucide-plus" color="primary" class="receipt-add-button" />
+              <UButton :to="{ path: '/receipts/new', query: { date: selectedDate } }" label="Add receipt" icon="i-lucide-plus" color="primary" />
             </div>
           </header>
           <div v-if="receiptsLoadingVisible" class="grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Gathering receipts…</div>
           <div v-else-if="receiptsError" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Could not load receipts for this date.</div>
-          <div v-else-if="!receiptData?.receipts.length" class="receipt-empty-state grid min-h-65 content-center justify-items-center gap-[9px] rounded-[18px] p-7 text-center text-(--muted) [background:var(--surface)] [border:1px_dashed_var(--line)]"><UIcon name="i-lucide-receipt-text" aria-hidden="true" /><strong>No receipts for this date</strong><span>Add the first receipt for {{ dateLabel(selectedDate) }}.</span></div>
-          <div v-else class="[column-width:360px] gap-6 max-[900.01px]:[columns:1]">
-          <article v-for="receipt in receiptData.receipts" :key="receipt.id" class="relative mb-6 break-inside-avoid overflow-hidden rounded-[8px_8px_18px_18px] p-[26px_26px_22px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[22px_16px_18px]">
-            <header class="receipt-heading flex items-center gap-[13px] pb-5 text-left max-[640.01px]:flex-wrap">
-              <div class="grid size-[42px] flex-[0_0_auto] place-items-center rounded-[13px] text-xl text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
+          <div v-else-if="!receiptData?.receipts.length" class="receipt-empty-state flex items-center gap-2 py-3 text-(--muted)"><UIcon name="i-lucide-receipt-text" aria-hidden="true" />No receipts for this date.</div>
+          <div v-else class="[column-width:22.5rem] gap-6 max-[900.01px]:[columns:1]">
+          <article v-for="receipt in receiptData.receipts" :key="receipt.id" class="relative mb-6 break-inside-avoid overflow-hidden rounded-[0.5rem_0.5rem_1.125rem_1.125rem] p-[1.625rem_1.625rem_1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[1.375rem_1rem_1.125rem]">
+            <header class="receipt-heading flex items-center gap-[0.8125rem] pb-5 text-left max-[640.01px]:flex-wrap">
+              <div class="grid size-[2.625rem] flex-[0_0_auto] place-items-center rounded-[0.8125rem] text-title text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
               <div class="min-w-0 flex-1">
-                <h2 class="text-[23px] leading-[1.05]">{{ receipt.location }}</h2>
-                <p class="[margin:4px_0_0] text-(--muted) text-[12px]">{{ dateLabel(receipt.purchasedOn) }}<span class="ml-2.5 font-[650] text-(--accent-strong)">{{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</span></p>
+                <h2 class="text-title leading-[1.05]">{{ receipt.location }}</h2>
+                <p class="[margin:0.25rem_0_0] text-(--muted) text-xs">{{ dateLabel(receipt.purchasedOn) }}<span class="ml-2.5 font-[650] text-(--accent-strong)">{{ receipt.itemCount }} {{ receipt.itemCount === 1 ? 'item' : 'items' }}</span></p>
               </div>
               <UButton :to="`/receipts/${receipt.id}`" label="Edit receipt" icon="i-lucide-pencil" color="neutral" variant="outline" size="sm" />
             </header>
-            <div class="flex justify-between p-[8px_0] text-[11px] font-[750] tracking-widest text-(--muted) uppercase [border-block:1px_dashed_var(--line)]"><span>Item</span><span>Price</span></div>
+            <div class="flex justify-between p-[0.5rem_0] text-xs font-[750] tracking-widest text-(--muted) uppercase [border-block:1px_dashed_var(--line)]"><span>Item</span><span>Price</span></div>
             <ul class="receipt-lines m-0 list-none p-0">
               <ReceiptEntryLine v-for="entry in previewEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" :price="currency(entry.price)" />
             </ul>
@@ -503,21 +503,21 @@ async function confirmRemoveEntry() {
               </template>
             </UCollapsible>
             <footer class="flex items-baseline justify-between gap-5 pt-4.5 [font-family:var(--font-display)]">
-              <span class="text-[18px] font-[600]">Total</span>
-              <strong class="text-(--accent-strong) text-[30px] [font-variant-numeric:tabular-nums]">{{ currency(receipt.total) }}</strong>
+              <span class="text-title font-[600]">Total</span>
+              <strong class="text-(--accent-strong) text-heading [font-variant-numeric:tabular-nums]">{{ currency(receipt.total) }}</strong>
             </footer>
           </article>
           </div>
         </section>
         </template>
-        <section v-else class="col-span-full min-w-0 rounded-[18px] p-6 shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[18px_14px]" aria-labelledby="receipt-list-heading">
+        <section v-else class="col-span-full min-w-0 rounded-[1.125rem] p-6 shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:p-[1.125rem_0.875rem]" aria-labelledby="receipt-list-heading">
           <header class="receipt-list-heading mb-4 flex items-end justify-between gap-4.5 max-[640.01px]:items-start">
             <div><h2 id="receipt-list-heading">Shopping history</h2></div>
             <div class="flex items-center gap-3.5">
-              <span v-if="receiptData" class="text-[13px] text-(--muted)">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
+              <span v-if="receiptData" class="text-sm text-(--muted)">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
             </div>
           </header>
-          <div v-if="receiptData && receiptData.total > 50" class="pagination m-[-4px_0_16px] mt-6 flex items-center justify-center gap-[18px] text-[13px] text-(--muted) max-[640.01px]:gap-[8px]" aria-label="Receipt list pagination">
+          <div v-if="receiptData && receiptData.total > 50" class="pagination m-[-0.25rem_0_1rem] mt-6 flex items-center justify-center gap-[1.125rem] text-sm text-(--muted) max-[640.01px]:gap-[0.5rem]" aria-label="Receipt list pagination">
             <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="receiptListOffset === 0" @click="receiptListOffset = Math.max(0, receiptListOffset - 50)" />
             <span>{{ receiptListOffset + 1 }}–{{ Math.min(receiptListOffset + 50, receiptData.total) }} of {{ receiptData.total }}</span>
             <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="receiptListOffset + 50 >= receiptData.total" @click="receiptListOffset += 50" />
@@ -526,8 +526,8 @@ async function confirmRemoveEntry() {
           <div v-else-if="receiptsError" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Could not load the receipt list.</div>
           <div v-else-if="!receiptData?.receipts.length" class="grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">No receipts recorded yet.</div>
           <template v-else>
-            <div class="overflow-hidden rounded-[14px] [border:1px_solid_var(--line)] max-[640.01px]:[overflow:visible] max-[640.01px]:[border:0]">
-              <table class="receipt-list w-full border-collapse">
+            <div class="overflow-hidden rounded-[0.875rem] [border:1px_solid_var(--line)] max-[640.01px]:[overflow:visible] max-[640.01px]:[border:0]">
+              <table class="receipt-list w-full border-collapse text-base">
                 <caption class="sr-only">Receipt date, store, and total</caption>
                 <thead><tr><th scope="col">Date</th><th scope="col">Store</th><th scope="col">Items</th><th scope="col">Total</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
                 <tbody>
@@ -541,7 +541,7 @@ async function confirmRemoveEntry() {
                 </tbody>
               </table>
             </div>
-            <div v-if="receiptData.total > 50" class="pagination mt-6 flex items-center justify-center gap-[18px] text-[13px] text-(--muted) max-[640.01px]:gap-[8px]" aria-label="Receipt list pagination">
+            <div v-if="receiptData.total > 50" class="pagination mt-6 flex items-center justify-center gap-[1.125rem] text-sm text-(--muted) max-[640.01px]:gap-[0.5rem]" aria-label="Receipt list pagination">
               <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="receiptListOffset === 0" @click="receiptListOffset = Math.max(0, receiptListOffset - 50)" />
               <span>{{ receiptListOffset + 1 }}–{{ Math.min(receiptListOffset + 50, receiptData.total) }} of {{ receiptData.total }}</span>
               <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="receiptListOffset + 50 >= receiptData.total" @click="receiptListOffset += 50" />
@@ -556,13 +556,13 @@ async function confirmRemoveEntry() {
       <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Could not load the price history.</div>
       <div v-else-if="!data?.entries.length" class="grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">No matching entries.</div>
       <template v-else>
-      <div v-if="data && data.total > limit" class="pagination m-[-4px_0_16px] mt-6 flex items-center justify-center gap-[18px] text-[13px] text-(--muted) max-[640.01px]:gap-[8px]" aria-label="Price history pagination">
+      <div v-if="data && data.total > limit" class="pagination m-[-0.25rem_0_1rem] mt-6 flex items-center justify-center gap-[1.125rem] text-sm text-(--muted) max-[640.01px]:gap-[0.5rem]" aria-label="Price history pagination">
         <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="offset === 0" @click="offset = Math.max(0, offset - limit)" />
         <span>{{ offset + 1 }}–{{ Math.min(offset + limit, data.total) }} of {{ data.total }}</span>
         <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
       </div>
-      <div class="overflow-hidden rounded-[18px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:[overflow:visible] max-[640.01px]:[border:0] max-[640.01px]:[background:transparent] max-[640.01px]:[box-shadow:none]">
-      <table class="history-table w-full table-fixed border-collapse">
+      <div class="overflow-hidden rounded-[1.125rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:[overflow:visible] max-[640.01px]:[border:0] max-[640.01px]:[background:transparent] max-[640.01px]:[box-shadow:none]">
+      <table class="history-table w-full table-fixed border-collapse text-base">
         <thead>
           <tr>
             <th :aria-sort="ariaSort('purchasedOn')"><UButton type="button" label="Date" :icon="sortBy === 'purchasedOn' ? (sortDirection === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down') : 'i-lucide-arrow-up-down'" color="neutral" variant="ghost" size="xs" @click="toggleSort('purchasedOn')" /></th>
@@ -578,10 +578,10 @@ async function confirmRemoveEntry() {
           <tr v-for="entry in data.entries" :key="entry.id" tabindex="0" @click="focusHistoryRow" @dblclick="editEntryFromRow(entry, $event)">
             <td data-label="Date">{{ dateLabel(entry.purchasedOn) }}</td>
             <td data-label="Item">
-              <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[7px] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
+              <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
                 <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
               </NuxtLink>
-              <span v-if="entry.saleItem || entry.nonGrocery || Math.abs(Number(entry.priceChangePercent)) >= 10" class="mt-1.5 flex flex-wrap gap-[5px]">
+              <span v-if="entry.saleItem || entry.nonGrocery || Math.abs(Number(entry.priceChangePercent)) >= 10" class="mt-1.5 flex flex-wrap gap-[0.3125rem]">
                 <UBadge v-if="entry.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" />
                 <UBadge
                   v-if="Number(entry.priceChangePercent) >= 10"
@@ -615,7 +615,7 @@ async function confirmRemoveEntry() {
       </div>
       </template>
 
-      <div v-if="data && data.total > limit" class="pagination mt-6 flex items-center justify-center gap-[18px] text-[13px] text-(--muted) max-[640.01px]:gap-[8px]">
+      <div v-if="data && data.total > limit" class="pagination mt-6 flex items-center justify-center gap-[1.125rem] text-sm text-(--muted) max-[640.01px]:gap-[0.5rem]">
       <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="offset === 0" @click="offset = Math.max(0, offset - limit)" />
       <span>{{ offset + 1 }}–{{ Math.min(offset + limit, data.total) }} of {{ data.total }}</span>
       <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
@@ -624,32 +624,32 @@ async function confirmRemoveEntry() {
 
     <UModal :open="Boolean(editing)" title="Edit purchase" :dismissible="!saving" :close="!saving" @update:open="!$event && closeEdit()">
       <template #body>
-        <form v-if="editing" id="edit-purchase-form" class="edit-dialog max-h-[calc(100dvh-40px)] w-[min(650px,100%)] overflow-auto p-7 [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:p-[22px]" @submit.prevent="saveEdit">
+        <form v-if="editing" id="edit-purchase-form" class="edit-dialog max-h-[calc(100dvh-2.5rem)] w-[min(40.625rem,100%)] overflow-auto p-7 [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:p-[1.375rem]" @submit.prevent="saveEdit">
           <div class="form-grid grid grid-cols-2 gap-4">
-            <UFormField label="Date" name="edit-date" required class="field relative grid min-w-0 gap-[7px]">
+            <UFormField label="Date" name="edit-date" required class="field relative grid min-w-0 gap-[0.4375rem]">
               <UInput id="edit-date" v-model="editing.purchasedOn" type="date" required />
             </UFormField>
-            <UFormField label="Store" name="edit-store" required class="field relative grid min-w-0 gap-[7px]">
+            <UFormField label="Store" name="edit-store" required class="field relative grid min-w-0 gap-[0.4375rem]">
               <UInputMenu id="edit-store" v-model="editing.location" :items="(stores || []).map(store => store.name)" create-item placeholder="Choose or add a store…" required />
             </UFormField>
           </div>
-          <UFormField label="Item" name="edit-item" required class="field relative grid min-w-0 gap-[7px]">
+          <UFormField label="Item" name="edit-item" required class="field relative grid min-w-0 gap-[0.4375rem]">
             <UInput id="edit-item" v-model="editing.item" type="text" required />
           </UFormField>
           <div class="form-grid grid grid-cols-3 gap-4">
-            <UFormField label="Size" name="edit-size" class="field relative grid min-w-0 gap-[7px]">
-              <UInput id="edit-size" v-model="editingSize" type="number" step="any" />
+            <UFormField label="Size" name="edit-size" class="field relative grid min-w-0 gap-[0.4375rem]">
+              <UInput id="edit-size" v-model="editingSize" type="number" step="any" inputmode="decimal" />
             </UFormField>
-            <UFormField label="Unit" name="edit-unit" class="field relative grid min-w-0 gap-[7px]"><UnitInput id="edit-unit" v-model="editing.unit" /></UFormField>
-            <UFormField label="Price" name="edit-price" required class="field relative grid min-w-0 gap-[7px]">
-              <UInput id="edit-price" v-model="editing.price" type="number" min="0" step="0.01" required />
+            <UFormField label="Unit" name="edit-unit" class="field relative grid min-w-0 gap-[0.4375rem]"><UnitInput id="edit-unit" v-model="editing.unit" /></UFormField>
+            <UFormField label="Price" name="edit-price" required class="field relative grid min-w-0 gap-[0.4375rem]">
+              <UInput id="edit-price" v-model="editing.price" type="number" min="0" step="0.01" inputmode="decimal" required />
             </UFormField>
           </div>
           <div class="quick-toggles mt-5 flex flex-wrap gap-2.5">
             <UCheckbox v-model="editing.saleItem" label="Sale item" />
             <UCheckbox v-model="editing.nonGrocery" label="Non-grocery" />
           </div>
-          <UFormField label="Notes" name="edit-notes" class="field relative grid min-w-0 gap-[7px]">
+          <UFormField label="Notes" name="edit-notes" class="field relative grid min-w-0 gap-[0.4375rem]">
             <UTextarea id="edit-notes" v-model="editingNotes" :rows="3" :maxlength="maxEntryNotesLength" aria-describedby="edit-notes-character-count" :ui="{ trailing: 'pointer-events-none' }">
               <template #trailing>
                 <span id="edit-notes-character-count" class="text-xs text-muted tabular-nums" aria-live="polite" role="status">{{ editingNotes.length }}/{{ maxEntryNotesLength }}</span>
