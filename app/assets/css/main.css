@@ -201,17 +201,7 @@ h2 { font-size: var(--text-heading); }
 .field > label, .field > span:first-child { color: var(--muted); font-size: var(--text-sm); font-weight: 700; }
 .field [data-slot="root"]:has(> [data-slot="base"]) { width: 100%; }
 
-.entry-form [data-slot="root"]:has([data-slot="leading"]) [data-slot="base"] { padding-inline-start: 2.75rem; }
-.entry-form [data-slot="root"]:has([data-slot="trailing"]) [data-slot="base"] { padding-inline-end: 2.75rem; }
-.entry-form .item-field [data-slot="root"]:has([data-slot="leading"]) [data-slot="base"] { padding-inline-start: 3.125rem; }
-
-.size-grid:not(:has(.cost-preview)) { grid-template-columns: 1fr 1fr; }
-.ui-switches [data-slot="root"] { min-height: 2.75rem; align-items: center; }
 .quick-toggles [data-slot="label"] { cursor: pointer; }
-
-.more-fields summary { width: max-content; padding: 1rem 0 0; color: var(--muted); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
-
-.details-grid .field { grid-column: 1 / -1; width: 100%; }
 
 button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
@@ -420,7 +410,6 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 @media (max-width: 640px) {
   .receipt-views > * { flex: 1; justify-content: center; }
   .highlight-stats .stat-card:last-child { grid-column: 1 / -1; }
-  .entry-form .size-grid { grid-template-columns: 1fr; }
   .core-items-table, .core-items-table tbody { display: grid; gap: 0.625rem; }
   .core-items-table thead { display: none; }
   .core-items-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8125rem; padding: 0.875rem; border: 1px solid var(--line); border-radius: 0.875rem; background: var(--surface-strong); }
