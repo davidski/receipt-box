@@ -28,8 +28,8 @@ export default defineNuxtConfig({
       title: 'Receipt Box',
       meta: [
         { name: 'description', content: 'A private receipt tracker with grocery price history.' },
-        { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#f4f0e6' },
-        { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#111512' },
+        { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#f6f7f4' },
+        { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#12161b' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' }
       ],
@@ -39,7 +39,7 @@ export default defineNuxtConfig({
         { rel: 'preconnect', href: 'https://fonts.bunny.net' },
         {
           rel: 'stylesheet',
-          href: 'https://fonts.bunny.net/css?family=ibm-plex-sans:600|open-sans:400,600,700&display=swap'
+          href: 'https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap'
         }
       ]
     }

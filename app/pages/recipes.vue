@@ -49,7 +49,8 @@ function sortBy(key: SortKey) {
   }
 }
 
-const sortButtonClass = 'text-[11px] font-[750] tracking-[.08em] uppercase'
+// -mx-2 cancels the ghost button's padding so header labels line up with the cell text below.
+const sortButtonClass = '-mx-2 text-xs font-[750] tracking-[.08em] uppercase'
 const ariaSort = (key: SortKey) => sortKey.value === key ? (sortDesc.value ? 'descending' : 'ascending') : 'none'
 
 async function load() {
@@ -69,12 +70,11 @@ onMounted(load)
 
 <template>
   <div class="mx-auto w-full max-w-300">
-    <header class="page-heading my-[15px] mb-8 flex flex-wrap items-end justify-between gap-4">
+    <header class="page-heading my-[0.9375rem] mb-8">
       <div>
-        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">Recipes</h1>
+        <h1 class="leading-[1.04] text-display">Recipes</h1>
         <p>Saved recipes, priced at what you last paid.</p>
       </div>
-      <UButton to="/recipe" icon="i-lucide-plus" label="New recipe" />
     </header>
 
     <UAlert v-if="loadError" data-recipes-error role="alert" class="mb-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="loadError">
@@ -93,24 +93,27 @@ onMounted(load)
     </UCard>
 
     <template v-else-if="recipes.length">
-      <UInput v-model="search" aria-label="Search recipes" placeholder="Search recipes…" icon="i-lucide-search" class="mb-4 w-full sm:max-w-sm" :ui="{ base: 'min-h-11' }" />
+      <div data-recipes-toolbar class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <UInput v-model="search" aria-label="Search recipes" placeholder="Search recipes…" icon="i-lucide-search" class="w-full sm:max-w-sm" />
+        <UButton to="/recipe" icon="i-lucide-plus" label="New recipe" />
+      </div>
 
       <p v-if="!rows.length" data-recipes-no-match class="text-(--muted)">No recipes match “{{ search.trim() }}”.</p>
 
-      <div v-else class="overflow-x-auto rounded-[24px] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
-        <table data-recipes-table class="w-full border-collapse text-sm">
-          <thead class="text-left text-[11px] font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)]">
+      <div v-else class="overflow-x-auto rounded-[1.5rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+        <table data-recipes-table class="w-full border-collapse text-base">
+          <thead class="text-left text-xs font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)]">
             <tr>
               <th scope="col" :aria-sort="ariaSort('name')" class="px-4 py-2">
                 <UButton label="Recipe" color="neutral" variant="ghost" size="xs" :class="sortButtonClass" :trailing-icon="sortKey === 'name' ? (sortDesc ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up') : undefined" @click="sortBy('name')" />
               </th>
               <th scope="col" class="px-4 py-2 text-right">Items</th>
               <th scope="col" :aria-sort="ariaSort('now')" class="px-4 py-2 text-right">
-                <UButton label="Now" color="neutral" variant="ghost" size="xs" :class="sortButtonClass" :trailing-icon="sortKey === 'now' ? (sortDesc ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up') : undefined" @click="sortBy('now')" />
+                <UButton label="Now" color="neutral" variant="ghost" size="xs" :class="sortButtonClass" :leading-icon="sortKey === 'now' ? (sortDesc ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up') : undefined" @click="sortBy('now')" />
               </th>
               <th scope="col" class="px-4 py-2 text-right">Saved</th>
               <th scope="col" :aria-sort="ariaSort('change')" class="px-4 py-2 text-right">
-                <UButton label="Change" color="neutral" variant="ghost" size="xs" :class="sortButtonClass" :trailing-icon="sortKey === 'change' ? (sortDesc ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up') : undefined" @click="sortBy('change')" />
+                <UButton label="Change" color="neutral" variant="ghost" size="xs" :class="sortButtonClass" :leading-icon="sortKey === 'change' ? (sortDesc ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up') : undefined" @click="sortBy('change')" />
               </th>
             </tr>
           </thead>
@@ -124,7 +127,7 @@ onMounted(load)
               <td data-col="saved" class="px-4 py-3 text-right">
                 <template v-if="recipe.savedTotal === null">—</template>
                 <template v-else>{{ currency(Number(recipe.savedTotal)) }}</template>
-                <span class="block text-xs text-(--muted)">{{ dateText(recipe.savedAt) }}</span>
+                <span class="block text-sm text-(--muted)">{{ dateText(recipe.savedAt) }}</span>
               </td>
               <td data-col="change" class="px-4 py-3 text-right">
                 <template v-if="changeOf(recipe) !== null">

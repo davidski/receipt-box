@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { normalizedHistoricalPrice } from '../../../shared/utils/normalized-price'
+import { prettyScale } from '../../../shared/utils/chart-scale'
 
 type HistoryEntry = {
   id: string
@@ -29,7 +30,8 @@ const chartWidth = ref(860)
 
 function updateChartWidth() {
   const available = document.querySelector<HTMLElement>('.price-chart-scroll')?.clientWidth
-  chartWidth.value = Math.max(300, Math.min(860, available || window.innerWidth - 64))
+  // No upper cap: the viewBox must match the rendered width so one chart unit is one CSS pixel (design doc, Units).
+  chartWidth.value = Math.max(300, available || window.innerWidth - 64)
 }
 
 onMounted(() => {
@@ -146,9 +148,7 @@ const chart = computed(() => {
   const timestamps = points.map(point => parseCalendarDate(point.purchasedOn)?.getTime() || 0)
   const rawMin = Math.min(...values)
   const rawMax = Math.max(...values)
-  const padding = rawMin === rawMax ? Math.max(rawMax * 0.1, 0.05) : (rawMax - rawMin) * 0.12
-  const min = Math.max(0, rawMin - padding)
-  const max = rawMax + padding
+  const { min, max, breaks } = prettyScale(rawMin, rawMax)
   const firstTime = Math.min(...timestamps)
   const lastTime = Math.max(...timestamps)
   const xRange = width - plot.left - plot.right
@@ -158,10 +158,7 @@ const chart = computed(() => {
     x: firstTime === lastTime ? plot.left + xRange / 2 : plot.left + ((timestamps[index]! - firstTime) / (lastTime - firstTime)) * xRange,
     y: plot.top + ((max - point.normalizedPrice) / (max - min)) * yRange
   }))
-  const ticks = Array.from({ length: 5 }, (_, index) => {
-    const value = max - ((max - min) * index) / 4
-    return { value, y: plot.top + (yRange * index) / 4 }
-  })
+  const ticks = breaks.map(value => ({ value, y: plot.top + ((max - value) / (max - min)) * yRange }))
   const xTicks = dateTicks(firstTime, lastTime, width, plot.left, plot.right)
   return {
     width,
@@ -202,9 +199,9 @@ function packageLabel(entry: HistoryEntry) {
 
 <template>
   <div class="mx-auto w-full max-w-300">
-    <header class="page-heading my-[15px] mb-8 flex items-end justify-between gap-6 max-[640.01px]:grid max-[640.01px]:items-start">
+    <header class="page-heading my-[0.9375rem] mb-8 flex items-end justify-between gap-6 max-[640.01px]:grid max-[640.01px]:items-start">
       <div>
-        <h1 class="leading-[1.04] text-[clamp(34px,3.5vw,42px)]">{{ data?.item || routeItem }}</h1>
+        <h1 class="leading-[1.04] text-display">{{ data?.item || routeItem }}</h1>
         <p v-if="data">{{ data.entries.length.toLocaleString() }} recorded {{ data.entries.length === 1 ? 'purchase' : 'purchases' }}</p>
       </div>
       <UButton to="/history/receipts/calendar" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
@@ -216,7 +213,7 @@ function packageLabel(entry: HistoryEntry) {
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
     <template v-else-if="data">
-      <div v-if="series.length > 1" class="series-picker m-[-12px_0_18px] flex flex-wrap items-center gap-1.5 rounded-[14px] p-2 [background:var(--surface)] [border:1px_solid_var(--line)]" aria-label="Normalized price basis">
+      <div v-if="series.length > 1" class="series-picker m-[-0.75rem_0_1.125rem] flex flex-wrap items-center gap-1.5 rounded-[0.875rem] p-2 [background:var(--surface)] [border:1px_solid_var(--line)]" aria-label="Normalized price basis">
         <span>Compare by</span>
         <UButton
           v-for="option in series"
@@ -231,9 +228,9 @@ function packageLabel(entry: HistoryEntry) {
       </div>
 
       <div v-if="summary" class="item-price-stats mb-4.5 grid grid-cols-[repeat(3,1fr)] gap-3.5 max-[900.01px]:grid-cols-3 max-[640.01px]:grid-cols-1">
-        <UCard><span>Latest normalized</span><strong>{{ currency(summary.latest.normalizedPrice) }}</strong><small>{{ summary.latest.basisLabel }}</small></UCard>
-        <UCard><span>Historical low</span><strong>{{ currency(summary.low) }}</strong><small>{{ chartPoints.length }} charted purchases</small></UCard>
-        <UCard><span>Historical high</span><strong>{{ currency(summary.high) }}</strong><small>{{ dateLabel(summary.latest.purchasedOn) }} latest</small></UCard>
+        <UCard><span>Latest normalized</span><strong><MoneyAmount :value="summary.latest.normalizedPrice" /></strong><small>{{ summary.latest.basisLabel }}</small></UCard>
+        <UCard><span>Historical low</span><strong><MoneyAmount :value="summary.low" /></strong><small>{{ chartPoints.length }} charted purchases</small></UCard>
+        <UCard><span>Historical high</span><strong><MoneyAmount :value="summary.high" /></strong><small>{{ dateLabel(summary.latest.purchasedOn) }} latest</small></UCard>
       </div>
 
       <UAlert
@@ -242,17 +239,17 @@ function packageLabel(entry: HistoryEntry) {
         variant="soft"
         icon="i-lucide-triangle-alert"
         :description="`${excludedOutliers} unusually high normalized ${excludedOutliers === 1 ? 'value is' : 'values are'} excluded from the chart scale but retained in the purchase table for review.`"
-        class="m-[0_0_18px]"
+        class="m-[0_0_1.125rem]"
       />
 
-      <UCard v-if="chart" class="mt-[18px] [border:1px_solid_var(--line)] rounded-[22px] bg-(--surface) shadow-(--shadow)">
+      <UCard v-if="chart" class="mt-[1.125rem] [border:1px_solid_var(--line)] rounded-[1.375rem] bg-(--surface) shadow-(--shadow)">
         <div class="mb-4.5 flex items-end justify-between gap-4.5">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Price trend</p><h2 class="text-[25px]">{{ visiblePoints[0]?.basisLabel }}</h2></div>
-          <div class="chart-legend flex gap-3.5 text-xs text-(--muted)"><span class="inline-flex items-center gap-[6px]"><i  class="w-[10px] h-[10px] rounded-[50%] bg-(--accent)" />Regular</span><span class="inline-flex items-center gap-[6px]"><i class="sale w-[10px] h-[10px] rounded-[50%] bg-(--accent)" />Sale</span></div>
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Price trend</p><h2 class="text-heading">{{ visiblePoints[0]?.basisLabel }}</h2></div>
+          <div class="chart-legend flex gap-3.5 text-xs text-(--muted)"><span class="inline-flex items-center gap-[0.375rem]"><i  class="w-[0.625rem] h-[0.625rem] rounded-[50%] bg-(--chart-series)" />Regular</span><span class="inline-flex items-center gap-[0.375rem]"><i class="sale w-[0.5rem] h-[0.5rem] rotate-45 bg-(--accent)" />Sale</span></div>
         </div>
-        <div v-if="chartPoints.length < 2" class="grid min-h-[130px] place-items-center text-center text-(--muted)">Add another comparable purchase to draw a trend line.</div>
+        <div v-if="chartPoints.length < 2" class="grid min-h-[8.125rem] place-items-center text-center text-(--muted)">Add another comparable purchase to draw a trend line.</div>
         <div v-else class="price-chart-scroll min-w-0 overflow-hidden">
-          <svg :viewBox="`0 0 ${chart.width} ${chart.height}`" role="img" :aria-label="`${data.item} normalized price chart, ${visiblePoints[0]?.basisLabel}`" class="block w-full h-[300px]">
+          <svg :viewBox="`0 0 ${chart.width} ${chart.height}`" role="img" :aria-label="`${data.item} normalized price chart, ${visiblePoints[0]?.basisLabel}`" class="block w-full h-[18.75rem]">
             <title>{{ data.item }} normalized price history</title>
             <g class="chart-grid">
               <g v-for="tick in chart.ticks" :key="tick.y">
@@ -266,7 +263,7 @@ function packageLabel(entry: HistoryEntry) {
                 <text :x="tick.x" :y="chart.height - 11" :text-anchor="tick.anchor">{{ tick.label }}</text>
               </g>
             </g>
-            <polyline class="fill-none stroke-(--accent) stroke-3 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
+            <polyline class="fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
             <g
               v-for="point in chart.positioned"
               :key="point.id"
@@ -280,13 +277,14 @@ function packageLabel(entry: HistoryEntry) {
               @keydown.space.prevent="selectedPoint = point"
             >
               <circle class="price-chart-hit cursor-pointer fill-transparent" :cx="point.x" :cy="point.y" r="16" />
-              <circle :class="['price-chart-point', { sale: point.saleItem }]" :cx="point.x" :cy="point.y" r="5">
-                <title>{{ dateLabel(point.purchasedOn) }} · {{ currency(point.normalizedPrice) }} · {{ point.location }}{{ point.saleItem ? ' · Sale' : '' }}</title>
-              </circle>
+              <title>{{ dateLabel(point.purchasedOn) }} · {{ currency(point.normalizedPrice) }} · {{ point.location }}{{ point.saleItem ? ' · Sale' : '' }}</title>
+              <!-- Sale prices are diamonds as well as gold, so the encoding never relies on color alone. -->
+              <path v-if="point.saleItem" class="price-chart-point sale" :d="`M ${point.x} ${point.y - 7} L ${point.x + 7} ${point.y} L ${point.x} ${point.y + 7} L ${point.x - 7} ${point.y} Z`" />
+              <circle v-else class="price-chart-point" :cx="point.x" :cy="point.y" r="6" />
             </g>
           </svg>
         </div>
-        <div v-if="selectedPoint" class="mt-2 flex min-h-12 flex-wrap items-center gap-[7px_14px] rounded-xl p-[10px_13px] text-[13px] [background:var(--surface-muted)] [border:1px_solid_var(--line)]" aria-live="polite">
+        <div v-if="selectedPoint" class="mt-2 flex min-h-12 flex-wrap items-center gap-[0.4375rem_0.875rem] rounded-xl p-[0.625rem_0.8125rem] text-sm [background:var(--surface-muted)] [border:1px_solid_var(--line)]" aria-live="polite">
           <strong>{{ currency(selectedPoint.normalizedPrice) }}</strong>
           <span class="text-(--muted)">{{ dateLabel(selectedPoint.purchasedOn) }}</span>
           <span class="text-(--muted)">{{ selectedPoint.location }}</span>
@@ -294,11 +292,11 @@ function packageLabel(entry: HistoryEntry) {
         </div>
       </UCard>
 
-      <UCard class="mt-[18px] [border:1px_solid_var(--line)] rounded-[22px] bg-(--surface) shadow-(--shadow)">
-        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Source purchases</p><h2 class="text-[25px]">Comparable history</h2></div></div>
-        <div v-if="!newestFirst.length" class="grid min-h-[130px] place-items-center text-center text-(--muted)">No entries have enough information to calculate a normalized price.</div>
+      <UCard class="mt-[1.125rem] [border:1px_solid_var(--line)] rounded-[1.375rem] bg-(--surface) shadow-(--shadow)">
+        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Source purchases</p><h2 class="text-heading">Comparable history</h2></div></div>
+        <div v-if="!newestFirst.length" class="grid min-h-[8.125rem] place-items-center text-center text-(--muted)">No entries have enough information to calculate a normalized price.</div>
         <div v-else class="max-[640.01px]:[overflow:visible]">
-          <table class="item-purchases-table w-full border-collapse">
+          <table class="item-purchases-table w-full border-collapse text-base">
             <thead><tr><th>Date</th><th>Store</th><th>Package</th><th>Price</th><th>Normalized</th><th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>
               <tr v-for="point in newestFirst" :key="point.id">
