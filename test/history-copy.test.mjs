@@ -10,7 +10,7 @@ const middleware = await readFile(new URL('../app/middleware/history.ts', import
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('History keeps its page heading stable across views', () => {
-  assert.match(page, /<h1 class="(?=[^"]*text-\[clamp\(34px,3\.5vw,42px\)\])(?=[^"]*leading-\[1\.04\])[^"]*">Receipts<\/h1>/)
+  assert.match(page, /<h1 class="(?=[^"]*text-display(?![\w-]))(?=[^"]*leading-\[1\.04\])[^"]*">Receipts<\/h1>/)
   assert.match(page, /Browse receipts by date\./)
   assert.match(page, /class="[^"]*page-heading[^"]*history-heading[^"]*">[\s\S]*class="[^"]*receipt-mode-switcher[^"]*receipt-views[^"]*" aria-label="Receipts view"/)
   assert.doesNotMatch(page, /history-view-summary/)
@@ -30,13 +30,13 @@ test('History keeps its page heading stable across views', () => {
 })
 
 test('Purchase editor uses consistent spacing between form rows', () => {
-  assert.match(stylesheet, /\.edit-dialog \.form-grid, \.edit-dialog \.quick-toggles \{ margin-top: 16px; \}/)
-  assert.match(stylesheet, /\.edit-dialog \.form-grid \+ \.field, \.edit-dialog \.quick-toggles \+ \.field \{ margin-top: 16px; \}/)
+  assert.match(stylesheet, /\.edit-dialog \.form-grid, \.edit-dialog \.quick-toggles \{ margin-top: 1rem; \}/)
+  assert.match(stylesheet, /\.edit-dialog \.form-grid \+ \.field, \.edit-dialog \.quick-toggles \+ \.field \{ margin-top: 1rem; \}/)
   assert.match(stylesheet, /\.edit-dialog \.form-grid \.field \+ \.field \{ margin-top: 0; \}/)
 })
 
 test('Calendar receipt store headings keep wrapped lines compact', () => {
-  assert.match(page, /<h2[^>]*class="[^\"]*text-\[23px\][^\"]*leading-\[1\.05\]/)
+  assert.match(page, /<h2[^>]*class="[^\"]*text-title[^\"]*leading-\[1\.05\]/)
   assert.match(stylesheet, /\.receipt-heading > button, \.receipt-heading > a \{ align-self: flex-start; \}/)
 })
 
@@ -64,7 +64,7 @@ test('Page content reserves the scrollbar gutter', () => {
 })
 
 test('History filters keep the store selector from widening the filter bar', () => {
-  assert.match(page, /class="[^"]*filter-bar[^"]*grid-cols-\[minmax\(0,1fr\)_minmax\(0,220px\)_minmax\(0,220px\)\][^"]*"/)
+  assert.match(page, /class="[^"]*filter-bar[^"]*grid-cols-\[minmax\(0,1fr\)_minmax\(0,13.75rem\)_minmax\(0,13.75rem\)\][^"]*"/)
   assert.match(stylesheet, /\.store-filter-control, \.store-filter-control > \[data-slot="base"\], \.category-filter-control, \.category-filter-control > \[data-slot="base"\] \{ min-width: 0; \}/)
 })
 
@@ -90,6 +90,13 @@ test('History preserves navigation state in the URL and uses Nuxt UI controls', 
   assert.doesNotMatch(page, /confirm\(/)
 })
 
+test('History pagers, filter chips, and the search clear button use md, so their text is 14px', () => {
+  assert.match(page, /v-for="filter in changeFilters"[^>]*size="md"/)
+  assert.equal((page.match(/label="(Older|Newer)"[^>]*size="md"/g) || []).length, 2)
+  assert.doesNotMatch(page, /label="(Older|Newer)"[^>]*size="(xs|sm)"/)
+  assert.match(page, /aria-label="Clear search"[^>]*size="md"/)
+})
+
 test('History filters entries by category and labels categorized receipt lines', async () => {
   const entriesApi = await readFile(new URL('../server/api/entries/index.get.ts', import.meta.url), 'utf8')
   assert.match(entriesApi, /const category = String\(query\.category \?\? ''\)\.trim\(\)/)
@@ -99,6 +106,6 @@ test('History filters entries by category and labels categorized receipt lines',
 
 test('Receipts keeps headings intact and uses tablet space without widening mobile pages', () => {
   assert.match(page, /class="[^"]*selected-receipts-heading[^"]*gap-3\.5/)
-  assert.match(page, /min-\[760px\]:max-\[900\.01px\]:grid-cols-\[280px_minmax\(0,_1fr\)\]/)
+  assert.match(page, /min-\[760px\]:max-\[900\.01px\]:grid-cols-\[17.5rem_minmax\(0,_1fr\)\]/)
   assert.match(page, /history-heading[^\"]*max-\[900\.01px\]:grid[^\"]*max-\[900\.01px\]:items-start/)
 })

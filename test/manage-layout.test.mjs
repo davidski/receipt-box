@@ -56,3 +56,14 @@ test('Manage destructive actions use an accessible confirmation modal', () => {
   assert.match(managePage, /confirmPendingAction/)
   assert.doesNotMatch(managePage, /confirm\(/)
 })
+
+test('category merge is a ghost action picker beside 14px Rename and Delete buttons', () => {
+  const picker = managePage.match(/<USelectMenu[\s\S]*?placeholder="Merge into…"[\s\S]*?\/>/)[0]
+  assert.match(picker, /variant="ghost"/)
+  assert.match(picker, /:ui="mergeTriggerUi"/)
+  assert.match(managePage, /const mergeTriggerUi = \{ base: 'touch-target w-auto rounded-\(--radius-control\) border-0 [^']*text-sm md:text-sm'/)
+  for (const tag of managePage.match(/<UButton class="touch-target" type="button" label="(Rename|Delete)"[^>]*>/g)) {
+    assert.doesNotMatch(tag, /size="(xs|sm)"/, 'row actions use the default md size')
+  }
+})
+

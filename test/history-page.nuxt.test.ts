@@ -73,7 +73,7 @@ describe('Receipts home', () => {
     const add = wrapper.findAll('a').find(link => link.text() === 'Add receipt')!
     expect(add.attributes('href')).toBe(`/receipts/new?date=${today}`)
     expect(wrapper.find('.receipt-calendar button[aria-pressed="true"]').exists()).toBe(true)
-    expect(wrapper.find('.receipt-empty-state').text()).toContain('No receipts for this date')
+    expect(wrapper.find('.receipt-empty-state').text()).toBe('No receipts for this date.')
   })
 
   it('keeps same-day Add available and edits the receipt by ID', async () => {
