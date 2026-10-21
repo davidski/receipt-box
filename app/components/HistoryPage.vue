@@ -495,7 +495,7 @@ async function confirmRemoveEntry() {
             </header>
             <div class="flex justify-between p-[0.5rem_0] text-xs font-[750] tracking-widest text-muted uppercase border-y border-dashed border-line"><span>Item</span><span>Price</span></div>
             <ul class="m-0 list-none p-0">
-              <ReceiptEntryLine v-for="entry in previewEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" :price="formatCurrency(entry.price)" />
+              <ReceiptEntryLine v-for="entry in previewEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" />
             </ul>
             <UCollapsible v-if="receipt.entries.length > receiptLinePreviewCount" class="mt-1">
               <template #default="{ open }">
@@ -503,7 +503,7 @@ async function confirmRemoveEntry() {
               </template>
               <template #content>
                 <ul class="m-0 list-none p-0">
-                  <ReceiptEntryLine v-for="entry in overflowEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" :price="formatCurrency(entry.price)" />
+                  <ReceiptEntryLine v-for="entry in overflowEntries(receipt)" :key="entry.id" :entry="entry" :size="packageSize(entry.size, entry.unit)" />
                 </ul>
               </template>
             </UCollapsible>

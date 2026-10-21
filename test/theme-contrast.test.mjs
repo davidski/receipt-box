@@ -53,7 +53,8 @@ for (const [name, t] of Object.entries(themes)) {
   test(`${name} theme text tokens meet WCAG AAA (7:1) on every background`, () => {
     for (const token of ['ink', 'muted', 'accent', 'accent-strong', 'danger', 'success', 'warning']) {
       const own = [tint(t[token], t.surface)]
-      if (token === 'accent') own.push(t['accent-soft'])
+      if (token === 'accent' || token === 'accent-strong' || token === 'ink') own.push(t['accent-soft'])
+      if (token === 'ink') own.push(t['danger-soft'])
       if (token === 'danger') own.push(t['danger-soft'])
       for (const bg of [...backgrounds, ...own]) {
         assert.ok(contrast(t[token], bg) >= 7, `${token} on ${bg} is ${contrast(t[token], bg).toFixed(2)}:1`)
@@ -162,8 +163,8 @@ test('receipt editor actions are not outlined and the sticky footer is solid', a
     assert.ok(tag, `${label} button exists`)
     assert.match(tag, /variant="ghost"/, `${label} is ghost`)
   }
-  const footer = form.match(/<footer[^>]*receipt-entry-footer[^>]*>/)[0]
-  assert.match(footer, /\[background:var\(--surface\)\]/)
+  const footer = form.match(/<footer[^>]*data-receipt-footer[^>]*>/)[0]
+  assert.match(footer, /\bbg-surface\b/)
   assert.doesNotMatch(footer, /backdrop-blur|transparent_/)
 })
 
