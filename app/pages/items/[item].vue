@@ -217,7 +217,7 @@ function packageLabel(entry: HistoryEntry) {
     </header>
 
     <div v-if="pending" class="grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-muted">Loading item history…</div>
-    <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-(--muted)">
+    <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-muted">
       <strong>Could not load this item’s history</strong>
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
@@ -253,7 +253,7 @@ function packageLabel(entry: HistoryEntry) {
 
       <UCard v-if="chart" class="mt-[1.125rem] border border-line rounded-card bg-surface shadow-(--shadow)">
         <div class="mb-4.5 flex items-end justify-between gap-4.5">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Price trend</p><h2 class="text-heading">{{ visiblePoints[0]?.basisLabel }}</h2></div>
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-accent uppercase">Price trend</p><h2 class="text-heading">{{ visiblePoints[0]?.basisLabel }}</h2></div>
           <div class="flex gap-3.5 text-xs text-muted"><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2.5 rounded-full bg-chart-series" />Regular</span><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2 rotate-45 bg-sale-mark" />Sale</span></div>
         </div>
         <div v-if="chartPoints.length < 2" class="grid min-h-[8.125rem] place-items-center text-center text-muted">Add another comparable purchase to draw a trend line.</div>
@@ -301,8 +301,8 @@ function packageLabel(entry: HistoryEntry) {
       </UCard>
 
       <UCard class="mt-[1.125rem] border border-line rounded-card bg-surface shadow-(--shadow)">
-        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Source purchases</p><h2 class="text-heading">Comparable history</h2></div></div>
-        <div v-if="!newestFirst.length" class="grid min-h-[8.125rem] place-items-center text-center text-(--muted)">No entries have enough information to calculate a normalized price.</div>
+        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-accent uppercase">Source purchases</p><h2 class="text-heading">Comparable history</h2></div></div>
+        <div v-if="!newestFirst.length" class="grid min-h-[8.125rem] place-items-center text-center text-muted">No entries have enough information to calculate a normalized price.</div>
         <div v-else class="max-sm:[overflow:visible]">
           <table class="w-full border-collapse text-base max-sm:grid max-sm:gap-2.5">
             <caption class="sr-only">Purchases of {{ data.item }}, newest first, with package, price, and normalized price</caption>

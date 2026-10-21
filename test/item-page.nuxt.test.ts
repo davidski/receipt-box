@@ -1,6 +1,6 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ItemPage from '../app/pages/items/[item].vue'
 
 const mounted: Array<{ unmount: () => void }> = []
@@ -80,11 +80,18 @@ describe('Item price history page', () => {
     expect(panel(wrapper).exists()).toBe(false)
   })
 
-  it('stops listening for Escape after the page unmounts', async () => {
+  it('removes its Escape listener when the page unmounts', async () => {
+    const add = vi.spyOn(window, 'addEventListener')
+    const remove = vi.spyOn(window, 'removeEventListener')
     const wrapper = await mountPage()
+    const handler = add.mock.calls.find(([type]) => type === 'keydown')?.[1]
+    expect(handler).toBeTypeOf('function')
+    expect(remove).not.toHaveBeenCalledWith('keydown', handler)
+
     wrapper.unmount()
     mounted.splice(0)
-    expect(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))).not.toThrow()
+    expect(remove).toHaveBeenCalledWith('keydown', handler)
+    vi.restoreAllMocks()
   })
 
   it('shows an empty state instead of a trend line for a single purchase', async () => {
