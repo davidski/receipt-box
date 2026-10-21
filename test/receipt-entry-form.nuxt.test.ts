@@ -1,7 +1,7 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { createError, getQuery, readBody } from 'h3'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterView } from 'vue-router'
 import ReceiptEntryForm from '../app/components/ReceiptEntryForm.vue'
@@ -10,12 +10,18 @@ const UInput = defineComponent({
   inheritAttrs: false,
   props: { modelValue: { type: [String, Number], default: '' } },
   emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () => h('input', {
-      ...attrs,
-      value: props.modelValue,
-      onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).value)
-    })
+  setup(props, { attrs, emit, slots, expose }) {
+    const inputRef = ref<HTMLInputElement>()
+    expose({ inputRef })
+    return () => h('div', [
+      h('input', {
+        ref: inputRef,
+        ...attrs,
+        value: props.modelValue,
+        onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).value)
+      }),
+      slots.trailing?.()
+    ])
   }
 })
 
@@ -26,9 +32,12 @@ const UInputMenu = defineComponent({
     items: { type: Array, default: () => [] }
   },
   emits: ['update:modelValue', 'update:searchTerm', 'update:open', 'create'],
-  setup(props, { attrs, emit }) {
+  setup(props, { attrs, emit, expose }) {
+    const inputRef = ref<HTMLInputElement>()
+    expose({ inputRef })
     return () => h('div', [
       h('input', {
+        ref: inputRef,
         ...attrs,
         role: 'combobox',
         value: props.modelValue,
@@ -56,11 +65,13 @@ const UButton = defineComponent({
     label: { type: String, default: '' },
     icon: String,
     variant: String,
+    color: String,
+    to: [String, Object],
     disabled: Boolean,
     loading: Boolean
   },
   setup(props, { attrs }) {
-    return () => h('button', { ...attrs, type: 'button', 'data-icon': props.icon, 'data-variant': props.variant, disabled: props.disabled || props.loading }, props.label)
+    return () => h('button', { ...attrs, type: 'button', 'data-icon': props.icon, 'data-variant': props.variant, 'data-color': props.color, 'data-to': props.to ? JSON.stringify(props.to) : undefined, disabled: props.disabled || props.loading }, props.label)
   }
 })
 
@@ -249,6 +260,7 @@ registerEndpoint('/api/entries', {
     handler: async (event: any) => {
       const body = await readBody(event)
       entryBodies.push({ method: 'PUT', body })
+      if (failEntrySaves) throw new Error('offline')
       return { ...matchingReceipt?.entries[0], ...body, id: 'entry-1', receiptId: 'receipt-1' }
     }
   })
@@ -310,7 +322,8 @@ describe('receipt item entry interactions', () => {
     expect(dateDisplay.attributes('datetime')).toBe('2026-08-10')
     expect(dateDisplay.text()).toContain('2026')
     expect(wrapper.find('input[type="date"]').exists()).toBe(false)
-    expect(wrapper.findAllComponents(UCheckbox).some(box => box.props('label') === 'Allow date change')).toBe(false)
+    expect(wrapper.find('[aria-label^="Unlock"], [aria-label^="Lock"]').exists()).toBe(false)
+    expect(wrapper.get('[data-icon="i-lucide-arrow-left"]').text()).toBe('Back to Aug 10, 2026')
 
     await wrapper.setProps({ initialDate: '2026-08-11' })
     expect(dateDisplay.attributes('datetime')).toBe('2026-08-11')
@@ -456,7 +469,7 @@ describe('receipt item entry interactions', () => {
   it('keeps explicit merge confirmation for an edit key collision', async () => {
     matchingReceipt = { ...receipt(), id: 'receipt-2', purchasedOn: '2026-08-11', entries: [{ ...receipt().entries[0]!, id: 'entry-2' }] }
     const wrapper = await mountForm('Test Store', 'receipt-1')
-    await wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'Allow date change')!.trigger('click')
+    await wrapper.get('[aria-label="Unlock to change the date"]').trigger('click')
     await wrapper.get('input[type="date"]').setValue('2026-08-11')
     await flushPromises()
 
@@ -497,9 +510,9 @@ describe('receipt item entry interactions', () => {
     splitUndoResult = { source: sourceReceiptForTests }
     const wrapper = await mountForm('Test Store', 'receipt-1')
 
-    expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(2)
+    expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(0)
     await wrapper.findAll('button').find(button => button.text() === 'Split receipt')!.trigger('click')
-    expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(4)
+    expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(2)
     expect(wrapper.find('[data-line-content]').attributes('inert')).toBeDefined()
     await wrapper.get('[aria-label="Select Coffee to move"]').trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Move 1 line')!.trigger('click')
@@ -554,19 +567,160 @@ describe('receipt item entry interactions', () => {
     wrapper.unmount()
   })
 
-  it('locks saved receipt date and store until each change is explicitly allowed', async () => {
-    matchingReceipt = receipt()
+  const lockFields = [
+    { name: 'date', locked: 'Unlock to change the date', unlocked: 'Lock the date', input: 'input[type="date"]', change: '2026-08-12', saved: 'Date saved and locked.', body: (body: any) => body.purchasedOn },
+    { name: 'store', locked: 'Unlock to change the store', unlocked: 'Lock the store', input: '[data-receipt-store]', change: 'Other Store', saved: 'Store saved and locked.', body: (body: any) => body.location }
+  ]
+  // No size or unit, so a save does not stop for a backfill prompt.
+  const plainReceipt = () => ({ ...receipt(), entries: [{ ...receipt().entries[0]!, size: null, unit: null }] })
+
+  for (const field of lockFields) {
+    const lockQuery = (label: string) => `[aria-label="${label}"]`
+
+    it(`locks the saved receipt ${field.name} until its lock button unlocks it`, async () => {
+      matchingReceipt = receipt()
+      const wrapper = await mountForm('Test Store', 'receipt-1')
+      const input = () => wrapper.get(field.input).element as HTMLInputElement
+
+      expect(wrapper.text()).toContain('Unlock the date or store to change it.')
+      expect(input().disabled).toBe(true)
+      const lock = wrapper.get(lockQuery(field.locked))
+      expect(lock.attributes('data-icon')).toBe('i-lucide-lock')
+      expect(lock.attributes('data-variant')).toBe('ghost')
+      expect(lock.attributes('data-color')).toBe('neutral')
+      expect(lock.attributes('aria-pressed')).toBeUndefined()
+      await lock.trigger('click')
+      await flushPromises()
+
+      const unlock = wrapper.get(lockQuery(field.unlocked))
+      expect(unlock.attributes('data-icon')).toBe('i-lucide-lock-open')
+      expect(unlock.attributes('data-variant')).toBe('soft')
+      expect(unlock.attributes('data-color')).toBe('primary')
+      expect(unlock.attributes('aria-pressed')).toBeUndefined()
+      expect(input().disabled).toBe(false)
+      expect(document.activeElement).toBe(input())
+      await unlock.trigger('click')
+      expect(input().disabled).toBe(true)
+      expect(wrapper.find(lockQuery(field.locked)).exists()).toBe(true)
+      wrapper.unmount()
+    })
+
+    it(`relocks the ${field.name}, announces it, and keeps focus on its lock button once the change saves`, async () => {
+      matchingReceipt = plainReceipt()
+      const wrapper = await mountForm('Test Store', 'receipt-1')
+      await wrapper.get(lockQuery(field.locked)).trigger('click')
+      await flushPromises()
+      await wrapper.get(field.input).setValue(field.change)
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(700)
+        expect(entryBodies).toHaveLength(1)
+      })
+      await flushPromises()
+
+      expect(field.body(entryBodies.at(-1)?.body)).toBe(field.change)
+      expect((wrapper.get(field.input).element as HTMLInputElement).disabled).toBe(true)
+      expect(wrapper.find(lockQuery(field.locked)).exists()).toBe(true)
+      expect(document.activeElement).toBe(wrapper.get(lockQuery(field.locked)).element)
+      expect(wrapper.get('[role="status"]').text()).toBe(field.saved)
+      wrapper.unmount()
+    })
+
+    it(`keeps the ${field.name} unlocked and silent when its change fails to save`, async () => {
+      matchingReceipt = plainReceipt()
+      const wrapper = await mountForm('Test Store', 'receipt-1')
+      failEntrySaves = true
+      await wrapper.get(lockQuery(field.locked)).trigger('click')
+      await flushPromises()
+      await wrapper.get(field.input).setValue(field.change)
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(700)
+        expect(entryBodies).toHaveLength(1)
+      })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Changes could not be saved')
+      expect((wrapper.get(field.input).element as HTMLInputElement).disabled).toBe(false)
+      expect(wrapper.find(lockQuery(field.unlocked)).exists()).toBe(true)
+      expect(wrapper.text()).not.toContain('saved and locked')
+      wrapper.unmount()
+    })
+  }
+
+  it('does not move focus to a lock button when the focus was elsewhere at relock', async () => {
+    matchingReceipt = plainReceipt()
     const wrapper = await mountForm('Test Store', 'receipt-1')
-    const datePermission = wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'Allow date change')!
-    const storePermission = wrapper.findAllComponents(UCheckbox).find(box => box.props('label') === 'Allow store change')!
+    await wrapper.get('[aria-label="Unlock to change the date"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('input[type="date"]').setValue('2026-08-12')
+    ;(wrapper.get('[data-line-item]').element as HTMLInputElement).focus()
+    await vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(700)
+      expect(entryBodies).toHaveLength(1)
+    })
+    await flushPromises()
 
-    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).disabled).toBe(true)
-    expect(datePermission.props('modelValue')).toBe(false)
-    expect(storePermission.props('modelValue')).toBe(false)
-
-    await datePermission.trigger('click')
-    expect((wrapper.get('input[type="date"]').element as HTMLInputElement).disabled).toBe(false)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-item]').element)
     wrapper.unmount()
+  })
+
+  it('announces one combined message when a save relocks both fields', async () => {
+    matchingReceipt = plainReceipt()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
+    await wrapper.get('[aria-label="Unlock to change the date"]').trigger('click')
+    await wrapper.get('[aria-label="Unlock to change the store"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('input[type="date"]').setValue('2026-08-12')
+    await wrapper.get('[data-receipt-store]').setValue('Other Store')
+    await vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(700)
+      expect(entryBodies).toHaveLength(1)
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="Unlock to change the date"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Unlock to change the store"]').exists()).toBe(true)
+    expect(wrapper.get('[role="status"]').text()).toBe('Date and store saved and locked.')
+    wrapper.unmount()
+  })
+
+  it('renders each lock beside its input, never inside another button or link', async () => {
+    matchingReceipt = receipt()
+    // Real Nuxt UI components: the stubs cannot show where the trailing slot or sibling lands.
+    const wrapper = await mountSuspended(ReceiptEntryForm, {
+      props: { initialDate: '2026-08-10', initialLocation: 'Test Store', initialReceiptId: 'receipt-1' },
+      route: '/',
+      attachTo: document.body
+    })
+    await flushPromises()
+    mountedForms.push(wrapper)
+
+    for (const label of ['Unlock to change the date', 'Unlock to change the store']) {
+      const lock = wrapper.get(`[aria-label="${label}"]`).element
+      expect(lock.tagName).toBe('BUTTON')
+      expect(lock.parentElement?.closest('button, a')).toBeNull()
+    }
+    expect(wrapper.get('[data-receipt-store]').classes()).toContain('pe-[4.75rem]')
+    // The native picker icon would draw under the lock.
+    expect(wrapper.get('input[type="date"]').classes()).toContain('[&::-webkit-calendar-picker-indicator]:hidden')
+    wrapper.unmount()
+  })
+
+  it('names the back link after the form date in add and edit modes', async () => {
+    const add = await mountForm()
+    expect(add.get('[data-icon="i-lucide-arrow-left"]').text()).toBe('Back to Aug 10, 2026')
+    expect(add.get('[data-icon="i-lucide-arrow-left"]').attributes('data-variant')).toBe('ghost')
+    expect(JSON.parse(add.get('[data-icon="i-lucide-arrow-left"]').attributes('data-to')!)).toEqual({ path: '/', query: { date: '2026-08-10' } })
+    await add.setProps({ initialDate: '2026-08-11' })
+    expect(add.get('[data-icon="i-lucide-arrow-left"]').text()).toBe('Back to Aug 11, 2026')
+    add.unmount()
+
+    matchingReceipt = receipt()
+    const edit = await mountForm('Test Store', 'receipt-1')
+    expect(edit.get('[data-icon="i-lucide-arrow-left"]').text()).toBe('Back to Aug 10, 2026')
+    await edit.get('[aria-label="Unlock to change the date"]').trigger('click')
+    await edit.get('input[type="date"]').setValue('2026-08-12')
+    expect(edit.get('[data-icon="i-lucide-arrow-left"]').text()).toBe('Back to Aug 12, 2026')
+    edit.unmount()
   })
 
   it('clearly labels the action that clears an item category', async () => {

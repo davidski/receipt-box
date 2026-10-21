@@ -157,12 +157,16 @@ test('receipt date and store fields use the shared field spacing', async () => {
 
 test('receipt editor actions are not outlined and the sticky footer is solid', async () => {
   const form = await readFile(new URL('../app/components/ReceiptEntryForm.vue', import.meta.url), 'utf8')
-  for (const label of ['Return to selected day', 'Add another line', 'Cancel split', 'Delete receipt', 'Export receipt', 'Split receipt']) {
+  for (const label of ['Add another line', 'Cancel split', 'Delete receipt', 'Export receipt', 'Split receipt']) {
     // Match the whole line: these buttons have arrow functions in their attributes.
     const tag = form.split('\n').find((line) => line.includes('<UButton') && line.includes(`label="${label}"`))
     assert.ok(tag, `${label} button exists`)
     assert.match(tag, /variant="ghost"/, `${label} is ghost`)
   }
+  // The back button's label is a template literal naming the form's date.
+  const back = form.split('\n').find((line) => line.includes('<UButton') && line.includes(':label="`Back to ${dateDisplayLabel(form.purchasedOn)}`"'))
+  assert.ok(back, 'Back button exists')
+  assert.match(back, /variant="ghost"/, 'Back button is ghost')
   const footer = form.match(/<footer[^>]*data-receipt-footer[^>]*>/)[0]
   assert.match(footer, /\bbg-surface\b/)
   assert.doesNotMatch(footer, /backdrop-blur|transparent_/)
