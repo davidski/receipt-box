@@ -138,11 +138,9 @@ test('chart marks follow the design doc weights and never rely on color alone', 
   // Index points: 10px visible dot inside a 2px surface ring, with a 32px hover target.
   assert.match(highlights, /<circle class="fill-transparent" :cx="point\.x" :cy="point\.y" r="16" \/><circle class="fill-\(--chart-series\) stroke-\(--surface\) stroke-2" :cx="point\.x" :cy="point\.y" r="6" \/>/)
   // Item points: regular prices are circles, sale prices are diamonds.
-  assert.match(item, /<path v-if="point\.saleItem" class="price-chart-point sale"/)
-  assert.match(item, /<circle v-else class="price-chart-point" :cx="point\.x" :cy="point\.y" r="6" \/>/)
-  assert.match(stylesheet, /\.price-chart-point \{ fill: var\(--chart-series\); stroke: var\(--surface\); stroke-width: 2; \}/)
-  assert.match(stylesheet, /\.price-chart-point\.sale \{ fill: var\(--sale-mark\); \}/)
-  assert.match(item, /<i class="sale [^"]*rotate-45[^"]*" \/>Sale/)
+  assert.match(item, /<path v-if="point\.saleItem" class="fill-sale-mark stroke-surface stroke-2"/)
+  assert.match(item, /<circle v-else class="fill-chart-series stroke-surface stroke-2" :cx="point\.x" :cy="point\.y" r="6" \/>/)
+  assert.match(item, /<i class="[^"]*rotate-45 bg-sale-mark" \/>Sale/)
 })
 
 test('receipt date and store fields use the shared field spacing', async () => {
