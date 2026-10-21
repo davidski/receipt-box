@@ -150,3 +150,11 @@ test('The item entries table has a caption and column scopes', () => {
   assert.equal((table.match(/<th scope="col"/g) || []).length, 7)
   assert.equal((table.match(/:ui="\{ leadingIcon: 'size-3\.5' \}"/g) || []).length, 6, 'sort icons stay 0.875rem')
 })
+
+test('Global heading defaults sit in the base layer so heading utilities win', () => {
+  const unlayered = stylesheet.replace(/@layer base \{[\s\S]*?\n\}/g, '')
+  assert.doesNotMatch(unlayered, /^\s*h[12][\s,{]/m)
+  assert.match(stylesheet, /@layer base \{\s*h1, h2 \{[^}]*\}\s*h2 \{ font-size: var\(--text-heading\); \}/)
+  assert.match(page, /<h2 class="text-title[^"]*">\{\{ receipt\.location \}\}<\/h2>/)
+  assert.doesNotMatch(page, /text-base!/)
+})
