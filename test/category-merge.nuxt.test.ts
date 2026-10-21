@@ -1,9 +1,10 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createError, readBody } from 'h3'
 import ManagePage from '../app/components/ManagePage.vue'
+import { clearNuxtState, useState } from '#imports'
 
 const Slot = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
 const Button = defineComponent({
@@ -37,7 +38,20 @@ let requests: Record<string, unknown>[]
 let categoryRequests: Record<string, unknown>[]
 let managedCategories: Array<{ id: string, name: string, itemCount: number, entryCount: number }>
 let failResolution = false
+let duplicateFetches: number
+let preferenceSaves: unknown[]
+let failPreferenceSave: boolean
 beforeEach(() => {
+  duplicateFetches = 0
+  preferenceSaves = []
+  failPreferenceSave = false
+  registerEndpoint('/api/_auth/session', () => ({ user: { sub: 'user-1' } }))
+  registerEndpoint('/api/preferences/backfill-prompts', async (event) => {
+    if (event.method !== 'PUT') return { enabled: true }
+    if (failPreferenceSave) throw createError({ statusCode: 500 })
+    preferenceSaves.push(await readBody(event))
+    return { enabled: false }
+  })
   requests = []
   categoryRequests = []
   managedCategories = [
@@ -79,7 +93,7 @@ beforeEach(() => {
     managedCategories = []
     return null
   } })
-  registerEndpoint('/api/items/duplicates', () => ({ items: [{ name: 'Soy milk', uses: 2, category: 'Dairy' }], groups: [], hiddenGroups: [] }))
+  registerEndpoint('/api/items/duplicates', () => { duplicateFetches++; return { items: [{ name: 'Soy milk', uses: 2, category: 'Dairy' }], groups: [], hiddenGroups: [] } })
   registerEndpoint('/api/items/dimensions', () => [])
   registerEndpoint('/api/items/rename', { method: 'PATCH', handler: async event => {
     const body = await readBody(event)
@@ -233,5 +247,85 @@ it('clears an item category for all of its historical entries', async () => {
   await flushPromises()
   expect(requests[0]).toMatchObject({ source: 'Soy milk', target: 'Soy milk', category: null })
   await vi.waitFor(() => expect(wrapper.text()).toContain('Category for Soy milk was set to Uncategorized for all item history'))
+  wrapper.unmount()
+})
+
+it('fetches duplicate item suggestions only once Items is opened', async () => {
+  const stores = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, UInput: Input, UModal: Modal, UIcon: true } } })
+  await flushPromises()
+  expect(duplicateFetches).toBe(0)
+  stores.unmount()
+
+  const items = await mountSuspended(ManagePage, { route: '/data/items', global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } } })
+  await flushPromises()
+  expect(duplicateFetches).toBe(1)
+  items.unmount()
+})
+
+it('sends an unknown Manage section to Stores and keeps the query', async () => {
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, UInput: Input, UModal: Modal, UIcon: true } } })
+  await wrapper.vm.$router.push('/data/nonsense?from=nav')
+  await flushPromises()
+  expect(wrapper.vm.$router.currentRoute.value.fullPath).toBe('/data/stores?from=nav')
+  wrapper.unmount()
+})
+
+const Checkbox = defineComponent({
+  props: { modelValue: Boolean, label: String },
+  emits: ['update:modelValue'],
+  setup: (props, { emit }) => () => h('button', { role: 'checkbox', 'aria-checked': String(props.modelValue), onClick: () => emit('update:modelValue', !props.modelValue) }, props.label)
+})
+const Alert = defineComponent({ props: { description: String }, setup: props => () => h('p', props.description) })
+const preferenceStubs = { UCard: Slot, UButton: Button, UAlert: Alert, UIcon: true, UCheckbox: Checkbox }
+const backfillPreferenceStates = ['backfill-prompts-enabled', 'backfill-prompts-loaded', 'backfill-prompts-error']
+function signIn() {
+  clearNuxtState(backfillPreferenceStates)
+  useState('oidc-enabled').value = true
+}
+const preferenceToggle = (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => wrapper.get('[role="checkbox"]')
+
+afterEach(() => {
+  clearNuxtState(['oidc-enabled', ...backfillPreferenceStates])
+  vi.unstubAllGlobals()
+})
+
+it('remembers the receipt-prompt preference in the browser when sign-in is off', async () => {
+  const stored = new Map<string, string>()
+  vi.stubGlobal('localStorage', { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value) })
+  clearNuxtState(backfillPreferenceStates)
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/preferences', global: { stubs: preferenceStubs } })
+  await vi.waitFor(() => expect(preferenceToggle(wrapper).attributes('disabled')).toBeUndefined())
+  expect(preferenceToggle(wrapper).attributes('aria-checked')).toBe('true')
+
+  await preferenceToggle(wrapper).trigger('click')
+  expect(stored.get('receipt-box:item-backfill-prompts')).toBe('disabled')
+  expect(preferenceToggle(wrapper).attributes('aria-checked')).toBe('false')
+  await preferenceToggle(wrapper).trigger('click')
+  expect(stored.get('receipt-box:item-backfill-prompts')).toBe('enabled')
+  wrapper.unmount()
+})
+
+it('saves the receipt-prompt preference to the account when signed in', async () => {
+  signIn()
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/preferences', global: { stubs: preferenceStubs } })
+  await vi.waitFor(() => expect(preferenceToggle(wrapper).attributes('disabled')).toBeUndefined())
+  expect(preferenceToggle(wrapper).attributes('aria-checked')).toBe('true')
+
+  await preferenceToggle(wrapper).trigger('click')
+  await flushPromises()
+  expect(preferenceSaves).toEqual([{ enabled: false }])
+  expect(preferenceToggle(wrapper).attributes('aria-checked')).toBe('false')
+  wrapper.unmount()
+})
+
+it('puts the receipt-prompt preference back and explains when the account save fails', async () => {
+  failPreferenceSave = true
+  signIn()
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/preferences', global: { stubs: preferenceStubs } })
+  await vi.waitFor(() => expect(preferenceToggle(wrapper).attributes('disabled')).toBeUndefined())
+
+  await preferenceToggle(wrapper).trigger('click')
+  await vi.waitFor(() => expect(wrapper.text()).toContain('Could not save this preference. Try again.'))
+  expect(preferenceToggle(wrapper).attributes('aria-checked')).toBe('true')
   wrapper.unmount()
 })
