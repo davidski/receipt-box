@@ -199,7 +199,7 @@ Use Nuxt UI `UButton`, not a native button. Pick the variant from this table, to
 | Paired secondary | `variant="outline" color="neutral"` | A secondary choice shown directly beside the main action, such as Cancel next to Save in a dialog. |
 | Destructive | `variant="ghost" color="error"` | Delete and remove. Confirm in place before acting. |
 | Tool toggle | `variant="soft" color="primary"` when active, `variant="ghost" color="neutral"` otherwise | Filters and view switches that stay selected. |
-| Everything else | `variant="ghost" color="neutral"` | Other actions, including navigation styled as a button, such as "Return to selected day". |
+| Everything else | `variant="ghost" color="neutral"` | Other actions, including navigation styled as a button, such as "Back to Sep 1, 2026". |
 
 Rules:
 

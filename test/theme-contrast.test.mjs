@@ -157,9 +157,9 @@ test('receipt date and store fields use the shared field spacing', async () => {
 
 test('receipt editor actions are not outlined and the sticky footer is solid', async () => {
   const form = await readFile(new URL('../app/components/ReceiptEntryForm.vue', import.meta.url), 'utf8')
-  for (const label of ['Return to selected day', 'Add another line', 'Cancel split', 'Delete receipt', 'Export receipt', 'Split receipt']) {
+  for (const label of ['`Back to', 'Add another line', 'Cancel split', 'Delete receipt', 'Export receipt', 'Split receipt']) {
     // Match the whole line: these buttons have arrow functions in their attributes.
-    const tag = form.split('\n').find((line) => line.includes('<UButton') && line.includes(`label="${label}"`))
+    const tag = form.split('\n').find((line) => line.includes('<UButton') && line.includes(`label="${label}`))
     assert.ok(tag, `${label} button exists`)
     assert.match(tag, /variant="ghost"/, `${label} is ghost`)
   }
