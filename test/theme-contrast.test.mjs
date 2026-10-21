@@ -53,7 +53,8 @@ for (const [name, t] of Object.entries(themes)) {
   test(`${name} theme text tokens meet WCAG AAA (7:1) on every background`, () => {
     for (const token of ['ink', 'muted', 'accent', 'accent-strong', 'danger', 'success', 'warning']) {
       const own = [tint(t[token], t.surface)]
-      if (token === 'accent') own.push(t['accent-soft'])
+      if (token === 'accent' || token === 'accent-strong' || token === 'ink') own.push(t['accent-soft'])
+      if (token === 'ink') own.push(t['danger-soft'])
       if (token === 'danger') own.push(t['danger-soft'])
       for (const bg of [...backgrounds, ...own]) {
         assert.ok(contrast(t[token], bg) >= 7, `${token} on ${bg} is ${contrast(t[token], bg).toFixed(2)}:1`)

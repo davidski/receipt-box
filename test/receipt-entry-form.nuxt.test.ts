@@ -511,7 +511,7 @@ describe('receipt item entry interactions', () => {
     expect(moveButton.attributes('disabled')).toBeUndefined()
     await moveButton.trigger('click')
     await flushPromises()
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Moved 1 line to New Store'))
+    await vi.waitFor(() => expect(wrapper.get('[data-split-notice]').text()).toContain('Moved 1 line to New Store'))
 
     expect(splitRequests[0]).toMatchObject({ method: 'POST', body: { entryIds: ['entry-1'], purchasedOn: '2026-08-11', location: 'New Store' } })
     expect(wrapper.text()).toContain('Moved 1 line to New Store')

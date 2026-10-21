@@ -1324,7 +1324,7 @@ async function deleteReceipt() {
     </header>
 
     <p v-if="receiptSessionMessage" class="sr-only" role="status" aria-live="polite">{{ receiptSessionMessage }}</p>
-    <div v-if="splitNotice" class="mx-6 mt-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/40 bg-accent-soft px-3.5 py-2.5 max-sm:mx-3" role="status" aria-live="polite">
+    <div v-if="splitNotice" data-split-notice class="mx-6 mt-4 flex flex-wrap items-center gap-2 rounded-card border border-accent/40 bg-accent-soft px-3.5 py-2.5 max-sm:mx-3" role="status" aria-live="polite">
       <span class="flex-[1_1_17.5rem] text-sm font-[650] text-accent-strong">Moved {{ splitNotice.movedCount }} {{ splitNotice.movedCount === 1 ? 'line' : 'lines' }} to {{ splitNotice.targetLocation }} on {{ dateDisplayLabel(splitNotice.targetPurchasedOn) }}.</span>
       <UButton type="button" label="Open destination" icon="i-lucide-arrow-up-right" color="neutral" variant="ghost" class="max-sm:flex-auto max-sm:justify-center" :to="`/receipts/${splitNotice.targetReceiptId}`" />
       <UButton type="button" label="Undo" icon="i-lucide-undo-2" color="neutral" variant="outline" class="max-sm:flex-auto max-sm:justify-center" :loading="splitBusy" @click="undoSplit" />
@@ -1411,7 +1411,7 @@ async function deleteReceipt() {
           <UButton class="min-h-10.5 min-w-10.5 justify-center hover:text-danger focus-visible:text-danger max-sm:absolute max-sm:top-2 max-sm:right-2" type="button" :data-line-remove="line.key" icon="i-lucide-x" :aria-label="`Remove line ${index + 1}`" :title="`Remove line ${index + 1}`" color="neutral" variant="ghost" size="md" :disabled="saving" @click="requestRemoveLine(line)" />
         </div>
         <div v-if="line.pendingItemCreation" class="col-span-full flex items-center justify-end gap-2.5 rounded-card border border-accent/40 bg-accent-soft px-3 py-2.5" role="alert">
-          <span class="mr-auto text-sm text-muted">Create <strong class="text-ink">“{{ line.pendingItemCreation }}”</strong> as a new item?</span>
+          <span class="mr-auto text-sm text-ink">Create <strong>“{{ line.pendingItemCreation }}”</strong> as a new item?</span>
           <UButton type="button" label="Cancel" color="neutral" variant="outline" @click="cancelCreateItem(line)" />
           <UButton type="button" :data-confirm-item="line.key" label="Create item" icon="i-lucide-plus" @click="confirmCreateItem(line)" />
         </div>
@@ -1432,7 +1432,7 @@ async function deleteReceipt() {
           <USwitch :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" class="mt-[1.6875rem] max-sm:mt-0" @keydown.tab.exact.prevent="finishLine(line)" />
         </div>
         <div v-if="line.confirmingRemove" class="col-span-full flex items-center justify-end gap-2.5 rounded-card border border-danger/35 bg-danger-soft px-3 py-2.5 max-sm:grid max-sm:grid-cols-[1fr_1fr]" role="alert">
-          <span class="mr-auto text-sm text-muted max-sm:col-span-full max-sm:mr-0"><strong class="text-ink">Remove {{ line.item }}?</strong> This saved entry will be permanently deleted.</span>
+          <span class="mr-auto text-sm text-ink max-sm:col-span-full max-sm:mr-0"><strong>Remove {{ line.item }}?</strong> This saved entry will be permanently deleted.</span>
           <UButton type="button" :data-line-keep="line.key" label="Keep item" color="neutral" variant="outline" class="max-sm:w-full" :disabled="saving" @click="cancelRemoveLine(line)" />
           <UButton type="button" label="Remove item" color="error" class="max-sm:w-full" :loading="saving" @click="removeLine(line)" />
         </div>
@@ -1441,7 +1441,7 @@ async function deleteReceipt() {
     </ol>
 
     <div v-if="splitSelectionMode" class="mx-6 mt-3 mb-4.5 flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-card border border-accent/35 bg-accent-soft px-4 py-3 max-sm:mx-3">
-      <span class="flex-[1_1_16.25rem] text-sm text-muted">Select the lines to move. Leave at least one line in this receipt.</span>
+      <span class="flex-[1_1_16.25rem] text-sm text-ink">Select the lines to move. Leave at least one line in this receipt.</span>
       <strong class="whitespace-nowrap text-sm text-accent-strong">{{ selectedSplitLines.length }} selected</strong>
       <UButton type="button" :label="`Move ${selectedSplitLines.length} ${selectedSplitLines.length === 1 ? 'line' : 'lines'}`" icon="i-lucide-split" class="max-sm:flex-auto max-sm:justify-center" :disabled="!selectedSplitLines.length" @click="openSplitDialog" />
     </div>

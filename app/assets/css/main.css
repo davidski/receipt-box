@@ -145,29 +145,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .signed-in-user svg { flex: 0 0 auto; }
 
-
 .receipt-store-field [data-slot="root"]:has([data-slot="leading"]) [data-slot="base"] { padding-inline-start: 2.625rem; }
-
-
 
 .receipt-split-line-checkbox [data-slot="base"] { width: 1.75rem; min-width: 1.75rem; height: 1.75rem; min-height: 1.75rem; justify-content: center; }
 
 [data-receipt-line] [data-slot="root"]:has([data-slot="leading"]) [data-slot="base"] { padding-inline-start: 2.375rem; }
 
-
 [data-line-panel] .category-input [data-category-clear] { min-width: 2.625rem; min-height: 2.625rem; justify-content: center; }
 [data-line-panel] [data-slot="root"] { min-height: 2.75rem; align-items: center; }
 [data-line-panel] .category-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.25rem; }
 
-
-
-
-
-
 .receipt-keyboard-help strong { display: block; margin-bottom: 0.5rem; font-size: var(--text-sm); }
 .receipt-keyboard-help p { margin: 0.4375rem 0 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
 .receipt-keyboard-help kbd { padding: 0.0625rem 0.3125rem; border: 1px solid var(--line); border-radius: 0.25rem; background: var(--surface-soft); color: var(--ink); font: inherit; white-space: nowrap; }
-
 
 h1, h2 { margin: 0; font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
 h2 { font-size: var(--text-heading); }
