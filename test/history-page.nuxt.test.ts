@@ -66,8 +66,8 @@ const calendar = (wrapper: Wrapper) => table(wrapper, 'Choose any calendar date'
 const receiptList = (wrapper: Wrapper) => table(wrapper, 'Receipt date, store, and total')
 const entryTable = (wrapper: Wrapper) => table(wrapper, 'Purchase entries')
 
-async function mountBrowser(route = '/') {
-  const wrapper = await mountSuspended(HistoryPage, { route, global: { stubs: { UButton, UIcon } } })
+async function mountBrowser(route = '/', attachTo?: HTMLElement) {
+  const wrapper = await mountSuspended(HistoryPage, { route, attachTo, global: { stubs: { UButton, UIcon } } })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -175,6 +175,17 @@ describe('Receipts home', () => {
     const cells = receiptList(wrapper).findAll('tbody tr td')
     expect(cells[3]!.text()).toBe('$0.00')
     expect(cells.slice(0, 4).map(cell => cell.attributes('data-label'))).toEqual(['Date', 'Store', 'Items', 'Total'])
+  })
+
+  it('returns focus to the search field when it is cleared', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries?search=apple', document.body)
+    const input = wrapper.get('input[type="search"]')
+    expect((input.element as HTMLInputElement).value).toBe('apple')
+    await wrapper.get('button[aria-label="Clear search"]').trigger('click')
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    expect((input.element as HTMLInputElement).value).toBe('')
+    expect(document.activeElement).toBe(input.element)
   })
 
   it('focuses an item entry row on click and opens its editor on double-click', async () => {

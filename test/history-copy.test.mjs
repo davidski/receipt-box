@@ -7,7 +7,7 @@ const receiptEntryLine = await readFile(new URL('../app/components/ReceiptEntryL
 const indexRoute = await readFile(new URL('../app/pages/history/index.vue', import.meta.url), 'utf8')
 const viewRoute = await readFile(new URL('../app/pages/history/[...view].vue', import.meta.url), 'utf8')
 const middleware = await readFile(new URL('../app/middleware/history.ts', import.meta.url), 'utf8')
-const tableCard = await readFile(new URL('../app/utils/table-card.ts', import.meta.url), 'utf8')
+const tableCard = await readFile(new URL('../app/utils/data-table.ts', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('History keeps its page heading stable across views', () => {
@@ -117,6 +117,14 @@ test('History is styled with utilities, not page-specific rules in main.css', ()
   }
 })
 
+test('History script and template do not query classes that no longer exist', () => {
+  const classes = [...page.matchAll(/querySelector(?:All)?(?:<[^>]+>)?\('([^']+)'\)/g)].flatMap(([, selector]) => selector.match(/\.[\w-]+/g) || [])
+  for (const name of classes) {
+    assert.ok(new RegExp(`class="[^"]*\\b${name.slice(1)}\\b`).test(page) || stylesheet.includes(name), `${name} is queried but never defined`)
+  }
+  assert.match(page, /<UInput id="history-search"/)
+})
+
 test('History uses rem breakpoints and the named radius tokens', () => {
   assert.doesNotMatch(page, /(?:max|min)-\[[\d.]+px\]/)
   assert.doesNotMatch(page, /rounded-(?:\[|2xl|3xl|xl)/)
@@ -140,4 +148,5 @@ test('The item entries table has a caption and column scopes', () => {
   assert.ok(table)
   assert.match(table, /<caption class="sr-only">Purchase entries<\/caption>/)
   assert.equal((table.match(/<th scope="col"/g) || []).length, 7)
+  assert.equal((table.match(/:ui="\{ leadingIcon: 'size-3\.5' \}"/g) || []).length, 6, 'sort icons stay 0.875rem')
 })
