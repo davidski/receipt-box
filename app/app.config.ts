@@ -4,6 +4,8 @@ const inputTextBase = { fixed: false, class: 'md:text-base' }
 
 export default defineAppConfig({
   ui: {
+    // Teach tailwind-merge the radius tokens, so `rounded-card` replaces a component's default `rounded-lg` instead of sitting beside it.
+    tv: { twMergeConfig: { extend: { theme: { radius: ['chip', 'control', 'input', 'card'] } } } },
     // Solid primary fills use the deeper accent fill so dark mode keeps a rich petrol; --ui-primary stays the AAA text accent.
     button: {
       compoundVariants: [{
