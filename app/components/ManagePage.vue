@@ -73,7 +73,10 @@ const editingCategoryName = ref('')
 const categoryMergeSelection = reactive<Record<string, string | undefined>>({})
 // "Merge into…" acts on pick, so its trigger looks like the Rename and Delete ghost buttons beside it, not a form field.
 // Design doc: Buttons and borders, action pickers.
-const mergeTriggerUi = { base: 'touch-target w-auto rounded-(--radius-control) border-0 px-2.5 py-1.5 text-sm md:text-sm', placeholder: 'text-ink', leadingIcon: 'text-ink', trailingIcon: 'text-ink', content: 'w-60' }
+// Field spacing recipe from the design doc (Inputs, Field spacing); Manage forms keep a muted bold label.
+const fieldSpacing = { container: 'mt-1.5 grid gap-2', help: 'mt-0', error: 'mt-0' }
+const manageField = { ...fieldSpacing, label: 'font-bold text-muted' }
+const mergeTriggerUi = { base: 'touch-target w-auto rounded-control border-0 px-2.5 py-1.5 text-sm md:text-sm', placeholder: 'text-ink', leadingIcon: 'text-ink', trailingIcon: 'text-ink', content: 'w-60' }
 const categoryBusyId = ref<string | null>(null)
 const categoryError = ref('')
 const itemTargets = reactive<Record<string, string>>({})
@@ -704,7 +707,7 @@ async function exportXlsx() {
       <h1 class="leading-[1.04] text-display">Manage Receipt Box</h1>
     </header>
 
-    <nav class="manage-sections inline-flex gap-[0.3125rem] rounded-[0.875rem] p-[0.3125rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)] max-[640.01px]:grid max-[640.01px]:grid-cols-1 max-[640.01px]:w-full" aria-label="Receipt Box management sections">
+    <nav class="inline-flex gap-[0.3125rem] rounded-card p-[0.3125rem] shadow-(--shadow) bg-surface border border-line max-sm:grid max-sm:w-full max-sm:grid-cols-1 max-sm:*:justify-center [&_[aria-current='page']]:pointer-events-none" aria-label="Receipt Box management sections">
       <UButton
         to="/data/stores"
         label="Stores"
@@ -761,28 +764,28 @@ async function exportXlsx() {
       />
     </nav>
 
-    <UCard v-if="activeSection === 'stores'" class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-      <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
+    <UCard v-if="activeSection === 'stores'" class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+      <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-store" /></div>
       <div>
         <h2 class="text-heading">Manage stores</h2>
-        <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Add stores before shopping, correct their names, or merge duplicates by renaming one to an existing store. Renaming updates every matching history entry.</p>
-        <form class="store-add mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addStore">
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add stores before shopping, correct their names, or merge duplicates by renaming one to an existing store. Renaming updates every matching history entry.</p>
+        <form data-testid="store-add" class="mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addStore">
           <UInput v-model="newStoreName" aria-label="New store name" placeholder="New store name" size="lg" />
           <UButton class="touch-target" type="submit" label="Add store" icon="i-lucide-plus" :disabled="!newStoreName.trim()" :loading="storeBusy && !editingStoreId" />
         </form>
-        <UAlert v-if="storeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="storeError" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
-        <UAlert v-if="storeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="storeNotice" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
-        <p class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-(--muted) leading-[1.55]">Stores with purchase history can be renamed or merged. Only unused stores can be deleted.</p>
-        <ul class="store-list m-[1.125rem_0_0] list-none rounded-[0.875rem] p-0 [border:1px_solid_var(--line)]">
-          <li v-for="store in stores || []" :key="store.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] [border-top:1px_solid_var(--line)]">
-            <form v-if="editingStoreId === store.id" class="store-edit grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-[640.01px]:grid-cols-[1fr_auto]" @submit.prevent="saveStore(store)">
+        <UAlert v-if="storeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="storeError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
+        <UAlert v-if="storeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="storeNotice" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
+        <p class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">Stores with purchase history can be renamed or merged. Only unused stores can be deleted.</p>
+        <ul class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
+          <li v-for="store in stores || []" :key="store.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
+            <form v-if="editingStoreId === store.id" data-testid="store-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-sm:grid-cols-[1fr_auto]" @submit.prevent="saveStore(store)">
               <UInput v-model="editingStoreName" :aria-label="`Rename ${store.name}`" autofocus />
               <UButton type="submit" :label="storeMergeTarget(store) ? 'Merge' : 'Save'" :icon="storeMergeTarget(store) ? 'i-lucide-git-merge' : undefined" size="sm" :disabled="!editingStoreName.trim()" :loading="storeBusy" />
-              <UButton type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="cancelStoreEdit" />
+              <UButton class="max-sm:col-span-full" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="cancelStoreEdit" />
             </form>
             <template v-else>
-              <div class="store-name"><strong class="block">{{ store.name }}</strong><span class="block mt-[0.1875rem] text-(--muted) text-xs">{{ store.uses.toLocaleString() }} {{ store.uses === 1 ? 'entry' : 'entries' }}</span></div>
-              <div class="flex gap-1 max-[640.01px]:flex-col">
+              <div><strong class="block">{{ store.name }}</strong><span class="block mt-[0.1875rem] text-muted text-xs">{{ store.uses.toLocaleString() }} {{ store.uses === 1 ? 'entry' : 'entries' }}</span></div>
+              <div class="flex gap-1 max-sm:flex-col">
                 <UButton class="touch-target" type="button" label="Rename" icon="i-lucide-pencil" color="neutral" variant="ghost" @click="startStoreEdit(store)" />
                 <UButton class="touch-target" type="button" label="Delete" icon="i-lucide-trash-2" color="error" variant="ghost" :disabled="store.uses > 0" :title="store.uses > 0 ? 'Rename this store to merge its existing entries before deleting it.' : `Delete ${store.name}`" @click="deleteStore(store)" />
               </div>
@@ -792,34 +795,34 @@ async function exportXlsx() {
       </div>
     </UCard>
 
-    <UCard v-else-if="activeSection === 'categories'" class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-      <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-tags" /></div>
+    <UCard v-else-if="activeSection === 'categories'" class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+      <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-tags" /></div>
       <div>
         <h2 class="text-heading">Manage categories</h2>
-        <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Add or rename categories, or merge and remove categories shared by every purchase of an item.</p>
-        <form class="store-add mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addCategory">
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add or rename categories, or merge and remove categories shared by every purchase of an item.</p>
+        <form data-testid="category-add" class="mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addCategory">
           <UInput v-model="newCategoryName" aria-label="New category name" placeholder="New category name" size="lg" maxlength="100" />
           <UButton class="touch-target" type="submit" label="Add category" icon="i-lucide-plus" :disabled="!newCategoryName.trim()" :loading="categoryAdding" />
         </form>
-        <UAlert v-if="categoryError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="categoryError" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
+        <UAlert v-if="categoryError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="categoryError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
         <UAlert v-if="categoriesLoadError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load categories.">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="loadCategories()" /></template>
         </UAlert>
-        <div v-if="categoriesStatus === 'pending'" class="mt-4.5 flex min-h-[6.875rem] items-center gap-[0.5625rem] text-(--muted)"><UIcon name="i-lucide-loader-circle" class="animate-spin [animation-duration:.9s] w-[1.25rem] h-[1.25rem] text-(--accent)" /><span>Loading categories…</span></div>
-        <p v-else-if="!categoriesLoadError && !categories?.length" class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-(--muted) leading-[1.55]">No categories yet. Add one here or assign one to an item.</p>
-        <ul v-else-if="!categoriesLoadError" class="store-list m-[1.125rem_0_0] list-none rounded-[0.875rem] p-0 [border:1px_solid_var(--line)]">
-          <li v-for="category in categories || []" :key="category.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] [border-top:1px_solid_var(--line)]">
-            <form v-if="editingCategoryId === category.id" class="store-edit grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-[640.01px]:grid-cols-[1fr_auto]" @submit.prevent="saveCategory(category)">
+        <div v-if="categoriesStatus === 'pending'" class="mt-4.5 flex min-h-[6.875rem] items-center gap-[0.5625rem] text-muted"><UIcon name="i-lucide-loader-circle" class="animate-spin [animation-duration:.9s] w-[1.25rem] h-[1.25rem] text-accent" /><span>Loading categories…</span></div>
+        <p v-else-if="!categoriesLoadError && !categories?.length" class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">No categories yet. Add one here or assign one to an item.</p>
+        <ul v-else-if="!categoriesLoadError" class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
+          <li v-for="category in categories || []" :key="category.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
+            <form v-if="editingCategoryId === category.id" data-testid="category-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-sm:grid-cols-[1fr_auto]" @submit.prevent="saveCategory(category)">
               <UInput v-model="editingCategoryName" :aria-label="`Rename ${category.name}`" autofocus maxlength="100" />
               <UButton type="submit" label="Save" size="sm" :disabled="!editingCategoryName.trim()" :loading="categoryBusyId === category.id" />
-              <UButton type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="editingCategoryId = null" />
+              <UButton class="max-sm:col-span-full" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="editingCategoryId = null" />
             </form>
             <template v-else>
-              <div class="store-name">
+              <div>
                 <strong class="block">{{ category.name }}</strong>
-                <span class="block mt-[0.1875rem] text-(--muted) text-xs">{{ category.itemCount.toLocaleString() }} {{ category.itemCount === 1 ? 'item' : 'items' }} across {{ category.entryCount.toLocaleString() }} unique {{ category.entryCount === 1 ? 'entry' : 'entries' }}</span>
+                <span class="block mt-[0.1875rem] text-muted text-xs">{{ category.itemCount.toLocaleString() }} {{ category.itemCount === 1 ? 'item' : 'items' }} across {{ category.entryCount.toLocaleString() }} unique {{ category.entryCount === 1 ? 'entry' : 'entries' }}</span>
               </div>
-              <div class="flex gap-1 max-[640.01px]:flex-col">
+              <div class="flex gap-1 max-sm:flex-col">
                 <UButton class="touch-target" type="button" label="Rename" icon="i-lucide-pencil" color="neutral" variant="ghost" :disabled="categoryBusyId !== null" @click="startCategoryEdit(category)" />
                 <USelectMenu
                   v-model="categoryMergeSelection[category.id]"
@@ -843,15 +846,14 @@ async function exportXlsx() {
     </UCard>
 
     <template v-else-if="activeSection === 'items'">
-    <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-      <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-package-search" /></div>
+    <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+      <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-package-search" /></div>
       <div>
         <h2 class="text-heading">Edit item history</h2>
-        <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Rename an item, set its category for every historical entry, or update package details for selected entries.</p>
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Rename an item, set its category for every historical entry, or update package details for selected entries.</p>
 
-        <form class="item-history-editor mt-5 grid grid-cols-[repeat(2,minmax(11.25rem,1fr))] items-end gap-3.5 rounded-[0.875rem] p-4 [background:var(--surface-muted)] [border:1px_solid_var(--line)] max-[900.01px]:grid-cols-1" @submit.prevent="renameItem">
-          <label class="field relative grid min-w-0 gap-[0.4375rem]">
-            <span>Item to edit</span>
+        <form data-testid="item-history-editor" class="mt-5 grid grid-cols-[repeat(2,minmax(11.25rem,1fr))] items-end gap-3.5 rounded-card p-4 bg-surface-muted border border-line max-md:grid-cols-1" @submit.prevent="renameItem">
+          <UFormField label="Item to edit" :ui="manageField" class="min-w-0">
             <USelectMenu
               v-model="renameItemSource"
               :items="renameItemOptions"
@@ -863,28 +865,24 @@ async function exportXlsx() {
               virtualize
               size="xl"
             />
-          </label>
-          <label class="field relative grid min-w-0 gap-[0.4375rem]">
-            <span>Rename to</span>
+          </UFormField>
+          <UFormField label="Rename to" :ui="manageField" class="min-w-0">
             <UInput v-model="renameItemTarget" aria-label="Rename to" :disabled="!renameItemSource" size="xl" />
-          </label>
+          </UFormField>
 
-          <div v-if="renameItemSource" class="field relative grid min-w-0 gap-[0.4375rem]">
-            <span>Category</span>
+          <UFormField v-if="renameItemSource" label="Category" :help="`Applies to ${selectedItemUses} historical ${selectedItemUses === 1 ? 'entry' : 'entries'} for this item.`" :ui="manageField" class="min-w-0">
             <CategoryInput v-model="renameItemCategory" aria-label="Item category" :items="(categories || []).map(category => category.name)" />
-            <small class="text-(--muted) text-xs leading-[1.4]">Applies to {{ selectedItemUses }} historical {{ selectedItemUses === 1 ? 'entry' : 'entries' }} for this item.</small>
-          </div>
+          </UFormField>
           <UAlert v-if="renameItemSource && categoriesLoadError" color="warning" variant="soft" icon="i-lucide-circle-alert" description="Existing categories could not be loaded. You can still enter a new category.">
             <template #actions><UButton type="button" label="Retry" color="neutral" variant="outline" size="sm" @click="loadCategories()" /></template>
           </UAlert>
 
-          <div v-if="renameItemSource" class="pt-1 [border-top:1px_solid_var(--line)] col-span-full">
+          <div v-if="renameItemSource" class="pt-1 border-t border-line col-span-full">
             <UCheckbox v-model="editPackageDetails" label="Also update package quantity and unit" description="Choose exactly which historical package variant should change." />
           </div>
 
-          <div v-if="editPackageDetails" class="item-package-editor grid grid-cols-2 items-end gap-x-4.5 gap-y-4 col-span-full max-[900.01px]:grid-cols-1">
-            <label class="field relative grid min-w-0 gap-[0.4375rem]">
-              <span>Update scope</span>
+          <div v-if="editPackageDetails" data-testid="item-package-editor" class="grid grid-cols-2 items-end gap-x-4.5 gap-y-4 col-span-full max-md:grid-cols-1">
+            <UFormField label="Update scope" :ui="manageField" class="min-w-0">
               <USelectMenu
                 v-model="dimensionScope"
                 :items="dimensionScopeOptions"
@@ -895,9 +893,8 @@ async function exportXlsx() {
                 :loading="itemDimensionsPending"
                 size="xl"
               />
-            </label>
-            <label v-if="dimensionScope === 'variant'" class="field relative grid min-w-0 gap-[0.4375rem]">
-              <span>Existing package variant</span>
+            </UFormField>
+            <UFormField v-if="dimensionScope === 'variant'" label="Existing package variant" :ui="manageField" class="min-w-0">
               <USelectMenu
                 v-model="dimensionVariant"
                 :items="dimensionVariantOptions"
@@ -908,23 +905,22 @@ async function exportXlsx() {
                 :loading="itemDimensionsPending"
                 size="xl"
               />
-            </label>
-            <label class="field relative grid min-w-0 gap-[0.4375rem]">
-              <span>New quantity</span>
+            </UFormField>
+            <UFormField label="New quantity" :ui="manageField" class="min-w-0">
               <UInput v-model="replacementSize" type="number" min="0.001" step="any" inputmode="decimal" placeholder="5" size="xl" />
-            </label>
-            <UFormField label="New unit" class="field relative grid min-w-0 gap-[0.4375rem]">
+            </UFormField>
+            <UFormField label="New unit" :ui="manageField" class="min-w-0">
               <UnitInput v-model="replacementUnit" />
             </UFormField>
           </div>
 
-          <div v-if="nameWillChange || categoryWillChange || packageWillChange" class="flex gap-2.5 rounded-xl p-[0.8125rem_0.875rem] [background:var(--accent-soft)] [border:1px_solid_color-mix(in_srgb,var(--accent),transparent_62%)] col-span-full">
-            <UIcon name="i-lucide-list-checks" class="flex-[0_0_auto] w-[1.1875rem] h-[1.1875rem] mt-[0.125rem] text-(--accent-strong)" />
+          <div v-if="nameWillChange || categoryWillChange || packageWillChange" class="flex gap-2.5 rounded-card p-[0.8125rem_0.875rem] bg-accent-soft border border-accent/38 col-span-full">
+            <UIcon name="i-lucide-list-checks" class="flex-[0_0_auto] w-[1.1875rem] h-[1.1875rem] mt-[0.125rem] text-accent-strong" />
             <div>
               <strong class="block">Review this change</strong>
-              <span v-if="nameWillChange" class="block mt-[0.1875rem] text-(--muted) text-xs leading-[1.45]">Rename all {{ selectedItemUses }} {{ selectedItemUses === 1 ? 'entry' : 'entries' }} from “{{ renameItemSource }}” to “{{ renameItemTarget.trim() }}”.</span>
-              <span v-if="categoryWillChange" class="block mt-[0.1875rem] text-(--muted) text-xs leading-[1.45]">Set category for all purchases of “{{ renameItemTarget.trim() }}” to {{ renameItemCategory || 'Uncategorized' }}.</span>
-              <span v-if="packageWillChange" class="block mt-[0.1875rem] text-(--muted) text-xs leading-[1.45]">Change {{ packageUpdateCount }} matching {{ packageUpdateCount === 1 ? 'entry' : 'entries' }} to {{ replacementSize }} {{ replacementUnit.trim() }}. Normalized prices will be recalculated.</span>
+              <span v-if="nameWillChange" class="block mt-[0.1875rem] text-muted text-xs leading-[1.45]">Rename all {{ selectedItemUses }} {{ selectedItemUses === 1 ? 'entry' : 'entries' }} from “{{ renameItemSource }}” to “{{ renameItemTarget.trim() }}”.</span>
+              <span v-if="categoryWillChange" class="block mt-[0.1875rem] text-muted text-xs leading-[1.45]">Set category for all purchases of “{{ renameItemTarget.trim() }}” to {{ renameItemCategory || 'Uncategorized' }}.</span>
+              <span v-if="packageWillChange" class="block mt-[0.1875rem] text-muted text-xs leading-[1.45]">Change {{ packageUpdateCount }} matching {{ packageUpdateCount === 1 ? 'entry' : 'entries' }} to {{ replacementSize }} {{ replacementUnit.trim() }}. Normalized prices will be recalculated.</span>
             </div>
           </div>
 
@@ -935,46 +931,46 @@ async function exportXlsx() {
       </div>
     </UCard>
 
-    <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-      <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-copy-check" /></div>
+    <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+      <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-copy-check" /></div>
       <div>
         <h2 class="text-heading">Review likely duplicate names</h2>
-        <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Choose the name to keep for each suggested group.</p>
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Choose the name to keep for each suggested group.</p>
 
-        <UAlert v-if="itemMergeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="itemMergeError" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
-        <UAlert v-if="itemMergeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="itemMergeNotice" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
-        <UAlert v-if="duplicateItemsLoadError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not check item names for duplicates." class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm">
+        <UAlert v-if="itemMergeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="itemMergeError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
+        <UAlert v-if="itemMergeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="itemMergeNotice" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
+        <UAlert v-if="duplicateItemsLoadError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not check item names for duplicates." class="mt-4 rounded-card px-3 py-2.5 text-sm">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="loadDuplicateItems()" /></template>
         </UAlert>
 
-        <div v-if="duplicateItemsPending" class="mt-4.5 flex min-h-[6.875rem] items-center gap-[0.5625rem] text-(--muted)"><UIcon name="i-lucide-loader-circle" class="animate-spin [animation-duration:.9s] w-[1.25rem] h-[1.25rem] text-(--accent)" /><span>Checking item names…</span></div>
-        <div v-else-if="!duplicateItemsLoadError && !duplicateItems?.groups.length && !duplicateItems?.hiddenGroups.length" class="mt-4.5 flex min-h-24 items-center gap-[0.8125rem] rounded-[0.875rem] p-4.5 text-(--muted) [border:1px_dashed_var(--line)]">
-          <UIcon name="i-lucide-circle-check-big" class="w-[2rem] h-[2rem] text-(--accent)" />
+        <div v-if="duplicateItemsPending" class="mt-4.5 flex min-h-[6.875rem] items-center gap-[0.5625rem] text-muted"><UIcon name="i-lucide-loader-circle" class="animate-spin [animation-duration:.9s] w-[1.25rem] h-[1.25rem] text-accent" /><span>Checking item names…</span></div>
+        <div v-else-if="!duplicateItemsLoadError && !duplicateItems?.groups.length && !duplicateItems?.hiddenGroups.length" class="mt-4.5 flex min-h-24 items-center gap-[0.8125rem] rounded-card p-4.5 text-muted border border-dashed border-line">
+          <UIcon name="i-lucide-circle-check-big" class="w-[2rem] h-[2rem] text-accent" />
           <div><strong class="block">No likely duplicates</strong><span class="block mt-[0.1875rem] text-sm">Your item names look consistent.</span></div>
         </div>
         <template v-else-if="!duplicateItemsLoadError">
-          <p class="mt-4.5 -mb-2 text-xs max-w-[38.75rem] text-(--muted) leading-[1.55]">Showing {{ visibleDuplicateItemGroups.length }} of {{ duplicateItems?.groups.length || 0 }} suggestions, ordered by purchase history.</p>
-          <ul class="item-duplicate-list m-[1.25rem_0_0] grid list-none gap-4 p-0">
-          <li v-for="group in visibleDuplicateItemGroups" :key="group.id" class="overflow-hidden [border:1px_solid_var(--line)] rounded-[1rem] bg-(--surface-strong)">
-            <div class="flex items-center justify-between gap-3.5 p-[0.9375rem_1.0625rem] [background:var(--surface-muted)]">
+          <p class="mt-4.5 -mb-2 text-xs max-w-[38.75rem] text-muted leading-[1.55]">Showing {{ visibleDuplicateItemGroups.length }} of {{ duplicateItems?.groups.length || 0 }} suggestions, ordered by purchase history.</p>
+          <ul data-testid="item-duplicate-list" class="m-[1.25rem_0_0] grid list-none gap-4 p-0">
+          <li v-for="group in visibleDuplicateItemGroups" :key="group.id" class="overflow-hidden border border-line rounded-card bg-surface">
+            <div class="flex items-center justify-between gap-3.5 p-[0.9375rem_1.0625rem] bg-surface-muted">
               <div>
                 <strong class="block">{{ group.variants.length }} similar names</strong>
-                <span class="block mt-[0.1875rem] text-(--muted) text-xs">{{ group.reasons.join(', ') }}</span>
+                <span class="block mt-[0.1875rem] text-muted text-xs">{{ group.reasons.join(', ') }}</span>
               </div>
               <UBadge :label="`${group.variants.reduce((total, variant) => total + variant.uses, 0)} entries`" color="neutral" variant="soft" />
             </div>
-            <div class="item-variant-list grid">
-              <label v-for="variant in group.variants" :key="variant.name" :class="{ selected: itemTargets[group.id] === variant.name }" class="grid grid-cols-[auto_minmax(0,_1fr)_auto] gap-[0.6875rem] items-center min-h-[3.875rem] p-[0.625rem_1.0625rem] [border-top:1px_solid_var(--line)] cursor-pointer">
-                <input v-model="itemTargets[group.id]" type="radio" :name="`item-target-${group.id}`" :value="variant.name" class="w-[1.0625rem] h-[1.0625rem] [accent-color:var(--accent)]">
-                <span><strong class="block">{{ variant.name }}</strong><small class="block mt-[0.1875rem] text-(--muted) text-xs">{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }}, last used {{ variant.lastUsed }}</small></span>
-                <span class="item-target-label text-xs font-bold text-(--muted) max-[640.01px]:col-start-2">{{ itemTargets[group.id] === variant.name ? 'Keep this name' : 'Merge this name' }}</span>
+            <div class="grid">
+              <label v-for="variant in group.variants" :key="variant.name" :class="itemTargets[group.id] === variant.name ? 'bg-accent-soft' : 'hover:bg-accent-soft/55'" class="grid grid-cols-[auto_minmax(0,_1fr)_auto] gap-[0.6875rem] items-center min-h-[3.875rem] p-[0.625rem_1.0625rem] border-t border-line cursor-pointer max-sm:grid-cols-[auto_minmax(0,1fr)]">
+                <input v-model="itemTargets[group.id]" type="radio" :name="`item-target-${group.id}`" :value="variant.name" class="w-[1.0625rem] h-[1.0625rem] accent-accent">
+                <span><strong class="block">{{ variant.name }}</strong><small class="block mt-[0.1875rem] text-muted text-xs">{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }}, last used {{ variant.lastUsed }}</small></span>
+                <span :class="itemTargets[group.id] === variant.name ? 'text-accent-strong' : 'text-muted'" class="text-xs font-bold max-sm:col-start-2">{{ itemTargets[group.id] === variant.name ? 'Keep this name' : 'Merge this name' }}</span>
               </label>
             </div>
-            <div class="item-merge-action flex items-center justify-between gap-4.5 p-[0.875rem_1.0625rem] [border-top:1px_solid_var(--line)] max-[640.01px]:[align-items:stretch] max-[640.01px]:flex-col">
-              <span class="max-w-[30rem] text-(--muted) text-xs leading-[1.45]">The other{{ group.variants.length > 2 ? ` ${group.variants.length - 1}` : '' }} {{ group.variants.length === 2 ? 'name' : 'names' }} will be replaced throughout purchase history.</span>
+            <div class="flex items-center justify-between gap-4.5 p-[0.875rem_1.0625rem] border-t border-line max-sm:items-stretch max-sm:flex-col">
+              <span class="max-w-[30rem] text-muted text-xs leading-[1.45]">The other{{ group.variants.length > 2 ? ` ${group.variants.length - 1}` : '' }} {{ group.variants.length === 2 ? 'name' : 'names' }} will be replaced throughout purchase history.</span>
               <div class="flex gap-2">
-                <UButton type="button" label="Hide suggestion" icon="i-lucide-eye-off" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="setItemGroupHidden(group, true)" />
-                <UButton type="button" label="Merge variants" icon="i-lucide-git-merge" :loading="itemMergeBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="mergeItemGroup(group)" />
+                <UButton class="max-sm:w-full max-sm:justify-center" type="button" label="Hide suggestion" icon="i-lucide-eye-off" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="setItemGroupHidden(group, true)" />
+                <UButton class="max-sm:w-full max-sm:justify-center" type="button" label="Merge variants" icon="i-lucide-git-merge" :loading="itemMergeBusy === group.id" :disabled="itemMergeBusy !== null || itemReviewBusy !== null" @click="mergeItemGroup(group)" />
               </div>
             </div>
           </li>
@@ -991,9 +987,9 @@ async function exportXlsx() {
           />
           <div v-if="duplicateItems?.hiddenGroups.length" class="mt-4.5 grid justify-items-start gap-2.5">
             <UButton type="button" :label="showHiddenItemGroups ? 'Hide dismissed suggestions' : `Show ${duplicateItems.hiddenGroups.length} hidden ${duplicateItems.hiddenGroups.length === 1 ? 'suggestion' : 'suggestions'}`" :icon="showHiddenItemGroups ? 'i-lucide-eye-off' : 'i-lucide-eye'" color="neutral" variant="outline" @click="showHiddenItemGroups = !showHiddenItemGroups" />
-            <ul v-if="displayedHiddenItemGroups.length" class="item-hidden-list m-0 w-full list-none rounded-[0.875rem] p-0 [border:1px_solid_var(--line)]">
-              <li v-for="group in displayedHiddenItemGroups" :key="group.id" class="flex items-center justify-between gap-3 p-[0.625rem_0.75rem_0.625rem_1rem] [border-top:1px_solid_var(--line)]">
-                <span><strong class="block">{{ group.variants.map(variant => variant.name).join(', ') }}</strong><small class="block mt-[0.1875rem] text-(--muted)">{{ group.variants.reduce((total, variant) => total + variant.uses, 0) }} entries</small></span>
+            <ul v-if="displayedHiddenItemGroups.length" class="m-0 w-full list-none rounded-card p-0 border border-line">
+              <li v-for="group in displayedHiddenItemGroups" :key="group.id" class="flex items-center justify-between gap-3 p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0">
+                <span><strong class="block">{{ group.variants.map(variant => variant.name).join(', ') }}</strong><small class="block mt-[0.1875rem] text-muted">{{ group.variants.reduce((total, variant) => total + variant.uses, 0) }} entries</small></span>
                 <UButton type="button" label="Unhide" icon="i-lucide-undo-2" color="neutral" variant="ghost" :loading="itemReviewBusy === group.id" :disabled="itemReviewBusy !== null" @click="setItemGroupHidden(group, false)" />
               </li>
             </ul>
@@ -1004,29 +1000,29 @@ async function exportXlsx() {
     </template>
 
     <section v-else-if="activeSection === 'transfer'" class="mt-0" aria-label="Import and export tools">
-      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-        <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true">↑</div>
+      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+        <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true">↑</div>
         <div>
           <h2 class="text-heading">Import spreadsheet</h2>
-          <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Import an XLSX using the template format, or a CSV/XLSX export. Existing entries are left untouched.</p>
+          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Import an XLSX using the template format, or a CSV/XLSX export. Existing entries are left untouched.</p>
           <div class="flex flex-wrap gap-3 mt-[1.125rem]">
-            <label class="file-picker grid min-h-12 min-w-55 flex-1 cursor-pointer items-center rounded-xl p-[0_1rem] [border:1px_dashed_var(--line-control)]">
+            <label class="grid min-h-12 min-w-55 flex-1 cursor-pointer items-center rounded-input p-[0_1rem] border border-dashed border-line-control focus-within:border-accent focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-(--focus-ring)">
               <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="selectFile" class="absolute w-[0.0625rem] h-[0.0625rem] [opacity:0]">
-              <span class="overflow-hidden text-(--muted) text-ellipsis whitespace-nowrap">{{ file?.name || 'Choose CSV or XLSX' }}</span>
+              <span class="overflow-hidden text-muted text-ellipsis whitespace-nowrap">{{ file?.name || 'Choose CSV or XLSX' }}</span>
             </label>
             <UButton class="touch-target" type="button" icon="i-lucide-upload" label="Import" :disabled="!file" :loading="importing" @click="importFile" />
           </div>
           <UButton class="touch-target" type="button" label="Download CSV template" icon="i-lucide-download" color="neutral" variant="ghost" @click="downloadCsvTemplate" />
-          <UAlert v-if="result" color="success" variant="soft" icon="i-lucide-circle-check" :description="`Imported ${result.imported.toLocaleString()} rows${result.skipped ? `; skipped ${result.skipped}` : ''}.`" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
-          <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
+          <UAlert v-if="result" color="success" variant="soft" icon="i-lucide-circle-check" :description="`Imported ${result.imported.toLocaleString()} rows${result.skipped ? `; skipped ${result.skipped}` : ''}.`" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
+          <UAlert v-if="errorMessage" color="error" variant="soft" icon="i-lucide-circle-alert" :description="errorMessage" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
         </div>
       </UCard>
 
-      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-        <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true">↓</div>
+      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+        <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true">↓</div>
         <div>
           <h2 class="text-heading">Export all data</h2>
-          <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Both formats include one row per purchase in a clean, flat table with consistent field names and self-describing normalized prices.</p>
+          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Both formats include one row per purchase in a clean, flat table with consistent field names and self-describing normalized prices.</p>
           <div class="flex flex-wrap gap-3 mt-[1.125rem]">
             <UButton class="touch-target" type="button" label="Download CSV" icon="i-lucide-file-text" color="neutral" variant="outline" :loading="exporting === 'csv'" @click="exportCsv" />
             <UButton class="touch-target" type="button" label="Download XLSX" icon="i-lucide-file-spreadsheet" :loading="exporting === 'xlsx'" @click="exportXlsx" />
@@ -1036,11 +1032,11 @@ async function exportXlsx() {
     </section>
 
     <section v-else-if="activeSection === 'preferences'" class="mt-0" aria-label="Preferences">
-      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-        <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--accent-strong) [background:var(--accent-soft)]" aria-hidden="true"><UIcon name="i-lucide-sliders-horizontal" /></div>
+      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+        <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-sliders-horizontal" /></div>
         <div>
           <h2 class="text-heading">Receipt entry prompts</h2>
-          <UAlert v-if="backfillPromptsError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="backfillPromptsError" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm">
+          <UAlert v-if="backfillPromptsError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="backfillPromptsError" class="mt-4 rounded-card px-3 py-2.5 text-sm">
             <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" @click="loadBackfillPrompts" /></template>
           </UAlert>
           <UCheckbox
@@ -1056,21 +1052,21 @@ async function exportXlsx() {
     </section>
 
     <section v-else class="mt-0" aria-label="Maintenance tools">
-      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] [border:1px_solid_var(--line)] rounded-3xl bg-(--surface) shadow-(--shadow) max-[640.01px]:grid-cols-1" :ui="{ body: 'contents' }">
-        <div class="grid size-[3.125rem] place-items-center rounded-[0.9375rem] text-heading text-(--danger) [background:var(--danger-soft)]" aria-hidden="true"><UIcon name="i-lucide-database-zap" /></div>
+      <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
+        <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-danger bg-danger-soft" aria-hidden="true"><UIcon name="i-lucide-database-zap" /></div>
         <div>
           <h2 class="text-heading">Reset database</h2>
-          <p class="max-w-[38.75rem] text-(--muted) leading-[1.55]">Delete every receipt, purchase entry, and store so you can start with a fresh database. This cannot be undone.</p>
+          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Delete every receipt, purchase entry, and store so you can start with a fresh database. This cannot be undone.</p>
 
-          <UAlert v-if="resetComplete" color="success" variant="soft" icon="i-lucide-circle-check" description="The database was reset. Receipt Box is ready for fresh data." class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
-          <UAlert v-if="resetError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="resetError" class="notice m-[0.9375rem_0_0] rounded-[0.625rem] p-[0.6875rem_0.8125rem] text-sm" />
+          <UAlert v-if="resetComplete" color="success" variant="soft" icon="i-lucide-circle-check" description="The database was reset. Receipt Box is ready for fresh data." class="mt-4 rounded-card px-3 py-2.5 text-sm" />
+          <UAlert v-if="resetError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="resetError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
 
-          <div v-if="resetConfirming" class="reset-confirmation mt-5 max-w-130 rounded-[0.875rem] p-4.5 [background:var(--danger-soft)] [border:1px_solid_color-mix(in_srgb,var(--danger),transparent_45%)]">
-            <label class="field relative grid min-w-0 gap-[0.4375rem]">
-              <span>Type <strong>RESET</strong> to confirm</span>
+          <div v-if="resetConfirming" class="mt-5 max-w-130 rounded-card p-4.5 bg-danger-soft border border-danger/55">
+            <UFormField :ui="{ ...manageField, label: 'font-bold text-ink' }" class="min-w-0">
+              <template #label>Type <strong>RESET</strong> to confirm</template>
               <UInput v-model="resetConfirmation" autocomplete="off" :spellcheck="false" placeholder="RESET" aria-label="Type RESET to confirm database reset" />
-            </label>
-            <div class="reset-actions mt-3.5 flex flex-wrap justify-end gap-2.5">
+            </UFormField>
+            <div class="mt-3.5 flex flex-wrap justify-end gap-2.5 max-sm:*:flex-1">
               <UButton type="button" label="Cancel" color="neutral" variant="ghost" :disabled="resetBusy" @click="cancelDatabaseReset" />
               <UButton type="button" label="Permanently reset database" icon="i-lucide-trash-2" color="error" :disabled="resetConfirmation !== 'RESET'" :loading="resetBusy" @click="resetDatabase" />
             </div>
@@ -1087,7 +1083,7 @@ async function exportXlsx() {
       @update:open="!$event && (categoryConflict = null)"
     >
       <template #body>
-        <UFormField label="Category">
+        <UFormField label="Category" :ui="fieldSpacing">
           <USelectMenu v-model="conflictCategory" :items="categoryConflict?.categories || []" placeholder="Choose a category…" class="w-full" />
         </UFormField>
       </template>
