@@ -108,7 +108,6 @@ The app does not claim full AAA conformance. The W3C does not recommend requirin
 These rules are not met everywhere yet. Each is fixed in the area's cleanup PR; new work meets the rule from the start.
 
 - **Chart tooltips** on the Highlights charts use the SVG `<title>` element. It shows on mouse hover only, so keyboard, touch, and Escape behavior from [Charts](#missing-data-and-interaction) is missing. The item price chart is done: hover, focus, and tap select a point, and Escape dismisses it.
-- **Table semantics.** Highlights tables lack `<caption>` and `scope`; the history, recipes, and item detail tables have them.
 - **Receipt footer order.** Below 1280px the footer moves the total and the date/store summary ahead of the buttons with CSS `order`. Neither is focusable, but the visual order no longer matches the DOM.
 - **Footer button height.** The receipt footer's `xl` buttons are about 40px tall, above the 24px minimum but under the 44px used for frequent phone actions.
 - **Link underlines.** Some links in running text underline only on hover.

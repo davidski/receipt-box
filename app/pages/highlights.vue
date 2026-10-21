@@ -124,6 +124,26 @@ const sortedShrinkflation = computed(() => [...(data.value?.shrinkflation || [])
   if (comparison === 0) comparison = left.purchasedOn.localeCompare(right.purchasedOn) || left.item.localeCompare(right.item)
   return shrinkflationDirection.value === 'asc' ? comparison : -comparison
 }))
+// Shared by the three tables: desktop rows, and below sm each row becomes a card whose cells show their column name (data-label).
+const dataTable = [
+  'w-full border-collapse text-base',
+  '[&_th]:label [&_th]:border-b [&_th]:border-line [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th:last-child]:text-right',
+  '[&_td]:border-b [&_td]:border-line [&_td]:px-3 [&_td]:py-2.5 [&_td]:align-middle sm:[&_td:last-child]:text-right [&_tr:last-child_td]:border-b-0',
+  'max-sm:grid max-sm:gap-2.5 max-sm:[&_thead]:hidden max-sm:[&_tbody]:grid max-sm:[&_tbody]:gap-2.5',
+  'max-sm:[&_tr]:grid max-sm:[&_tr]:gap-3 max-sm:[&_tr]:rounded-card max-sm:[&_tr]:border max-sm:[&_tr]:border-line max-sm:[&_tr]:bg-surface max-sm:[&_tr]:p-3.5',
+  'max-sm:[&_td]:grid max-sm:[&_td]:content-start max-sm:[&_td]:gap-[0.1875rem] max-sm:[&_td]:border-0 max-sm:[&_td]:p-0 max-sm:[&_td:first-child]:col-span-full',
+  'max-sm:[&_td]:before:label max-sm:[&_td]:before:content-[attr(data-label)]'
+].join(' ')
+
+// Sort-header buttons: match the th label style and pull their padding into the cell edge.
+const sortButton = '-mx-2.25 -my-1.5 min-h-[2.125rem] font-bold tracking-[0.08em] text-inherit uppercase hover:bg-accent-soft hover:text-accent-strong focus-visible:bg-accent-soft focus-visible:text-accent-strong'
+
+const summaryTiles = computed(() => [
+  { icon: 'i-lucide-receipt-text', value: (data.value?.summary.receipts ?? 0).toLocaleString(), label: 'receipts' },
+  { icon: 'i-lucide-shopping-basket', value: (data.value?.summary.items ?? 0).toLocaleString(), label: 'unique items' },
+  { icon: 'i-lucide-wallet', value: formatCurrency(monthlySpendTotal.value, { whole: true }), label: 'total spend' }
+])
+
 const monthlySpendContainer = ref<HTMLElement | null>(null)
 const monthlySpendWidth = ref(720)
 let monthlySpendResizeObserver: ResizeObserver | null = null
@@ -155,11 +175,8 @@ const monthlySpendChart = computed(() => {
   const plotWidth = width - plot.left - plot.right
   const plotHeight = height - plot.top - plot.bottom
   const rawMax = Math.max(...months.map(month => month.totalSpent), 0)
-  const roughStep = Math.max(rawMax / 4, 1)
-  const magnitude = 10 ** Math.floor(Math.log10(roughStep))
-  const normalized = roughStep / magnitude
-  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10) * magnitude
-  const max = step * 4
+  // Bars start at zero; the floor of 1 keeps an all-zero period from getting a flat-series scale below zero.
+  const { max, breaks } = prettyScale(0, Math.max(rawMax, 1), { minStep: 1 })
   const slotWidth = plotWidth / months.length
   const barWidth = Math.max(1, Math.min(28, slotWidth * 0.64))
   const hitWidth = Math.max(barWidth, Math.min(28, slotWidth))
@@ -180,10 +197,7 @@ const monthlySpendChart = computed(() => {
         : monthLabel(month.month, true)
     }
   })
-  const ticks = Array.from({ length: 5 }, (_, index) => {
-    const value = max - step * index
-    return { value, y: plot.top + (plotHeight * index) / 4 }
-  })
+  const ticks = breaks.map(value => ({ value, y: plot.top + ((max - value) / max) * plotHeight }))
 
   return { width, height, plot, bars, ticks, plotBottom: plot.top + plotHeight }
 })
@@ -297,20 +311,20 @@ function unitCurrency(value: number) {
 
 <template>
   <div class="highlights-page mx-auto w-full max-w-300">
-    <header class="page-heading my-[0.9375rem] mb-8 flex items-end justify-between gap-6 max-[640.01px]:grid max-[640.01px]:items-start">
+    <header class="page-heading my-[0.9375rem] mb-8 flex items-end justify-between gap-6 max-sm:grid max-sm:items-start">
       <div>
         <h1 class="leading-[1.04] text-display">Price highlights</h1>
         <p>Recent activity and notable price movement.</p>
       </div>
-      <div class="flex items-end gap-2.5 max-[640.01px]:justify-between">
-        <UFormField label="Period" class="period-field w-60 max-[640.01px]:w-[min(15rem,_100%)]">
+      <div class="flex items-end gap-2.5 max-sm:justify-between">
+        <UFormField label="Period" class="period-field w-60 max-sm:w-[min(15rem,_100%)]">
           <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" :content="{ bodyLock: false }" />
         </UFormField>
       </div>
     </header>
 
-    <div v-if="pending" class="grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">Loading highlights…</div>
-    <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-2xl border border-dashed border-(--line) p-9 text-center text-(--muted)">
+    <div v-if="pending" class="grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-(--line) p-9 text-center text-(--muted)">Loading highlights…</div>
+    <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-(--line) p-9 text-center text-(--muted)">
       <strong>Could not load highlights</strong>
       <UButton type="button" label="Try again" color="neutral" variant="outline" @click="refresh()" />
     </div>
@@ -319,22 +333,29 @@ function unitCurrency(value: number) {
         {{ coverageText }}
       </p>
 
-      <section class="highlight-stats mb-5 grid grid-cols-[repeat(3,1fr)] gap-3.5 max-[900.01px]:grid-cols-3 max-[640.01px]:grid-cols-2" aria-label="Receipt Box summary">
-        <UCard class="stat-card"><UIcon name="i-lucide-receipt-text" /><strong>{{ data.summary.receipts.toLocaleString() }}</strong><span>receipts</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-shopping-basket" /><strong>{{ data.summary.items.toLocaleString() }}</strong><span>unique items</span></UCard>
-        <UCard class="stat-card"><UIcon name="i-lucide-wallet" /><strong class="tabular-nums">{{ formatCurrency(monthlySpendTotal, { whole: true }) }}</strong><span>total spend</span></UCard>
+      <section class="mb-5 grid grid-cols-3 gap-3.5 max-sm:grid-cols-2" aria-label="Receipt Box summary">
+        <UCard
+          v-for="tile in summaryTiles"
+          :key="tile.label"
+          class="rounded-card! max-sm:last:col-span-full"
+          :ui="{ body: 'grid grid-cols-[auto_1fr] items-center gap-x-[0.6875rem]' }"
+        >
+          <UIcon :name="tile.icon" class="row-span-2 size-8 text-accent" />
+          <strong class="font-display text-heading leading-none tabular-nums">{{ tile.value }}</strong>
+          <span class="mt-[0.1875rem] text-xs text-muted">{{ tile.label }}</span>
+        </UCard>
       </section>
 
-      <UCard class="price-index-panel highlight-panel mb-5 rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
-        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5 max-[640.01px]:items-start">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+        <div class="mb-4 flex items-end justify-between gap-5 max-sm:items-start">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Same-item prices</p>
-            <div class="price-index-title flex items-center gap-[0.3125rem]">
-              <h2>Regular purchase price index</h2>
+            <div class="flex items-center gap-[0.3125rem]">
+              <h2 class="mt-1!">Regular purchase price index</h2>
               <UPopover>
-                <UButton type="button" icon="i-lucide-circle-help" color="neutral" variant="ghost" size="sm" aria-label="How the price index is calculated" title="How the price index is calculated" />
+                <UButton class="shrink-0" type="button" icon="i-lucide-circle-help" color="neutral" variant="ghost" size="sm" aria-label="How the price index is calculated" title="How the price index is calculated" />
                 <template #content>
-                  <div class="price-index-help w-[min(24.375rem,calc(100vw-2rem))] p-[0.9375rem_1.0625rem] text-left text-(--ink)">
+                  <div class="w-[min(24.375rem,calc(100vw-2rem))] p-[0.9375rem_1.0625rem] text-left text-(--ink)">
                     <strong class="block mb-[0.5625rem] text-sm">How the index is calculated</strong>
                     <ol class="grid gap-[0.4375rem] [margin:0] [padding-left:1.25rem] text-(--muted) text-xs leading-[1.45]">
                       <li>Find items purchased in both the current and previous month.</li>
@@ -347,23 +368,23 @@ function unitCurrency(value: number) {
                 </template>
               </UPopover>
             </div>
-            <p>Month-to-month price movement for recurring, comparable non-sale items, weighted by prior-month spending. The first month is 100.</p>
+            <p class="mt-[0.3125rem] max-w-170 text-xs text-muted">Month-to-month price movement for recurring, comparable non-sale items, weighted by prior-month spending. The first month is 100.</p>
           </div>
           <UBadge v-if="priceIndexSummary" :label="`${changeLabel(priceIndexSummary.change)} overall`" :color="priceIndexSummary.change > 0 ? 'error' : priceIndexSummary.change < 0 ? 'success' : 'neutral'" variant="soft" />
         </div>
         <div v-if="priceIndexChart" ref="priceIndexContainer" class="w-full max-w-full overflow-hidden">
           <svg :viewBox="`0 0 ${priceIndexChart.width} ${priceIndexChart.height}`" role="img" aria-label="Same-item regular purchase price index over time" class="block w-full h-[16.25rem]">
             <title>Regular purchase price index</title>
-            <g class="price-index-grid">
+            <g>
               <g v-for="tick in priceIndexChart.ticks" :key="tick.y">
-                <line :x1="priceIndexChart.plot.left" :x2="priceIndexChart.width - priceIndexChart.plot.right" :y1="tick.y" :y2="tick.y" />
-                <text :x="priceIndexChart.plot.left - 10" :y="tick.y + 4" text-anchor="end">{{ tick.value.toFixed(0) }}</text>
+                <line class="stroke-line" :x1="priceIndexChart.plot.left" :x2="priceIndexChart.width - priceIndexChart.plot.right" :y1="tick.y" :y2="tick.y" />
+                <text class="fill-muted text-xs" :x="priceIndexChart.plot.left - 10" :y="tick.y + 4" text-anchor="end">{{ tick.value.toFixed(0) }}</text>
               </g>
             </g>
-            <polyline v-for="segment in priceIndexChart.segments" :key="segment" class="price-index-line fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="segment" />
+            <polyline v-for="segment in priceIndexChart.segments" :key="segment" class="fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="segment" />
             <g v-for="point in priceIndexChart.positioned" :key="point.month">
               <g v-if="point.y !== null && point.value !== null"><title>{{ monthLabel(point.month) }} · {{ point.value.toFixed(1) }} · {{ point.matchedItems }} matched items</title><circle class="fill-transparent" :cx="point.x" :cy="point.y" r="16" /><circle class="fill-(--chart-series) stroke-(--surface) stroke-2" :cx="point.x" :cy="point.y" r="6" /></g>
-              <text v-if="point.showLabel" class="price-index-month" :x="point.x" :y="priceIndexChart.height - 16" :text-anchor="point.x < priceIndexChart.plot.left + 20 ? 'start' : point.x > priceIndexChart.width - priceIndexChart.plot.right - 20 ? 'end' : 'middle'">{{ monthLabel(point.month, true) }}</text>
+              <text v-if="point.showLabel" class="fill-muted text-xs" :x="point.x" :y="priceIndexChart.height - 16" :text-anchor="point.x < priceIndexChart.plot.left + 20 ? 'start' : point.x > priceIndexChart.width - priceIndexChart.plot.right - 20 ? 'end' : 'middle'">{{ monthLabel(point.month, true) }}</text>
             </g>
           </svg>
         </div>
@@ -371,46 +392,46 @@ function unitCurrency(value: number) {
         <p v-if="priceIndexSummary" class="m-[0.375rem_0_0] text-right text-xs text-(--muted)">Latest month uses {{ priceIndexSummary.latest.matchedItems }} matched {{ priceIndexSummary.latest.matchedItems === 1 ? 'item' : 'items' }}.</p>
       </UCard>
 
-      <UCard class="category-price-panel highlight-panel mb-5 rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="category-price-heading">
-        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5 max-[640.01px]:items-start">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="category-price-heading">
+        <div class="mb-4 flex items-end justify-between gap-5 max-sm:items-start">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">By category</p>
-            <h2 id="category-price-heading">Category price movement</h2>
-            <p>Weighted regular-price changes for matching items. Each month-to-month comparison needs at least three matched items.</p>
+            <h2 id="category-price-heading" class="mt-1!">Category price movement</h2>
+            <p class="mt-[0.3125rem] max-w-170 text-xs text-muted">Weighted regular-price changes for matching items. Each month-to-month comparison needs at least three matched items.</p>
           </div>
         </div>
-        <ul v-if="data.categoryPriceChanges.length" class="category-price-list m-0 grid list-none gap-0 p-0">
-          <li v-for="entry in data.categoryPriceChanges.slice(0, 5)" :key="entry.category">
+        <ul v-if="data.categoryPriceChanges.length" class="m-0 grid list-none gap-0 p-0">
+          <li v-for="entry in data.categoryPriceChanges.slice(0, 5)" :key="entry.category" class="grid grid-cols-[minmax(8.125rem,1fr)_minmax(13.75rem,2fr)_auto] items-center gap-3.5 border-t border-line py-[0.6875rem] max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-x-2.5 max-sm:gap-y-[0.3125rem]">
             <strong>{{ entry.category }}</strong>
-            <span class="text-xs text-(--muted) max-[640.01px]:col-start-1">{{ monthLabel(entry.startMonth) }}–{{ monthLabel(entry.endMonth) }} · {{ entry.matchedItems }} matched items</span>
-            <UBadge class="max-[640.01px]:col-start-2 max-[640.01px]:[grid-row:1_/_span_2]" :label="changeLabel(entry.change)" :color="entry.change > 0 ? 'error' : entry.change < 0 ? 'success' : 'neutral'" variant="soft" />
+            <span class="text-xs text-(--muted) max-sm:col-start-1">{{ monthLabel(entry.startMonth) }}–{{ monthLabel(entry.endMonth) }} · {{ entry.matchedItems }} matched items</span>
+            <UBadge class="max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-1" :label="changeLabel(entry.change)" :color="entry.change > 0 ? 'error' : entry.change < 0 ? 'success' : 'neutral'" variant="soft" />
           </li>
         </ul>
         <p v-else class="category-price-empty m-0 text-sm text-(--muted)">No category has enough regular-price history to compare yet. <NuxtLink to="/data/items">Assign categories to more items</NuxtLink>.</p>
       </UCard>
 
-      <UCard class="monthly-spend-panel highlight-panel mb-5 rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
-        <div class="monthly-spend-heading mb-4 flex items-end justify-between gap-5 max-[640.01px]:items-start">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Monthly spending</p><h2>Purchases by month</h2></div>
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+        <div class="mb-4 flex items-end justify-between gap-5 max-sm:items-start">
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Monthly spending</p><h2 class="mt-1!">Purchases by month</h2></div>
         </div>
-        <div v-if="monthlySpendChart" ref="monthlySpendContainer" class="monthly-spend-scroll w-full max-w-full overflow-hidden pb-[0.3125rem]">
+        <div v-if="monthlySpendChart" ref="monthlySpendContainer" class="w-full max-w-full overflow-hidden pb-[0.3125rem]">
           <svg
             :viewBox="`0 0 ${monthlySpendChart.width} ${monthlySpendChart.height}`"
             role="img"
             aria-label="Total purchase dollars by month"
            class="block w-full h-[18.75rem]">
             <title>Monthly purchase spending</title>
-            <g class="monthly-spend-grid">
+            <g>
               <g v-for="tick in monthlySpendChart.ticks" :key="tick.y">
-                <line :x1="monthlySpendChart.plot.left" :x2="monthlySpendChart.width - monthlySpendChart.plot.right" :y1="tick.y" :y2="tick.y" />
-                <text :x="monthlySpendChart.plot.left - 10" :y="tick.y + 4" text-anchor="end">{{ formatCurrency(tick.value, { whole: true }) }}</text>
+                <line class="stroke-line" :x1="monthlySpendChart.plot.left" :x2="monthlySpendChart.width - monthlySpendChart.plot.right" :y1="tick.y" :y2="tick.y" />
+                <text class="fill-muted text-xs" :x="monthlySpendChart.plot.left - 10" :y="tick.y + 4" text-anchor="end">{{ formatCurrency(tick.value, { whole: true }) }}</text>
               </g>
             </g>
             <g>
               <g
                 v-for="bar in monthlySpendChart.bars"
                 :key="bar.month"
-                class="monthly-spend-bar-group"
+                class="group focus-visible:outline-none!"
                 role="button"
                 tabindex="0"
                 :aria-label="`${monthLabel(bar.month)}: ${formatCurrency(bar.totalSpent, { whole: true })}`"
@@ -426,7 +447,7 @@ function unitCurrency(value: number) {
                   :height="monthlySpendChart.plotBottom - monthlySpendChart.plot.top"
                 />
                 <rect
-                  :class="['monthly-spend-bar', 'fill-(--chart-series)', { selected: selectedSpendMonth === bar.month }]"
+                  :class="['fill-chart-series group-hover:brightness-90 group-focus-visible:stroke-(--focus-ring) group-focus-visible:stroke-3', { 'brightness-90': selectedSpendMonth === bar.month }]"
                   :x="bar.x - bar.barWidth / 2"
                   :y="bar.y"
                   :width="bar.barWidth"
@@ -435,13 +456,13 @@ function unitCurrency(value: number) {
                 >
                   <title>{{ monthLabel(bar.month) }} · {{ formatCurrency(bar.totalSpent, { whole: true }) }}</title>
                 </rect>
-                <text v-if="bar.showLabel" class="monthly-spend-month" :x="bar.x" :y="monthlySpendChart.height - 20" text-anchor="middle">{{ bar.label }}</text>
+                <text v-if="bar.showLabel" class="fill-muted text-xs" :x="bar.x" :y="monthlySpendChart.height - 20" text-anchor="middle">{{ bar.label }}</text>
               </g>
             </g>
           </svg>
         </div>
         <div v-else class="grid min-h-[8.125rem] place-items-center text-center text-(--muted)">No purchases in this period.</div>
-        <div v-if="selectedSpendChange" class="spend-explanation mt-2 grid grid-cols-[repeat(4,1fr)] gap-px overflow-hidden rounded-xl [background:var(--line)] [border:1px_solid_var(--line)] max-[640.01px]:grid-cols-[1fr_1fr]" aria-live="polite">
+        <div v-if="selectedSpendChange" class="spend-explanation mt-2 grid grid-cols-[repeat(4,1fr)] gap-px overflow-hidden rounded-card [background:var(--line)] [border:1px_solid_var(--line)] max-sm:grid-cols-[1fr_1fr]" aria-live="polite">
           <div><strong>{{ monthLabel(selectedSpendChange.month) }}</strong><span>{{ formatCurrency(selectedSpendChange.totalSpent, { whole: true }) }} spent</span></div>
           <template v-if="selectedSpendChange.change !== null">
             <div><span>Change from prior month</span><strong>{{ formatSignedCurrency(selectedSpendChange.change, { whole: true }) }}</strong></div>
@@ -452,7 +473,7 @@ function unitCurrency(value: number) {
         </div>
       </UCard>
 
-      <UCard class="highlight-panel mb-5 rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="core-items-heading">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="core-items-heading">
         <div class="core-items-heading mb-0 flex items-start justify-between gap-5 pb-3">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Regular purchases</p>
@@ -460,10 +481,11 @@ function unitCurrency(value: number) {
             <p>Items bought on 3+ receipts across 2+ months; velocity compares non-sale prices.</p>
           </div>
         </div>
-        <div v-if="data.coreItems.length" class="overflow-x-auto max-[640.01px]:[overflow:visible]">
-          <table class="core-items-table w-full border-collapse text-base [&_th]:text-xs">
+        <div v-if="data.coreItems.length" class="overflow-x-auto max-sm:overflow-visible">
+          <table :class="[dataTable, 'max-sm:[&_tr]:grid-cols-2']">
+            <caption class="sr-only">Core item regularity, price behavior, trend, and net change</caption>
             <thead>
-              <tr><th>Item</th><th>Regularity</th><th>Price behavior</th><th>Trend</th><th>Net change</th></tr>
+              <tr><th scope="col" class="w-1/4">Item</th><th scope="col" class="w-[22%]">Regularity</th><th scope="col" class="w-[28%]">Price behavior</th><th scope="col" class="w-[15%]">Trend</th><th scope="col">Net change</th></tr>
             </thead>
             <tbody>
               <tr v-for="item in data.coreItems" :key="item.name">
@@ -472,9 +494,9 @@ function unitCurrency(value: number) {
                     <strong>{{ item.name }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
                 </td>
-                <td data-label="Regularity"><div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-[640.01px]:grid max-[640.01px]:[justify-items:start] max-[640.01px]:gap-[0.3125rem] max-[640.01px]:[white-space:normal]"><strong>{{ item.purchases }} receipts</strong><span class="text-sm">{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
-                <td data-label="Price behavior">
-                  <div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-[640.01px]:grid max-[640.01px]:[justify-items:start] max-[640.01px]:gap-[0.3125rem] max-[640.01px]:[white-space:normal]">
+                <td data-label="Regularity"><div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-sm:grid max-sm:justify-items-start max-sm:gap-[0.3125rem] max-sm:whitespace-normal"><strong>{{ item.purchases }} receipts</strong><span class="text-sm">{{ cadenceLabel(item.averageDaysBetween) }} · {{ item.activeMonths }} mo.</span></div></td>
+                <td data-label="Price behavior" class="max-sm:justify-items-start">
+                  <div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-sm:grid max-sm:justify-items-start max-sm:gap-[0.3125rem] max-sm:whitespace-normal">
                     <UBadge v-bind="stabilityDetails[item.stability]" variant="soft" />
                     <span class="text-sm">{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
                   </div>
@@ -485,7 +507,7 @@ function unitCurrency(value: number) {
                   </svg>
                   <span v-else class="text-(--muted)">—</span>
                 </td>
-                <td data-label="Net change" class="core-item-change">
+                <td data-label="Net change" class="max-sm:justify-items-start">
                   <UBadge
                     :label="changeLabel(item.netChangePercent)"
                     :icon="item.trend === 'up' ? 'i-lucide-trending-up' : item.trend === 'down' ? 'i-lucide-trending-down' : item.trend === 'flat' ? 'i-lucide-move-right' : 'i-lucide-minus'"
@@ -500,7 +522,7 @@ function unitCurrency(value: number) {
         <p v-else class="m-[1.125rem_0_0.25rem] text-sm text-(--muted)">Not enough repeat purchases in this period yet.</p>
       </UCard>
 
-      <UCard class="highlight-panel mb-5 rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="shrinkflation-heading">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="shrinkflation-heading">
         <div class="core-items-heading mb-0 flex items-start justify-between gap-5 pb-3">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Package changes</p>
@@ -508,23 +530,24 @@ function unitCurrency(value: number) {
             <p>Smaller packaged goods whose shelf price stayed the same or increased. Variable-weight and per-item purchases are excluded.</p>
           </div>
         </div>
-        <div v-if="data.shrinkflation.length" class="overflow-x-auto max-[640.01px]:[overflow:visible]">
-          <table class="shrinkflation-table w-full table-fixed border-collapse text-base [&_th]:text-xs">
+        <div v-if="data.shrinkflation.length" class="overflow-x-auto max-sm:overflow-visible">
+          <table :class="[dataTable, 'table-fixed max-sm:[&_tr]:grid-cols-2']">
+            <caption class="sr-only">Packages that shrank, with shelf price and unit-cost impact; sortable by column</caption>
             <thead>
               <tr>
-                <th :aria-sort="shrinkflationAriaSort('item')"><UButton label="Item" :icon="shrinkflationSortIcon('item')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('item')" /></th>
-                <th :aria-sort="shrinkflationAriaSort('package')"><UButton label="Package change" :icon="shrinkflationSortIcon('package')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('package')" /></th>
-                <th :aria-sort="shrinkflationAriaSort('price')"><UButton label="Shelf price" :icon="shrinkflationSortIcon('price')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('price')" /></th>
-                <th :aria-sort="shrinkflationAriaSort('impact')"><UButton label="Unit-cost impact" :icon="shrinkflationSortIcon('impact')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('impact')" /></th>
+                <th scope="col" class="w-[26%]" :aria-sort="shrinkflationAriaSort('item')"><UButton :class="sortButton" label="Item" :icon="shrinkflationSortIcon('item')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('item')" /></th>
+                <th scope="col" class="w-[22%]" :aria-sort="shrinkflationAriaSort('package')"><UButton :class="sortButton" label="Package change" :icon="shrinkflationSortIcon('package')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('package')" /></th>
+                <th scope="col" class="w-[16%]" :aria-sort="shrinkflationAriaSort('price')"><UButton :class="sortButton" label="Shelf price" :icon="shrinkflationSortIcon('price')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('price')" /></th>
+                <th scope="col" class="w-[36%]" :aria-sort="shrinkflationAriaSort('impact')"><UButton :class="sortButton" label="Unit-cost impact" :icon="shrinkflationSortIcon('impact')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('impact')" /></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="entry in sortedShrinkflation" :key="`${entry.item}-${entry.purchasedOn}`">
-                <td data-label="Item"><NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline"><strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" /></NuxtLink><span>{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</span></td>
-                <td data-label="Package change"><strong>{{ entry.previousSize }} → {{ entry.size }} {{ entry.unit }}</strong><span>{{ changeLabel(entry.sizeChangePercent) }}</span></td>
+                <td data-label="Item"><NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline"><strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" /></NuxtLink><span class="mt-[0.1875rem] block text-sm text-muted">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</span></td>
+                <td data-label="Package change"><strong>{{ entry.previousSize }} → {{ entry.size }} {{ entry.unit }}</strong><span class="mt-[0.1875rem] block text-sm text-muted">{{ changeLabel(entry.sizeChangePercent) }}</span></td>
                 <td data-label="Shelf price"><strong>{{ formatCurrency(entry.previousPrice) }} → {{ formatCurrency(entry.price) }}</strong></td>
                 <td data-label="Unit-cost impact">
-                  <div class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap max-[640.01px]:grid max-[640.01px]:[justify-items:start] max-[640.01px]:[white-space:normal]">
+                  <div class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap max-sm:grid max-sm:justify-items-start max-sm:whitespace-normal">
                     <strong>{{ unitCurrency(entry.previousUnitPrice) }} → {{ unitCurrency(entry.unitPrice) }}</strong>
                     <span>{{ entry.unitPriceLabel }}</span>
                     <UBadge :label="wholeChangeLabel(entry.unitCostChangePercent)" color="error" variant="soft" />
@@ -537,26 +560,27 @@ function unitCurrency(value: number) {
         <p v-else class="m-[1.125rem_0_0.25rem] text-sm text-(--muted)">No smaller same-price packages found in this period.</p>
       </UCard>
 
-      <div class="grid grid-cols-[minmax(26.25rem,1.15fr)_minmax(21.25rem,.85fr)] items-start gap-5 max-[900.01px]:grid-cols-1">
-        <UCard class="highlight-panel movers-panel rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="movers-heading">
+      <div class="grid grid-cols-[minmax(26.25rem,1.15fr)_minmax(21.25rem,.85fr)] items-start gap-5 max-[56.25rem]:grid-cols-1">
+        <UCard class="highlight-panel rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="movers-heading">
             <div class="mb-2 flex items-end justify-between gap-5 pb-5">
               <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
             </div>
-            <div v-if="data.movers.length" class="overflow-x-auto max-[640.01px]:[overflow:visible]">
-              <table class="movers-table w-full table-fixed border-collapse text-base [&_th]:text-xs">
-                <thead><tr><th>Item</th><th>Comparison</th><th>Change</th></tr></thead>
+            <div v-if="data.movers.length" class="overflow-x-auto max-sm:overflow-visible">
+              <table :class="[dataTable, 'table-fixed max-sm:[&_tr]:grid-cols-[1fr_auto]']">
+                <caption class="sr-only">Items whose price changed since the previous purchase</caption>
+                <thead><tr><th scope="col" class="w-[40%]">Item</th><th scope="col" class="w-[40%]">Comparison</th><th scope="col" class="w-[20%]">Change</th></tr></thead>
                 <tbody>
                   <tr v-for="entry in data.movers" :key="entry.id">
                     <td data-label="Item">
                   <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
-                    <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
+                    <strong class="truncate">{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
                     </td>
-                    <td data-label="Comparison" class="mover-context grid gap-[0.125rem] overflow-hidden">
-                      <strong class="mover-dates truncate text-sm text-(--ink)">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</strong>
-                      <span class="mover-stores truncate text-sm text-(--muted)">{{ entry.previousLocation }} → {{ entry.location }}</span>
+                    <td data-label="Comparison" class="grid gap-[0.125rem] overflow-hidden max-sm:overflow-visible">
+                      <strong class="truncate text-sm text-(--ink) max-sm:overflow-visible max-sm:text-clip max-sm:whitespace-normal">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</strong>
+                      <span class="truncate text-sm text-(--muted) max-sm:overflow-visible max-sm:text-clip max-sm:whitespace-normal">{{ entry.previousLocation }} → {{ entry.location }}</span>
                     </td>
-                    <td data-label="Change" class="mover-change">
+                    <td data-label="Change" class="max-sm:justify-items-end">
                       <UBadge
                         :label="percentage(entry.priceChangePercent)"
                         :icon="Number(entry.priceChangePercent) > 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
@@ -572,7 +596,7 @@ function unitCurrency(value: number) {
             <p v-else class="m-[1.125rem_0_0.25rem] text-sm text-(--muted)">No significant price changes in this period.</p>
         </UCard>
 
-        <UCard class="highlight-panel rounded-[1.375rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+        <UCard class="highlight-panel rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
             <div class="mb-2 flex items-end justify-between gap-5 pb-5">
               <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Highest spending</p><h2>Top stores</h2></div>
               <UButton to="/data/stores" label="Manage stores" icon="i-lucide-settings-2" color="neutral" variant="outline" size="sm" />
