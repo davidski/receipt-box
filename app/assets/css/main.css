@@ -159,8 +159,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .receipt-keyboard-help p { margin: 0.4375rem 0 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
 .receipt-keyboard-help kbd { padding: 0.0625rem 0.3125rem; border: 1px solid var(--line); border-radius: 0.25rem; background: var(--surface-soft); color: var(--ink); font: inherit; white-space: nowrap; }
 
-h1, h2 { margin: 0; font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
-h2 { font-size: var(--text-heading); }
+/* Layered so size and weight utilities on a heading win over these defaults. */
+@layer base {
+  h1, h2 { margin: 0; font-family: var(--font-display); font-weight: 600; letter-spacing: -.025em; }
+  h2 { font-size: var(--text-heading); }
+}
 
 .date-field input { min-height: 2.75rem; padding: 0 0.625rem; font-size: var(--text-base); border: 1px solid var(--line-control); border-radius: 0.625rem; background: var(--surface-strong); color: var(--ink); }
 

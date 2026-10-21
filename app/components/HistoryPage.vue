@@ -422,7 +422,7 @@ async function confirmRemoveEntry() {
         <aside class="sticky top-24 rounded-card p-4.5 shadow-(--shadow) bg-surface border border-line max-[56.25rem]:static max-[56.25rem]:w-[min(20.625rem,_100%)] min-[47.5rem]:max-[56.25rem]:w-full max-sm:w-full max-sm:p-[0.875rem]" aria-label="Choose a receipt date">
           <div class="grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-1.5">
             <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" @click="moveCalendarMonth(-1)" />
-            <h2 class="overflow-hidden text-center text-base! text-ellipsis whitespace-nowrap" aria-live="polite">{{ selectedCalendarMonthLabel }}</h2>
+            <h2 class="overflow-hidden text-center text-base text-ellipsis whitespace-nowrap" aria-live="polite">{{ selectedCalendarMonthLabel }}</h2>
             <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" @click="moveCalendarMonth(1)" />
           </div>
           <table class="mt-3 w-full table-fixed border-separate [border-spacing:0.1875rem]">
