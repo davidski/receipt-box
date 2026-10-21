@@ -663,6 +663,26 @@ describe('receipt item entry interactions', () => {
     wrapper.unmount()
   })
 
+  it('announces one combined message when a save relocks both fields', async () => {
+    matchingReceipt = plainReceipt()
+    const wrapper = await mountForm('Test Store', 'receipt-1')
+    await wrapper.get('[aria-label="Unlock to change the date"]').trigger('click')
+    await wrapper.get('[aria-label="Unlock to change the store"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('input[type="date"]').setValue('2026-08-12')
+    await wrapper.get('[data-receipt-store]').setValue('Other Store')
+    await vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(700)
+      expect(entryBodies).toHaveLength(1)
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="Unlock to change the date"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Unlock to change the store"]').exists()).toBe(true)
+    expect(wrapper.get('[role="status"]').text()).toBe('Date and store saved and locked.')
+    wrapper.unmount()
+  })
+
   it('renders each lock beside its input, never inside another button or link', async () => {
     matchingReceipt = receipt()
     // Real Nuxt UI components: the stubs cannot show where the trailing slot or sibling lands.
@@ -680,6 +700,8 @@ describe('receipt item entry interactions', () => {
       expect(lock.parentElement?.closest('button, a')).toBeNull()
     }
     expect(wrapper.get('[data-receipt-store]').classes()).toContain('pe-[4.75rem]')
+    // The native picker icon would draw under the lock.
+    expect(wrapper.get('input[type="date"]').classes()).toContain('[&::-webkit-calendar-picker-indicator]:hidden')
     wrapper.unmount()
   })
 

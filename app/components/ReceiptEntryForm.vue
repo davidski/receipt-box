@@ -169,8 +169,8 @@ function dateDisplayLabel(value: string) {
 }
 
 const lockFields = {
-  date: { unlocked: allowDateChange, input: useTemplateRef<{ inputRef?: HTMLInputElement }>('dateInput'), lock: useTemplateRef<ComponentPublicInstance>('dateLock'), noun: 'Date' },
-  store: { unlocked: allowStoreChange, input: useTemplateRef<{ inputRef?: HTMLInputElement }>('storeInput'), lock: useTemplateRef<ComponentPublicInstance>('storeLock'), noun: 'Store' }
+  date: { unlocked: allowDateChange, input: useTemplateRef<{ inputRef?: HTMLInputElement }>('dateInput'), lock: useTemplateRef<ComponentPublicInstance>('dateLock'), noun: 'date' },
+  store: { unlocked: allowStoreChange, input: useTemplateRef<{ inputRef?: HTMLInputElement }>('storeInput'), lock: useTemplateRef<ComponentPublicInstance>('storeLock'), noun: 'store' }
 }
 
 async function toggleLock(field: keyof typeof lockFields) {
@@ -183,15 +183,15 @@ async function toggleLock(field: keyof typeof lockFields) {
 
 // Called once a save succeeds: relock each unlocked field, keep focus on its lock button, and announce it.
 async function relockSavedFields() {
-  for (const { unlocked, input, lock, noun } of Object.values(lockFields)) {
-    if (!unlocked.value) continue
-    const hadFocus = Boolean(input.value?.inputRef && input.value.inputRef === document.activeElement)
-    unlocked.value = false
-    receiptSessionMessage.value = `${noun} saved and locked.`
-    if (hadFocus) {
-      await nextTick()
-      ;(lock.value?.$el as HTMLElement | undefined)?.focus()
-    }
+  const relocked = Object.values(lockFields).filter(field => field.unlocked.value)
+  if (!relocked.length) return
+  const focused = relocked.find(({ input }) => input.value?.inputRef && input.value.inputRef === document.activeElement)
+  for (const { unlocked } of relocked) unlocked.value = false
+  const nouns = relocked.map(({ noun }) => noun).join(' and ')
+  receiptSessionMessage.value = `${nouns[0]!.toUpperCase()}${nouns.slice(1)} saved and locked.`
+  if (focused) {
+    await nextTick()
+    ;(focused.lock.value?.$el as HTMLElement | undefined)?.focus()
   }
 }
 
@@ -1338,7 +1338,7 @@ async function deleteReceipt() {
           <time class="flex min-h-11 items-center text-base text-ink" data-receipt-date-display :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time>
         </div>
         <UFormField v-else label="Date" name="purchasedOn" required :ui="fieldSpacing" class="field date-field relative grid min-w-0 text-sm font-medium text-muted max-sm:grid-cols-[auto_1fr] max-sm:items-center">
-          <UInput ref="dateInput" v-model="form.purchasedOn" type="date" required size="lg" :disabled="!allowDateChange">
+          <UInput ref="dateInput" v-model="form.purchasedOn" type="date" :ui="{ base: '[&::-webkit-calendar-picker-indicator]:hidden' }" required size="lg" :disabled="!allowDateChange">
             <template #trailing>
               <UButton ref="dateLock" type="button" :icon="allowDateChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowDateChange ? 'Lock the date' : 'Unlock to change the date'" :color="allowDateChange ? 'primary' : 'neutral'" :variant="allowDateChange ? 'soft' : 'ghost'" @click="toggleLock('date')" />
             </template>
