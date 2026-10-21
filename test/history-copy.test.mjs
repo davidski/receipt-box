@@ -7,12 +7,13 @@ const receiptEntryLine = await readFile(new URL('../app/components/ReceiptEntryL
 const indexRoute = await readFile(new URL('../app/pages/history/index.vue', import.meta.url), 'utf8')
 const viewRoute = await readFile(new URL('../app/pages/history/[...view].vue', import.meta.url), 'utf8')
 const middleware = await readFile(new URL('../app/middleware/history.ts', import.meta.url), 'utf8')
+const tableCard = await readFile(new URL('../app/utils/data-table.ts', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 
 test('History keeps its page heading stable across views', () => {
   assert.match(page, /<h1 class="(?=[^"]*text-display(?![\w-]))(?=[^"]*leading-\[1\.04\])[^"]*">Receipts<\/h1>/)
   assert.match(page, /Browse receipts by date\./)
-  assert.match(page, /class="[^"]*page-heading[^"]*history-heading[^"]*">[\s\S]*class="[^"]*receipt-mode-switcher[^"]*receipt-views[^"]*" aria-label="Receipts view"/)
+  assert.match(page, /class="[^"]*page-heading[^"]*">[\s\S]*<nav [\s\S]*?aria-label="Receipts view"/)
   assert.doesNotMatch(page, /history-view-summary/)
   assert.match(viewRoute, /middleware: 'history'/)
   assert.match(middleware, /to\.path === '\/history'/)
@@ -22,7 +23,7 @@ test('History keeps its page heading stable across views', () => {
   assert.match(page, /to="\/history\/entries"/)
   assert.match(page, /label="Calendar" icon="i-lucide-calendar-days"/)
   assert.match(page, /label="Item entries" icon="i-lucide-list"/)
-  assert.match(page, /<th scope="col">Date<\/th><th scope="col">Store<\/th><th scope="col">Items<\/th><th scope="col">Total<\/th>/)
+  assert.match(page, /<th scope="col"[^>]*>Date<\/th>\s*<th scope="col"[^>]*>Store<\/th>\s*<th scope="col"[^>]*>Items<\/th>\s*<th scope="col"[^>]*>Total<\/th>/)
   assert.match(page, /Receipt date, store, and total/)
   assert.equal((page.match(/aria-label="Receipt list pagination"/g) || []).length, 2)
   assert.doesNotMatch(page, /view === 'receipts' \? 'Shopping trips'/)
@@ -30,18 +31,17 @@ test('History keeps its page heading stable across views', () => {
 })
 
 test('Purchase editor uses consistent spacing between form rows', () => {
-  assert.match(stylesheet, /\.edit-dialog \.form-grid, \.edit-dialog \.quick-toggles \{ margin-top: 1rem; \}/)
-  assert.match(stylesheet, /\.edit-dialog \.form-grid \+ \.field, \.edit-dialog \.quick-toggles \+ \.field \{ margin-top: 1rem; \}/)
-  assert.match(stylesheet, /\.edit-dialog \.form-grid \.field \+ \.field \{ margin-top: 0; \}/)
+  assert.match(page, /<form [^>]*id="edit-purchase-form" class="edit-dialog grid gap-4 /)
+  assert.doesNotMatch(stylesheet, /\.edit-dialog \.(form-grid|quick-toggles|field)/)
 })
 
 test('Calendar receipt store headings keep wrapped lines compact', () => {
   assert.match(page, /<h2[^>]*class="[^\"]*text-title[^\"]*leading-\[1\.05\]/)
-  assert.match(stylesheet, /\.receipt-heading > button, \.receipt-heading > a \{ align-self: flex-start; \}/)
+  assert.match(page, /<UButton class="self-start" :to="`\/receipts\/\$\{receipt\.id\}`" label="Edit receipt"/)
 })
 
 test('Calendar lets an empty date become the selected date', () => {
-  const calendarButton = page.match(/<button\s+type="button"\s+:class="\{ available:[\s\S]*?@click="selectReceiptDate\(day\)"[\s\S]*?<\/button>/)?.[0]
+  const calendarButton = page.match(/<button\s+type="button"[\s\S]*?:class="calendarDayClass\(day\)"[\s\S]*?@click="selectReceiptDate\(day\)"[\s\S]*?<\/button>/)?.[0]
   assert.ok(calendarButton)
   assert.doesNotMatch(calendarButton, /:disabled=/)
   assert.match(calendarButton, /@click="selectReceiptDate\(day\)"/)
@@ -64,8 +64,8 @@ test('Page content reserves the scrollbar gutter', () => {
 })
 
 test('History filters keep the store selector from widening the filter bar', () => {
-  assert.match(page, /class="[^"]*filter-bar[^"]*grid-cols-\[minmax\(0,1fr\)_minmax\(0,13.75rem\)_minmax\(0,13.75rem\)\][^"]*"/)
-  assert.match(stylesheet, /\.store-filter-control, \.store-filter-control > \[data-slot="base"\], \.category-filter-control, \.category-filter-control > \[data-slot="base"\] \{ min-width: 0; \}/)
+  assert.match(page, /class="[^"]*grid-cols-\[minmax\(0,1fr\)_minmax\(0,13.75rem\)_minmax\(0,13.75rem\)\][^"]*"/)
+  assert.equal((page.match(/<USelect [^>]*class="w-full min-w-0"/g) || []).length, 2)
 })
 
 test('History store filtering does not lock the page scroll', () => {
@@ -76,7 +76,7 @@ test('History preserves navigation state in the URL and uses Nuxt UI controls', 
   assert.match(page, /route\.query\.search/)
   assert.match(page, /query\.store = location\.value !== allLocationsValue/)
   assert.match(page, /query\.category = category\.value \|\| undefined/)
-  assert.match(page, /USelect v-model="categorySelection" :items=.*All categories/)
+  assert.match(page, /USelect v-model="categorySelection"[^>]* :items=.*All categories/)
   assert.match(page, /Filter by category/)
   assert.match(page, /query\.filter = changeFilter\.value !== 'all'/)
   assert.match(page, /query\.sort = sortBy\.value !== 'purchasedOn'/)
@@ -105,7 +105,48 @@ test('History filters entries by category and labels categorized receipt lines',
 })
 
 test('Receipts keeps headings intact and uses tablet space without widening mobile pages', () => {
-  assert.match(page, /class="[^"]*selected-receipts-heading[^"]*gap-3\.5/)
-  assert.match(page, /min-\[760px\]:max-\[900\.01px\]:grid-cols-\[17.5rem_minmax\(0,_1fr\)\]/)
-  assert.match(page, /history-heading[^\"]*max-\[900\.01px\]:grid[^\"]*max-\[900\.01px\]:items-start/)
+  assert.match(page, /<header class="m-\[0_0_0\.875rem\] grid gap-3\.5">/)
+  assert.match(page, /min-\[47\.5rem\]:max-\[56\.25rem\]:grid-cols-\[17.5rem_minmax\(0,_1fr\)\]/)
+  assert.match(page, /page-heading[^\"]*max-\[56\.25rem\]:grid[^\"]*max-\[56\.25rem\]:items-start/)
+})
+
+test('History is styled with utilities, not page-specific rules in main.css', () => {
+  for (const name of ['history-table', 'receipt-list', 'receipt-calendar', 'receipt-mode-switcher', 'receipt-views', 'receipt-lines', 'receipt-heading', 'calendar-heading', 'calendar-legend', 'selected-receipts', 'receipt-empty-state', 'search-control', 'store-filter-control', 'category-filter-control']) {
+    assert.doesNotMatch(stylesheet, new RegExp(`\\.${name}\\b`), `main.css still styles .${name}`)
+    assert.doesNotMatch(page, new RegExp(`class="[^"]*\\b${name}\\b`), `HistoryPage still uses .${name}`)
+  }
+})
+
+test('History script and template do not query classes that no longer exist', () => {
+  const classes = [...page.matchAll(/querySelector(?:All)?(?:<[^>]+>)?\('([^']+)'\)/g)].flatMap(([, selector]) => selector.match(/\.[\w-]+/g) || [])
+  for (const name of classes) {
+    assert.ok(new RegExp(`class="[^"]*\\b${name.slice(1)}\\b`).test(page) || stylesheet.includes(name), `${name} is queried but never defined`)
+  }
+  assert.match(page, /<UInput id="history-search"/)
+})
+
+test('History uses rem breakpoints and the named radius tokens', () => {
+  assert.doesNotMatch(page, /(?:max|min)-\[[\d.]+px\]/)
+  assert.doesNotMatch(page, /rounded-(?:\[|2xl|3xl|xl)/)
+})
+
+test('History formats money with the shared helper', () => {
+  assert.match(page, /import \{ formatCurrency \} from '\.\.\/\.\.\/shared\/utils\/money'/)
+  assert.doesNotMatch(page, /function currency\(/)
+  assert.doesNotMatch(page, /Intl\.NumberFormat\(undefined, \{ style: 'currency'/)
+})
+
+test('History tables share one phone-width card layout', () => {
+  assert.equal((page.match(/:class="\[cardTable,/g) || []).length, 2)
+  assert.equal((page.match(/cardRow/g) || []).length, 2)
+  assert.match(tableCard, /max-sm:\[&_thead\]:hidden/)
+  assert.match(tableCard, /max-sm:before:content-\[attr\(data-label\)\]/)
+})
+
+test('The item entries table has a caption and column scopes', () => {
+  const table = page.match(/<table :class="\[cardTable, 'w-full table-fixed[\s\S]*?<\/thead>/)?.[0]
+  assert.ok(table)
+  assert.match(table, /<caption class="sr-only">Purchase entries<\/caption>/)
+  assert.equal((table.match(/<th scope="col"/g) || []).length, 7)
+  assert.equal((table.match(/:ui="\{ leadingIcon: 'size-3\.5' \}"/g) || []).length, 6, 'sort icons stay 0.875rem')
 })

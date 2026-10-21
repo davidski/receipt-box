@@ -201,8 +201,6 @@ h2 { font-size: var(--text-heading); }
 .field > label, .field > span:first-child { color: var(--muted); font-size: var(--text-sm); font-weight: 700; }
 .field [data-slot="root"]:has(> [data-slot="base"]) { width: 100%; }
 
-.quick-toggles [data-slot="label"] { cursor: pointer; }
-
 button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
 .notice.error { background: var(--danger-soft); color: var(--danger); }
@@ -235,72 +233,6 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
 .page-heading > p:last-child, .page-heading > div:first-child > p:last-child { max-width: 37.5rem; margin: 0.625rem 0 0; color: var(--muted); line-height: 1.6; }
 
-.search-control > [data-slot="root"], .store-filter-control > [data-slot="base"], .category-filter-control > [data-slot="base"] { width: 100%; }
-.store-filter-control, .store-filter-control > [data-slot="base"], .category-filter-control, .category-filter-control > [data-slot="base"] { min-width: 0; }
-.store-filter-control > [data-slot="base"], .category-filter-control > [data-slot="base"] { width: 100%; padding-inline: 0.875rem 2.625rem; }
-.search-control > span:not(.sr-only) { position: absolute; left: 1rem; top: 50%; z-index: 1; transform: translateY(-50%); color: var(--muted); font-size: var(--text-title); }
-.search-control input { padding-left: 2.75rem; }
-
-.history-table th:nth-child(1) { width: 12%; }
-.history-table th:nth-child(2) { width: 27%; }
-.history-table th:nth-child(3) { width: 15%; }
-.history-table th:nth-child(4) { width: 10%; }
-.history-table th:nth-child(5) { width: 10%; }
-.history-table th:nth-child(6) { width: 14%; }
-.history-table th:nth-child(7) { width: 12%; }
-.history-table th { padding: 0.8125rem 0.9375rem; background: var(--surface-muted); color: var(--muted); font-size: var(--text-xs); letter-spacing: .08em; text-align: left; text-transform: uppercase; }
-.history-table th button { display: inline-flex; align-items: center; gap: 0.375rem; min-height: 2.75rem; margin: -0.5rem -0.625rem; padding: 0.5rem 0.625rem; border: 0; border-radius: 0.5rem; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
-.history-table th button:hover, .history-table th button:focus-visible { background: var(--accent-soft); color: var(--accent-strong); }
-.history-table th button svg { width: 0.875rem; height: 0.875rem; }
-.history-table th:nth-last-child(-n+3), .history-table td.numeric { text-align: right; }
-.history-table td { padding: 0.9375rem; border-top: 1px solid var(--line); vertical-align: middle; }
-.history-table tbody tr:hover { background: color-mix(in srgb, var(--surface-muted), transparent 45%); }
-.history-table tbody tr:focus, .receipt-list tbody tr:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
-
-.history-table .row-action .history-edit-link { justify-content: flex-end; padding-inline: 0.25rem; border: 0; background: transparent; color: var(--muted); font-size: var(--text-sm); text-decoration: none; }
-.history-table .row-action .history-edit-link:hover, .history-table .row-action .history-edit-link:focus-visible { background: transparent; color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
-
-.receipt-mode-switcher > span { margin: 0 0.3125rem 0 0.5rem; color: var(--muted); font-size: var(--text-xs); font-weight: 700; }
-
-.calendar-heading [data-slot="root"] { width: 100%; min-width: 0; }
-.calendar-heading h2 { overflow: hidden; font-size: var(--text-base); text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-
-.receipt-calendar th { height: 1.75rem; color: var(--muted); font-size: var(--text-xs); font-weight: 750; text-align: center; }
-.receipt-calendar td { padding: 0; }
-.receipt-calendar button { position: relative; display: grid; width: 100%; min-height: 2.5rem; aspect-ratio: 1; place-items: center; padding: 0; border: 0; border-radius: 0.625rem; background: transparent; color: var(--ink); font-size: var(--text-sm); cursor: pointer; }
-.receipt-calendar button.outside { color: color-mix(in srgb, var(--muted), transparent 55%); }
-.receipt-calendar button.available { background: var(--accent-soft); color: var(--accent-strong); font-weight: 750; cursor: pointer; }
-.receipt-calendar button.available:hover { background: color-mix(in srgb, var(--accent-soft), var(--accent) 12%); }
-.receipt-calendar button.selected { background: var(--accent-fill); color: var(--on-accent-fill); }
-.receipt-calendar button i { position: absolute; bottom: 0.3125rem; width: 0.25rem; height: 0.25rem; border-radius: 50%; background: currentColor; }
-.receipt-calendar button:disabled { opacity: 1; }
-
-.calendar-legend i { width: 0.4375rem; height: 0.4375rem; border-radius: 50%; background: var(--accent); }
-
-.selected-receipts-heading h2 { font-size: var(--text-heading); }
-
-.selected-receipts-controls > span { flex: 0 0 7rem; color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
-
-.receipt-empty-state > .iconify { width: 1.125rem; height: 1.125rem; color: var(--accent); }
-
-.receipt-list-heading h2 { margin-top: 0.3125rem; font-size: var(--text-heading); }
-
-.receipt-list th { padding: 0.75rem 1rem; background: var(--surface-muted); color: var(--muted); font-size: var(--text-xs); letter-spacing: .08em; text-align: left; text-transform: uppercase; }
-.receipt-list th:nth-child(3), .receipt-list td:nth-child(3), .receipt-list th:nth-child(4), .receipt-list td:nth-child(4) { text-align: right; }
-.receipt-list th:nth-child(3), .receipt-list td:nth-child(3) { width: 5.625rem; }
-.receipt-list th:nth-child(5), .receipt-list td:nth-child(5) { width: 5.75rem; }
-.receipt-list td { padding: 0.9375rem 1rem; border-top: 1px solid var(--line); vertical-align: middle; }
-.receipt-list tbody tr:hover { background: color-mix(in srgb, var(--surface-muted), transparent 45%); }
-
-.receipt-list-store .iconify { color: var(--accent); }
-
-.receipt-list-action a { display: inline-flex; align-items: center; gap: 0.3125rem; color: var(--muted); font-size: var(--text-sm); text-decoration: none; }
-.receipt-list-action a:hover, .receipt-list-action a:focus-visible { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
-.receipt-list-action .iconify { width: 0.875rem; height: 0.875rem; }
-.receipt-heading > button, .receipt-heading > a { align-self: flex-start; }
-
-.receipt-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.625rem; align-items: start; padding: 0.875rem 0; border-bottom: 1px dotted var(--line); }
-
 .series-picker > span { padding: 0 0.5rem; color: var(--muted); font-size: var(--text-xs); font-weight: 700; }
 
 /* Hide native number steppers; nobody steps a price by 0.01, and inputmode still brings up the numeric keyboard. */
@@ -309,10 +241,6 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 
 .touch-target, .touch-target[data-slot="base"], .touch-target [data-slot="base"] { min-height: 2.75rem; }
 
-.edit-dialog .field + .field { margin-top: 1rem; }
-.edit-dialog .form-grid .field + .field { margin-top: 0; }
-.edit-dialog .form-grid, .edit-dialog .quick-toggles { margin-top: 1rem; }
-.edit-dialog .form-grid + .field, .edit-dialog .quick-toggles + .field { margin-top: 1rem; }
 .edit-dialog [data-slot="root"]:has([data-slot="trailing"]) [data-slot="base"] { padding-inline-end: 2.75rem; }
 
 @media (max-width: 1280px) {
@@ -321,26 +249,10 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 }
 
 @media (max-width: 900px) {
-    .receipt-mode-switcher > *:not(span) { flex: 1; justify-content: center; }
   .receipt-entry-line:focus-within { background: var(--surface); border-color: var(--accent); }
   }
 
 @media (max-width: 640px) {
-  .receipt-views > * { flex: 1; justify-content: center; }
-  .receipt-heading > button { width: 100%; }
-  .receipt-list, .receipt-list tbody { display: grid; gap: 0.625rem; }
-  .receipt-list thead { display: none; }
-  .receipt-list tr { display: grid; grid-template-columns: 1fr auto; gap: 0.625rem 0.875rem; padding: 0.9375rem; border: 1px solid var(--line); border-radius: 0.875rem; background: var(--surface); box-shadow: var(--shadow); }
-  .receipt-list td { display: grid; gap: 0.1875rem; padding: 0; border: 0; text-align: left !important; }
-  .receipt-list td::before { content: attr(data-label); color: var(--muted); font-size: var(--text-xs); font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-  .receipt-list td:first-child { grid-column: 1 / -1; }
-  .receipt-list td:first-child strong { font-size: var(--text-base); }
-  .receipt-list td:nth-child(2) { grid-column: 1 / -1; }
-  .receipt-list td:nth-child(3) { grid-column: 1; grid-row: 3; }
-  .receipt-list td:nth-child(4) { grid-column: 2; grid-row: 3; justify-items: end; width: auto; }
-  .receipt-list td:nth-child(5) { grid-column: 1 / -1; width: auto; }
-  .receipt-list-action a { width: 100%; justify-content: flex-end; padding-top: 0.375rem; border-top: 1px solid var(--line); }
-  .receipt-list-action::before { display: none; }
   .receipt-meta-fields .date-field { display: grid; grid-template-columns: auto 1fr; align-items: center; }
   .receipt-meta-fields .receipt-date-display { grid-template-columns: auto 1fr; align-items: center; }
   .receipt-line-remove-confirmation > span { grid-column: 1 / -1; margin-right: 0; }
@@ -349,14 +261,5 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   .receipt-entry-footer > .receipt-footer-total { margin-left: auto; }
   .receipt-split-selection-bar > button, .receipt-split-notice > button { flex: 1 1 auto; justify-content: center; }
   .receipt-delete-confirmation button { width: 100%; }
-  .history-table, .history-table tbody { display: grid; gap: 0.75rem; }
-  .history-table thead { display: none; }
-  .history-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.625rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); box-shadow: var(--shadow); }
-  .history-table td { display: grid; gap: 0.1875rem; padding: 0; border: 0; }
-  .history-table td::before { content: attr(data-label); color: var(--muted); font-size: var(--text-xs); font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-  .history-table td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; font-size: var(--text-base); }
-  .history-table td.numeric { text-align: left; }
-  .history-table .row-action { display: block; text-align: right; }
-  .history-table .row-action::before { display: none; }
   .pagination span { min-width: 0; text-align: center; }
 }

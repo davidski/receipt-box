@@ -20,6 +20,7 @@ const UIcon = defineComponent({ setup: () => () => h('span') })
 const mounted: Array<{ unmount: () => void }> = []
 let includeReceipt = false
 let includeEntry = false
+let withoutNormalizedPrice = false
 let holdReceiptResponse = false
 let releaseReceiptResponse: (() => void) | undefined
 const entry = {
@@ -31,10 +32,11 @@ const entry = {
 beforeEach(() => {
   includeReceipt = false
   includeEntry = false
+  withoutNormalizedPrice = false
   holdReceiptResponse = false
   releaseReceiptResponse = undefined
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
-  registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [entry] : [], total: includeEntry ? 1 : 0 }))
+  registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [{ ...entry, costPerUnit: withoutNormalizedPrice ? null : entry.costPerUnit }] : [], total: includeEntry ? 1 : 0 }))
   registerEndpoint('/api/receipts/dates', () => ({ dates: [{ date: '2026-09-26', receiptCount: 1, itemCount: 0 }] }))
   registerEndpoint('/api/stores', () => [])
   registerEndpoint('/api/categories', () => [])
@@ -58,8 +60,14 @@ afterEach(async () => {
   await flushPromises()
 })
 
-async function mountBrowser(route = '/') {
-  const wrapper = await mountSuspended(HistoryPage, { route, global: { stubs: { UButton, UIcon } } })
+type Wrapper = Awaited<ReturnType<typeof mountBrowser>>
+const table = (wrapper: Wrapper, caption: string) => wrapper.findAll('table').find(candidate => candidate.find('caption').text() === caption)!
+const calendar = (wrapper: Wrapper) => table(wrapper, 'Choose any calendar date')
+const receiptList = (wrapper: Wrapper) => table(wrapper, 'Receipt date, store, and total')
+const entryTable = (wrapper: Wrapper) => table(wrapper, 'Purchase entries')
+
+async function mountBrowser(route = '/', attachTo?: HTMLElement) {
+  const wrapper = await mountSuspended(HistoryPage, { route, attachTo, global: { stubs: { UButton, UIcon } } })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -72,8 +80,8 @@ describe('Receipts home', () => {
     const wrapper = await mountBrowser()
     const add = wrapper.findAll('a').find(link => link.text() === 'Add receipt')!
     expect(add.attributes('href')).toBe(`/receipts/new?date=${today}`)
-    expect(wrapper.find('.receipt-calendar button[aria-pressed="true"]').exists()).toBe(true)
-    expect(wrapper.find('.receipt-empty-state').text()).toBe('No receipts for this date.')
+    expect(calendar(wrapper).find('button[aria-pressed="true"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('No receipts for this date.')
   })
 
   it('keeps same-day Add available and edits the receipt by ID', async () => {
@@ -86,13 +94,13 @@ describe('Receipts home', () => {
   it('selects an empty day without snapping back to an existing receipt', async () => {
     includeReceipt = true
     const wrapper = await mountBrowser('/?date=2026-09-26')
-    const day = wrapper.findAll('.receipt-calendar button').find(button => button.text() === '25')!
+    const day = calendar(wrapper).findAll('button').find(button => button.text() === '25')!
     expect(day.attributes('disabled')).toBeUndefined()
     await day.trigger('click')
     await flushPromises()
     expect(day.attributes('aria-pressed')).toBe('true')
     expect(wrapper.findAll('a').find(link => link.text() === 'Add receipt')!.attributes('href')).toBe('/receipts/new?date=2026-09-25')
-    expect(wrapper.find('.receipt-empty-state').text()).toContain('No receipts for this date')
+    expect(wrapper.text()).toContain('No receipts for this date')
     const newer = wrapper.findAll('button').find(button => button.text() === 'Newer')!
     expect(newer.attributes('disabled')).toBeUndefined()
     await newer.trigger('click')
@@ -104,7 +112,7 @@ describe('Receipts home', () => {
     const wrapper = await mountBrowser('/?date=2026-09-26')
     vi.useFakeTimers()
     holdReceiptResponse = true
-    await wrapper.findAll('.receipt-calendar button').find(button => button.text() === '25')!.trigger('click')
+    await calendar(wrapper).findAll('button').find(button => button.text() === '25')!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('Gathering receipts…')
@@ -125,27 +133,70 @@ describe('Receipts home', () => {
   it('focuses a receipt row on click and opens its editor on double-click', async () => {
     includeReceipt = true
     const wrapper = await mountBrowser('/history/receipts/list')
-    const row = wrapper.find('.receipt-list tbody tr')
+    const row = receiptList(wrapper).find('tbody tr')
     expect(row.attributes('tabindex')).toBe('0')
     const focus = vi.spyOn(row.element, 'focus')
     await row.trigger('click')
     expect(focus).toHaveBeenCalledOnce()
     const push = vi.spyOn(wrapper.vm.$router, 'push')
-    await wrapper.find('.receipt-list tbody tr').trigger('dblclick')
+    await receiptList(wrapper).find('tbody tr').trigger('dblclick')
     await flushPromises()
     expect(push).toHaveBeenCalledWith('/receipts/17')
     expect(wrapper.find('a[aria-label="Edit Test Store receipt from Sep 26, 2026"]').exists()).toBe(true)
   })
 
+  it('shows entry prices with the shared formatter', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries')
+    const cells = entryTable(wrapper).findAll('tbody tr td')
+    expect(cells[4]!.text()).toBe('$2.00')
+    expect(cells[5]!.text()).toBe('$2.00')
+  })
+
+  it('shows a dash when an entry has no normalized price', async () => {
+    includeEntry = true
+    withoutNormalizedPrice = true
+    const wrapper = await mountBrowser('/history/entries')
+    expect(entryTable(wrapper).findAll('tbody tr td')[5]!.text()).toBe('—')
+  })
+
+  it('names the entries table and scopes every column header', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries')
+    const headers = entryTable(wrapper).findAll('thead th')
+    expect(headers).toHaveLength(7)
+    expect(headers.every(header => header.attributes('scope') === 'col')).toBe(true)
+    expect(headers[0]!.attributes('aria-sort')).toBe('descending')
+  })
+
+  it('formats receipt list totals in dollars and labels each phone-width cell', async () => {
+    includeReceipt = true
+    const wrapper = await mountBrowser('/history/receipts/list')
+    const cells = receiptList(wrapper).findAll('tbody tr td')
+    expect(cells[3]!.text()).toBe('$0.00')
+    expect(cells.slice(0, 4).map(cell => cell.attributes('data-label'))).toEqual(['Date', 'Store', 'Items', 'Total'])
+  })
+
+  it('returns focus to the search field when it is cleared', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries?search=apple', document.body)
+    const input = wrapper.get('input[type="search"]')
+    expect((input.element as HTMLInputElement).value).toBe('apple')
+    await wrapper.get('button[aria-label="Clear search"]').trigger('click')
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    expect((input.element as HTMLInputElement).value).toBe('')
+    expect(document.activeElement).toBe(input.element)
+  })
+
   it('focuses an item entry row on click and opens its editor on double-click', async () => {
     includeEntry = true
     const wrapper = await mountBrowser('/history/entries')
-    const row = wrapper.find('.history-table tbody tr')
+    const row = entryTable(wrapper).find('tbody tr')
     expect(row.attributes('tabindex')).toBe('0')
     const focus = vi.spyOn(row.element, 'focus')
     await row.trigger('click')
     expect(focus).toHaveBeenCalledOnce()
-    await wrapper.find('.history-table tbody tr').trigger('dblclick')
+    await entryTable(wrapper).find('tbody tr').trigger('dblclick')
     await flushPromises()
     expect(document.querySelector('.edit-dialog')).not.toBeNull()
     expect((document.getElementById('edit-item') as HTMLInputElement).value).toBe('Apples')
