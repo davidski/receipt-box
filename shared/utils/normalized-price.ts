@@ -1,28 +1,9 @@
-import { normalizeUnit } from './units.ts'
+import { MASS_GRAMS, normalizeUnit, VOLUME_MILLILITERS } from './units.ts'
 
 type NormalizedPrice = {
   basis: string
   label: string
   value: number
-}
-
-export const MASS_GRAMS: Record<string, number> = {
-  g: 1,
-  kg: 1000,
-  oz: 28.349523125,
-  lb: 453.59237
-}
-
-export const VOLUME_MILLILITERS: Record<string, number> = {
-  mL: 1,
-  L: 1000,
-  'fl oz': 29.5735295625,
-  tsp: 4.92892159375,
-  tbsp: 14.78676478125,
-  cup: 236.5882365,
-  pt: 473.176473,
-  qt: 946.352946,
-  gal: 3785.411784
 }
 
 export function normalizedHistoricalPrice(

@@ -1,5 +1,4 @@
-import { MASS_GRAMS, VOLUME_MILLILITERS } from './normalized-price.ts'
-import { normalizeUnit } from './units.ts'
+import { normalizeUnit, toBaseUnit } from './units.ts'
 
 export type RecipeCostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'INCOMPATIBLE_UNIT'
 
@@ -13,15 +12,6 @@ export type RecipePurchase = {
 }
 
 export type RecipeLineCost = RecipeLine & { cost: number | null, sale: boolean, error: RecipeCostError | null }
-
-export function toBaseUnit(quantity: number, unitValue: unknown): { base: 'g' | 'mL' | 'ea', amount: number } | null {
-  const unit = normalizeUnit(unitValue)
-  if (!unit) return null
-  if (unit === 'ea') return { base: 'ea', amount: quantity }
-  if (MASS_GRAMS[unit]) return { base: 'g', amount: quantity * MASS_GRAMS[unit] }
-  if (VOLUME_MILLILITERS[unit]) return { base: 'mL', amount: quantity * VOLUME_MILLILITERS[unit] }
-  return null
-}
 
 export function costLine(line: RecipeLine, purchase: RecipePurchase | null): RecipeLineCost {
   const fail = (error: RecipeCostError, sale = false): RecipeLineCost => ({ ...line, cost: null, sale, error })
