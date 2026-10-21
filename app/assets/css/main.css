@@ -215,8 +215,6 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
 .period-field [data-slot="base"] { width: 100%; }
 
-.category-price-list li { display: grid; grid-template-columns: minmax(8.125rem, 1fr) minmax(13.75rem, 2fr) auto; align-items: center; gap: 0.875rem; padding: 0.6875rem 0; border-top: 1px solid var(--line); }
-
 .category-price-empty a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 
 .spend-explanation > div { display: grid; gap: 0.25rem; padding: 0.625rem 0.8125rem; background: var(--surface-muted); }
@@ -329,7 +327,6 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 
 @media (max-width: 640px) {
   .receipt-views > * { flex: 1; justify-content: center; }
-  .category-price-list li { grid-template-columns: minmax(0, 1fr) auto; gap: 0.3125rem 0.625rem; }
   .receipt-heading > button { width: 100%; }
   .receipt-list, .receipt-list tbody { display: grid; gap: 0.625rem; }
   .receipt-list thead { display: none; }

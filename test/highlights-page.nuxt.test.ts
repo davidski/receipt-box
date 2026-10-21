@@ -63,6 +63,29 @@ describe('Highlights page', () => {
     }
   })
 
+  it('renders each panel and tile as its own card with the card radius winning over Nuxt UI', async () => {
+    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
+    const wrapper = await mountPage()
+    // Nuxt UI's card root ships rounded-lg and tailwind-merge cannot replace it with rounded-card, so the token is forced.
+    const cards = wrapper.findAll('[data-slot="root"]').filter(node => node.classes().includes('rounded-lg'))
+
+    expect(cards).toHaveLength(10)
+    for (const card of cards) expect(card.classes()).toContain('rounded-card!')
+    const card = (heading: string) => cards.find(node => node.findAll('h2').some(h2 => h2.text() === heading))
+    expect(card('Category price movement')).toBeDefined()
+    expect(card('Purchases by month')).toBeDefined()
+    expect(card('Category price movement')!.element).not.toBe(card('Purchases by month')!.element)
+  })
+
+  it('keeps the gap under each panel eyebrow despite the global h2 margin reset', async () => {
+    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
+    const wrapper = await mountPage()
+    const headings = wrapper.findAll('h2').filter(h2 => ['Regular purchase price index', 'Category price movement', 'Purchases by month'].includes(h2.text()))
+
+    expect(headings).toHaveLength(3)
+    for (const heading of headings) expect(heading.classes()).toContain('mt-1!')
+  })
+
   it('keeps aria-sort on the sortable shrinkflation headers', async () => {
     reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
     const wrapper = await mountPage()

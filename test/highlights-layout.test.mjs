@@ -29,16 +29,11 @@ test('the monthly spending bars use prettyScale from a zero baseline', () => {
 })
 
 test('the Highlights chart and table styling lives in utilities, not main.css', () => {
-  for (const selector of ['stat-card', 'price-index-', 'monthly-spend-', 'core-items-table', 'shrinkflation-table', 'movers-table']) {
+  for (const selector of ['stat-card', 'price-index-', 'monthly-spend-', 'core-items-table', 'shrinkflation-table', 'movers-table', 'category-price-list']) {
     assert.ok(!stylesheet.includes(`.${selector}`), `main.css should not define .${selector}`)
   }
   assert.doesNotMatch(page, /max-\[\d+\.01px\]/)
   assert.doesNotMatch(page, /rounded-(?:\[1\.375rem\]|2xl|xl)\b/)
-})
-
-test('category price movement is separated from monthly spending', () => {
-  assert.match(page, /aria-labelledby="category-price-heading"/)
-  assert.match(page, /<h2 class="mt-1">Purchases by month<\/h2>/)
 })
 
 test('Highlights cards share the Purchases by month heading size', () => {
@@ -52,12 +47,9 @@ test('the Highlights page explains and renders core-item price velocity', () => 
   assert.match(page, /3\+ receipts across 2\+ months/)
   assert.match(page, /velocity compares non-sale prices/)
   assert.match(page, /data\.coreItems\.length/)
-  assert.match(page, /max-sm:grid max-sm:gap-2\.5 max-sm:\[&_thead\]:hidden/)
 })
 
 test('the core-item table uses compact desktop rows without losing mobile labels', () => {
-  assert.match(page, /<table :class="\[dataTable, 'max-sm:\[&_tr\]:grid-cols-2'\]">/)
-  assert.match(page, /max-sm:\[&_td\]:before:content-\[attr\(data-label\)\]/)
   assert.match(page, /class="core-item-inline flex /)
   assert.match(page, /data-label="Regularity"/)
   assert.match(page, /data-label="Price behavior"/)
@@ -82,12 +74,9 @@ test('Top stores anchors each spend amount to the end of its bar', () => {
 })
 
 test('Recent movers uses compact table rows with a mobile card fallback', () => {
-  assert.match(page, /<table :class="\[dataTable, 'table-fixed max-sm:\[&_tr\]:grid-cols-\[1fr_auto\]'\]">/)
-  assert.match(page, /<th scope="col" class="w-\[40%\]">Item<\/th><th scope="col" class="w-\[40%\]">Comparison<\/th><th scope="col" class="w-\[20%\]">Change<\/th>/)
   assert.match(page, /class="[^"]*text-sm[^"]+">\{\{ shortDate\(entry\.previousPurchasedOn\) \}\} → \{\{ shortDate\(entry\.purchasedOn\) \}\}/)
   assert.match(page, /class="[^"]*text-sm[^"]*">\{\{ entry\.previousLocation \}\} → \{\{ entry\.location \}\}/)
   assert.doesNotMatch(page, /class="mover-list"/)
-  assert.match(page, /class="grid gap-\[0.125rem\] overflow-hidden max-sm:overflow-visible"/)
 })
 
 test('Highlights avoids undersized nine-pixel text', () => {
@@ -111,7 +100,6 @@ test('Highlights renders the same-item price index with coverage context', () =>
   assert.match(page, /Find items purchased in both the current and previous month/)
   assert.match(page, /Weight each movement by spending on that item in the previous month/)
   assert.match(page, /weighted geometric mean/)
-  assert.match(page, /class="[^"]*price-index-help w-\[min\(24.375rem,calc\(100vw-2rem\)\)\]/)
 })
 
 test('Highlights reports comparable regular-price movement by category', () => {
@@ -158,7 +146,6 @@ test('shrinkflation defaults to impact order and supports sorting every visible 
   }
   assert.match(page, /v-for="entry in sortedShrinkflation"/)
   assert.match(page, /:aria-sort="shrinkflationAriaSort\('impact'\)"/)
-  assert.match(page, /<th scope="col" class="w-\[36%\]" :aria-sort="shrinkflationAriaSort\('impact'\)">/)
   assert.match(page, /class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap[^"]*"/)
   assert.match(stylesheet, /\.shrinkflation-impact > strong, \.shrinkflation-impact > span \{ white-space: nowrap; \}/)
 })

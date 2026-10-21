@@ -135,6 +135,9 @@ const dataTable = [
   'max-sm:[&_td]:before:label max-sm:[&_td]:before:content-[attr(data-label)]'
 ].join(' ')
 
+// Sort-header buttons: match the th label style and pull their padding into the cell edge.
+const sortButton = '-mx-2.25 -my-1.5 min-h-[2.125rem] font-bold tracking-[0.08em] text-inherit uppercase hover:bg-accent-soft hover:text-accent-strong focus-visible:bg-accent-soft focus-visible:text-accent-strong'
+
 const summaryTiles = computed(() => [
   { icon: 'i-lucide-receipt-text', value: (data.value?.summary.receipts ?? 0).toLocaleString(), label: 'receipts' },
   { icon: 'i-lucide-shopping-basket', value: (data.value?.summary.items ?? 0).toLocaleString(), label: 'unique items' },
@@ -334,7 +337,7 @@ function unitCurrency(value: number) {
         <UCard
           v-for="tile in summaryTiles"
           :key="tile.label"
-          class="rounded-card max-sm:last:col-span-full"
+          class="rounded-card! max-sm:last:col-span-full"
           :ui="{ body: 'grid grid-cols-[auto_1fr] items-center gap-x-[0.6875rem]' }"
         >
           <UIcon :name="tile.icon" class="row-span-2 size-8 text-accent" />
@@ -343,16 +346,16 @@ function unitCurrency(value: number) {
         </UCard>
       </section>
 
-      <UCard class="highlight-panel mb-5 rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
         <div class="mb-4 flex items-end justify-between gap-5 max-sm:items-start">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Same-item prices</p>
             <div class="flex items-center gap-[0.3125rem]">
-              <h2 class="mt-1">Regular purchase price index</h2>
+              <h2 class="mt-1!">Regular purchase price index</h2>
               <UPopover>
                 <UButton class="shrink-0" type="button" icon="i-lucide-circle-help" color="neutral" variant="ghost" size="sm" aria-label="How the price index is calculated" title="How the price index is calculated" />
                 <template #content>
-                  <div class="price-index-help w-[min(24.375rem,calc(100vw-2rem))] p-[0.9375rem_1.0625rem] text-left text-(--ink)">
+                  <div class="w-[min(24.375rem,calc(100vw-2rem))] p-[0.9375rem_1.0625rem] text-left text-(--ink)">
                     <strong class="block mb-[0.5625rem] text-sm">How the index is calculated</strong>
                     <ol class="grid gap-[0.4375rem] [margin:0] [padding-left:1.25rem] text-(--muted) text-xs leading-[1.45]">
                       <li>Find items purchased in both the current and previous month.</li>
@@ -389,16 +392,16 @@ function unitCurrency(value: number) {
         <p v-if="priceIndexSummary" class="m-[0.375rem_0_0] text-right text-xs text-(--muted)">Latest month uses {{ priceIndexSummary.latest.matchedItems }} matched {{ priceIndexSummary.latest.matchedItems === 1 ? 'item' : 'items' }}.</p>
       </UCard>
 
-      <UCard class="highlight-panel mb-5 rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="category-price-heading">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="category-price-heading">
         <div class="mb-4 flex items-end justify-between gap-5 max-sm:items-start">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">By category</p>
-            <h2 id="category-price-heading" class="mt-1">Category price movement</h2>
+            <h2 id="category-price-heading" class="mt-1!">Category price movement</h2>
             <p class="mt-[0.3125rem] max-w-170 text-xs text-muted">Weighted regular-price changes for matching items. Each month-to-month comparison needs at least three matched items.</p>
           </div>
         </div>
-        <ul v-if="data.categoryPriceChanges.length" class="category-price-list m-0 grid list-none gap-0 p-0">
-          <li v-for="entry in data.categoryPriceChanges.slice(0, 5)" :key="entry.category">
+        <ul v-if="data.categoryPriceChanges.length" class="m-0 grid list-none gap-0 p-0">
+          <li v-for="entry in data.categoryPriceChanges.slice(0, 5)" :key="entry.category" class="grid grid-cols-[minmax(8.125rem,1fr)_minmax(13.75rem,2fr)_auto] items-center gap-3.5 border-t border-line py-[0.6875rem] max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-x-2.5 max-sm:gap-y-[0.3125rem]">
             <strong>{{ entry.category }}</strong>
             <span class="text-xs text-(--muted) max-sm:col-start-1">{{ monthLabel(entry.startMonth) }}–{{ monthLabel(entry.endMonth) }} · {{ entry.matchedItems }} matched items</span>
             <UBadge class="max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-1" :label="changeLabel(entry.change)" :color="entry.change > 0 ? 'error' : entry.change < 0 ? 'success' : 'neutral'" variant="soft" />
@@ -407,9 +410,9 @@ function unitCurrency(value: number) {
         <p v-else class="category-price-empty m-0 text-sm text-(--muted)">No category has enough regular-price history to compare yet. <NuxtLink to="/data/items">Assign categories to more items</NuxtLink>.</p>
       </UCard>
 
-      <UCard class="highlight-panel mb-5 rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
         <div class="mb-4 flex items-end justify-between gap-5 max-sm:items-start">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Monthly spending</p><h2 class="mt-1">Purchases by month</h2></div>
+          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Monthly spending</p><h2 class="mt-1!">Purchases by month</h2></div>
         </div>
         <div v-if="monthlySpendChart" ref="monthlySpendContainer" class="w-full max-w-full overflow-hidden pb-[0.3125rem]">
           <svg
@@ -470,7 +473,7 @@ function unitCurrency(value: number) {
         </div>
       </UCard>
 
-      <UCard class="highlight-panel mb-5 rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="core-items-heading">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="core-items-heading">
         <div class="core-items-heading mb-0 flex items-start justify-between gap-5 pb-3">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Regular purchases</p>
@@ -519,7 +522,7 @@ function unitCurrency(value: number) {
         <p v-else class="m-[1.125rem_0_0.25rem] text-sm text-(--muted)">Not enough repeat purchases in this period yet.</p>
       </UCard>
 
-      <UCard class="highlight-panel mb-5 rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="shrinkflation-heading">
+      <UCard class="highlight-panel mb-5 rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="shrinkflation-heading">
         <div class="core-items-heading mb-0 flex items-start justify-between gap-5 pb-3">
           <div>
             <p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Package changes</p>
@@ -532,10 +535,10 @@ function unitCurrency(value: number) {
             <caption class="sr-only">Packages that shrank, with shelf price and unit-cost impact; sortable by column</caption>
             <thead>
               <tr>
-                <th scope="col" class="w-[26%]" :aria-sort="shrinkflationAriaSort('item')"><UButton class="-mx-2.25 -my-1.5 min-h-[2.125rem] font-bold tracking-[0.08em] text-inherit uppercase hover:bg-accent-soft hover:text-accent-strong focus-visible:bg-accent-soft focus-visible:text-accent-strong" label="Item" :icon="shrinkflationSortIcon('item')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('item')" /></th>
-                <th scope="col" class="w-[22%]" :aria-sort="shrinkflationAriaSort('package')"><UButton class="-mx-2.25 -my-1.5 min-h-[2.125rem] font-bold tracking-[0.08em] text-inherit uppercase hover:bg-accent-soft hover:text-accent-strong focus-visible:bg-accent-soft focus-visible:text-accent-strong" label="Package change" :icon="shrinkflationSortIcon('package')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('package')" /></th>
-                <th scope="col" class="w-[16%]" :aria-sort="shrinkflationAriaSort('price')"><UButton class="-mx-2.25 -my-1.5 min-h-[2.125rem] font-bold tracking-[0.08em] text-inherit uppercase hover:bg-accent-soft hover:text-accent-strong focus-visible:bg-accent-soft focus-visible:text-accent-strong" label="Shelf price" :icon="shrinkflationSortIcon('price')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('price')" /></th>
-                <th scope="col" class="w-[36%]" :aria-sort="shrinkflationAriaSort('impact')"><UButton class="-mx-2.25 -my-1.5 min-h-[2.125rem] font-bold tracking-[0.08em] text-inherit uppercase hover:bg-accent-soft hover:text-accent-strong focus-visible:bg-accent-soft focus-visible:text-accent-strong" label="Unit-cost impact" :icon="shrinkflationSortIcon('impact')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('impact')" /></th>
+                <th scope="col" class="w-[26%]" :aria-sort="shrinkflationAriaSort('item')"><UButton :class="sortButton" label="Item" :icon="shrinkflationSortIcon('item')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('item')" /></th>
+                <th scope="col" class="w-[22%]" :aria-sort="shrinkflationAriaSort('package')"><UButton :class="sortButton" label="Package change" :icon="shrinkflationSortIcon('package')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('package')" /></th>
+                <th scope="col" class="w-[16%]" :aria-sort="shrinkflationAriaSort('price')"><UButton :class="sortButton" label="Shelf price" :icon="shrinkflationSortIcon('price')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('price')" /></th>
+                <th scope="col" class="w-[36%]" :aria-sort="shrinkflationAriaSort('impact')"><UButton :class="sortButton" label="Unit-cost impact" :icon="shrinkflationSortIcon('impact')" color="neutral" variant="ghost" size="xs" @click="setShrinkflationSort('impact')" /></th>
               </tr>
             </thead>
             <tbody>
@@ -558,7 +561,7 @@ function unitCurrency(value: number) {
       </UCard>
 
       <div class="grid grid-cols-[minmax(26.25rem,1.15fr)_minmax(21.25rem,.85fr)] items-start gap-5 max-[56.25rem]:grid-cols-1">
-        <UCard class="highlight-panel movers-panel rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="movers-heading">
+        <UCard class="highlight-panel rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]" aria-labelledby="movers-heading">
             <div class="mb-2 flex items-end justify-between gap-5 pb-5">
               <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Since last purchase</p><h2 id="movers-heading">Recent movers</h2></div>
             </div>
@@ -593,7 +596,7 @@ function unitCurrency(value: number) {
             <p v-else class="m-[1.125rem_0_0.25rem] text-sm text-(--muted)">No significant price changes in this period.</p>
         </UCard>
 
-        <UCard class="highlight-panel rounded-card shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+        <UCard class="highlight-panel rounded-card! shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
             <div class="mb-2 flex items-end justify-between gap-5 pb-5">
               <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-(--accent) uppercase">Highest spending</p><h2>Top stores</h2></div>
               <UButton to="/data/stores" label="Manage stores" icon="i-lucide-settings-2" color="neutral" variant="outline" size="sm" />
