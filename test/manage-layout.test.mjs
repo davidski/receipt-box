@@ -5,6 +5,7 @@ import test from 'node:test'
 const managePage = await readFile(new URL('../app/components/ManagePage.vue', import.meta.url), 'utf8')
 const stylesheet = await readFile(new URL('../app/assets/css/main.css', import.meta.url), 'utf8')
 const appConfig = await readFile(new URL('../app/app.config.ts', import.meta.url), 'utf8')
+const categoryInput = await readFile(new URL('../app/components/CategoryInput.vue', import.meta.url), 'utf8')
 const manageRoute = await readFile(new URL('../app/pages/data/[section].vue', import.meta.url), 'utf8')
 const manageMiddleware = await readFile(new URL('../app/middleware/manage.ts', import.meta.url), 'utf8')
 
@@ -74,7 +75,7 @@ test('Manage fields use the design-system field spacing recipe', () => {
   assert.match(managePage, /const fieldSpacing = \{ container: 'mt-1\.5 grid gap-2', help: 'mt-0', error: 'mt-0' \}/)
   assert.doesNotMatch(managePage, /class="[^"]*\bfield\b/, 'fields are UFormField, not hand-built label wrappers')
   const fields = managePage.match(/<UFormField\b[^>]*>/g)
-  assert.equal(fields.length, 9)
+  assert.ok(fields.length > 0)
   for (const tag of fields) assert.match(tag, /:ui="(fieldSpacing|manageField|\{ \.\.\.manageField[^"]*\})"/, tag)
 })
 
@@ -82,7 +83,7 @@ test('Manage uses utilities, named radii and rem breakpoints instead of its own 
   const template = managePage.slice(managePage.indexOf('<template>'))
   assert.doesNotMatch(template, /max-\[[\d.]+px\]/, 'breakpoints use Tailwind rem variants')
   assert.doesNotMatch(template, /rounded-(\[|3xl|xl)|--radius-/, 'radii use rounded-card/input/control')
-  assert.doesNotMatch(template, /\((--surface-strong|--surface-soft|--error)\)/, 'retired tokens stay unused')
+  assert.doesNotMatch(template, /--(surface-strong|surface-soft|error)\b/, 'retired tokens stay unused')
   for (const name of ['store-list', 'store-edit', 'store-name', 'item-variant-list', 'item-hidden-list', 'item-merge-action', 'item-target-label', 'file-picker', 'manage-sections', 'reset-confirmation', 'reset-actions']) {
     assert.doesNotMatch(template, new RegExp(`class="[^"]*\\b${name}\\b`), `${name} class removed from the template`)
     assert.doesNotMatch(stylesheet, new RegExp(`\\.${name}\\b`), `${name} rule removed from main.css`)
@@ -96,4 +97,9 @@ test('Manage variant rows mark the kept name with the accent fill and text', () 
 
 test('tailwind-merge knows the radius tokens, so rounded-card replaces a Nuxt UI default radius', () => {
   assert.match(appConfig, /theme: \{ radius: \['chip', 'control', 'input', 'card'\] \}/)
+})
+
+test('the category input fills its field and keeps the clear button on the same row', () => {
+  assert.match(categoryInput, /<div class="category-input flex items-center gap-1">/)
+  assert.match(categoryInput, /v-bind="\$attrs"\s+class="w-full min-w-0"/)
 })

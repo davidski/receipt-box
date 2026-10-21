@@ -800,7 +800,7 @@ async function exportXlsx() {
       <div>
         <h2 class="text-heading">Manage categories</h2>
         <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add or rename categories, or merge and remove categories shared by every purchase of an item.</p>
-        <form data-testid="store-add" class="mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addCategory">
+        <form data-testid="category-add" class="mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addCategory">
           <UInput v-model="newCategoryName" aria-label="New category name" placeholder="New category name" size="lg" maxlength="100" />
           <UButton class="touch-target" type="submit" label="Add category" icon="i-lucide-plus" :disabled="!newCategoryName.trim()" :loading="categoryAdding" />
         </form>
@@ -812,7 +812,7 @@ async function exportXlsx() {
         <p v-else-if="!categoriesLoadError && !categories?.length" class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">No categories yet. Add one here or assign one to an item.</p>
         <ul v-else-if="!categoriesLoadError" class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
           <li v-for="category in categories || []" :key="category.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
-            <form v-if="editingCategoryId === category.id" data-testid="store-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-sm:grid-cols-[1fr_auto]" @submit.prevent="saveCategory(category)">
+            <form v-if="editingCategoryId === category.id" data-testid="category-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-sm:grid-cols-[1fr_auto]" @submit.prevent="saveCategory(category)">
               <UInput v-model="editingCategoryName" :aria-label="`Rename ${category.name}`" autofocus maxlength="100" />
               <UButton type="submit" label="Save" size="sm" :disabled="!editingCategoryName.trim()" :loading="categoryBusyId === category.id" />
               <UButton class="max-sm:col-span-full" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="editingCategoryId = null" />
@@ -914,7 +914,7 @@ async function exportXlsx() {
             </UFormField>
           </div>
 
-          <div v-if="nameWillChange || categoryWillChange || packageWillChange" class="flex gap-2.5 rounded-card p-[0.8125rem_0.875rem] bg-accent-soft [border:1px_solid_color-mix(in_srgb,var(--accent),transparent_62%)] col-span-full">
+          <div v-if="nameWillChange || categoryWillChange || packageWillChange" class="flex gap-2.5 rounded-card p-[0.8125rem_0.875rem] bg-accent-soft border border-accent/38 col-span-full">
             <UIcon name="i-lucide-list-checks" class="flex-[0_0_auto] w-[1.1875rem] h-[1.1875rem] mt-[0.125rem] text-accent-strong" />
             <div>
               <strong class="block">Review this change</strong>
@@ -1061,7 +1061,7 @@ async function exportXlsx() {
           <UAlert v-if="resetComplete" color="success" variant="soft" icon="i-lucide-circle-check" description="The database was reset. Receipt Box is ready for fresh data." class="mt-4 rounded-card px-3 py-2.5 text-sm" />
           <UAlert v-if="resetError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="resetError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
 
-          <div v-if="resetConfirming" class="mt-5 max-w-130 rounded-card p-4.5 bg-danger-soft [border:1px_solid_color-mix(in_srgb,var(--danger),transparent_45%)]">
+          <div v-if="resetConfirming" class="mt-5 max-w-130 rounded-card p-4.5 bg-danger-soft border border-danger/55">
             <UFormField :ui="{ ...manageField, label: 'font-bold text-ink' }" class="min-w-0">
               <template #label>Type <strong>RESET</strong> to confirm</template>
               <UInput v-model="resetConfirmation" autocomplete="off" :spellcheck="false" placeholder="RESET" aria-label="Type RESET to confirm database reset" />

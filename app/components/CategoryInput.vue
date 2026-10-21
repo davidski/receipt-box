@@ -26,9 +26,10 @@ function advanceFromInput(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="category-input">
+  <div class="category-input flex items-center gap-1">
     <UInputMenu
       v-bind="$attrs"
+      class="w-full min-w-0"
       :model-value="model ?? ''"
       v-model:open="open"
       :items="props.items"
