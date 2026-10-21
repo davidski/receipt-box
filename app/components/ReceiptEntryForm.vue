@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ComponentPublicInstance } from 'vue'
 import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
 
 import { normalizeUnit } from '../../shared/utils/units'
@@ -167,12 +168,31 @@ function dateDisplayLabel(value: string) {
     : value
 }
 
-async function toggleLock(field: 'date' | 'store') {
-  const unlocked = field === 'date' ? allowDateChange : allowStoreChange
+const lockFields = {
+  date: { unlocked: allowDateChange, input: useTemplateRef<{ inputRef?: HTMLInputElement }>('dateInput'), lock: useTemplateRef<ComponentPublicInstance>('dateLock'), noun: 'Date' },
+  store: { unlocked: allowStoreChange, input: useTemplateRef<{ inputRef?: HTMLInputElement }>('storeInput'), lock: useTemplateRef<ComponentPublicInstance>('storeLock'), noun: 'Store' }
+}
+
+async function toggleLock(field: keyof typeof lockFields) {
+  const { unlocked, input } = lockFields[field]
   unlocked.value = !unlocked.value
   if (!unlocked.value) return
   await nextTick()
-  document.querySelector<HTMLInputElement>(field === 'date' ? '[data-receipt-date]' : '[data-receipt-store]')?.focus()
+  input.value?.inputRef?.focus()
+}
+
+// Called once a save succeeds: relock each unlocked field, keep focus on its lock button, and announce it.
+async function relockSavedFields() {
+  for (const { unlocked, input, lock, noun } of Object.values(lockFields)) {
+    if (!unlocked.value) continue
+    const hadFocus = Boolean(input.value?.inputRef && input.value.inputRef === document.activeElement)
+    unlocked.value = false
+    receiptSessionMessage.value = `${noun} saved and locked.`
+    if (hadFocus) {
+      await nextTick()
+      ;(lock.value?.$el as HTMLElement | undefined)?.focus()
+    }
+  }
 }
 
 const purchasedOnStorageKey = 'receipt-box:purchased-on'
@@ -1184,10 +1204,7 @@ async function saveCompletedRows(updateReceiptRoute = true) {
     }
 
     confirmedReceiptKey.value = { purchasedOn: form.purchasedOn, location: form.location }
-    if (savedAllRows) {
-      allowDateChange.value = false
-      allowStoreChange.value = false
-    }
+    if (savedAllRows) await relockSavedFields()
     failedAutosaveKey.value = ''
     await loadCurrentReceiptSummary()
   } catch (error: any) {
@@ -1321,17 +1338,17 @@ async function deleteReceipt() {
           <time class="flex min-h-11 items-center text-base text-ink" data-receipt-date-display :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time>
         </div>
         <UFormField v-else label="Date" name="purchasedOn" required :ui="fieldSpacing" class="field date-field relative grid min-w-0 text-sm font-medium text-muted max-sm:grid-cols-[auto_1fr] max-sm:items-center">
-          <UInput v-model="form.purchasedOn" type="date" data-receipt-date required size="lg" :disabled="!allowDateChange">
+          <UInput ref="dateInput" v-model="form.purchasedOn" type="date" required size="lg" :disabled="!allowDateChange">
             <template #trailing>
-              <UButton type="button" :icon="allowDateChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowDateChange ? 'Lock the date' : 'Unlock to change the date'" :aria-pressed="allowDateChange" color="neutral" variant="link" size="sm" @click="toggleLock('date')" />
+              <UButton ref="dateLock" type="button" :icon="allowDateChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowDateChange ? 'Lock the date' : 'Unlock to change the date'" :color="allowDateChange ? 'primary' : 'neutral'" :variant="allowDateChange ? 'soft' : 'ghost'" @click="toggleLock('date')" />
             </template>
           </UInput>
         </UFormField>
         <UFormField label="Store" name="location" required class="field receipt-store-field relative grid min-w-0" :ui="fieldSpacing" :error="storeError">
           <div class="relative">
-            <UInputMenu v-model="form.location" data-receipt-store :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" :disabled="hasReceipt && !allowStoreChange" @create="createLocation" />
+            <UInputMenu ref="storeInput" v-model="form.location" data-receipt-store :ui="hasReceipt ? { base: 'pe-[4.75rem]' } : undefined" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" :disabled="hasReceipt && !allowStoreChange" @create="createLocation" />
             <!-- A sibling, not a #trailing slot: that slot sits inside the menu's trigger button. -->
-            <UButton v-if="hasReceipt" type="button" :icon="allowStoreChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowStoreChange ? 'Lock the store' : 'Unlock to change the store'" :aria-pressed="allowStoreChange" color="neutral" variant="link" size="sm" class="absolute inset-y-0 right-9 my-auto h-fit" @click="toggleLock('store')" />
+            <UButton v-if="hasReceipt" ref="storeLock" type="button" :icon="allowStoreChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowStoreChange ? 'Lock the store' : 'Unlock to change the store'" :color="allowStoreChange ? 'primary' : 'neutral'" :variant="allowStoreChange ? 'soft' : 'ghost'" class="absolute inset-y-0 right-9 my-auto h-fit" @click="toggleLock('store')" />
           </div>
         </UFormField>
       </div>
