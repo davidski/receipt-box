@@ -500,7 +500,7 @@ describe('receipt item entry interactions', () => {
     expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(2)
     await wrapper.findAll('button').find(button => button.text() === 'Split receipt')!.trigger('click')
     expect(wrapper.findAllComponents(UCheckbox)).toHaveLength(4)
-    expect(wrapper.find('.receipt-line-content').attributes('inert')).toBeDefined()
+    expect(wrapper.find('[data-line-content]').attributes('inert')).toBeDefined()
     await wrapper.get('[aria-label="Select Coffee to move"]').trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Move 1 line')!.trigger('click')
     await wrapper.get('[data-split-date]').setValue('2026-08-11')
@@ -511,7 +511,7 @@ describe('receipt item entry interactions', () => {
     expect(moveButton.attributes('disabled')).toBeUndefined()
     await moveButton.trigger('click')
     await flushPromises()
-    await vi.waitFor(() => expect(wrapper.find('.receipt-split-notice').exists()).toBe(true))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Moved 1 line to New Store'))
 
     expect(splitRequests[0]).toMatchObject({ method: 'POST', body: { entryIds: ['entry-1'], purchasedOn: '2026-08-11', location: 'New Store' } })
     expect(wrapper.text()).toContain('Moved 1 line to New Store')
@@ -701,7 +701,7 @@ describe('receipt item entry interactions', () => {
     expect((wrapper.get('[data-receipt-store]').element as HTMLInputElement).value).toBe('Test Store')
     expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
     expect(wrapper.text()).toContain('Changes could not be saved')
-    expect(wrapper.find('.notice').exists()).toBe(true)
+    expect(wrapper.find('[data-receipt-notice]').exists()).toBe(true)
   })
 
   it('adds a row with Command+Shift+Enter from an item field', async () => {
@@ -843,7 +843,7 @@ describe('receipt item entry interactions', () => {
     expect(deleteAttempts).toBe(1)
     expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Coffee')
     expect(wrapper.text()).toContain('This saved entry will be permanently deleted.')
-    expect(wrapper.find('.notice').exists()).toBe(true)
+    expect(wrapper.find('[data-receipt-notice]').exists()).toBe(true)
   })
 
   it('preserves saved dimensions when selecting another suggestion', async () => {

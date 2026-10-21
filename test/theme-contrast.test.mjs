@@ -162,8 +162,8 @@ test('receipt editor actions are not outlined and the sticky footer is solid', a
     assert.ok(tag, `${label} button exists`)
     assert.match(tag, /variant="ghost"/, `${label} is ghost`)
   }
-  const footer = form.match(/<footer[^>]*receipt-entry-footer[^>]*>/)[0]
-  assert.match(footer, /\[background:var\(--surface\)\]/)
+  const footer = form.match(/<footer[^>]*data-receipt-footer[^>]*>/)[0]
+  assert.match(footer, /\bbg-surface\b/)
   assert.doesNotMatch(footer, /backdrop-blur|transparent_/)
 })
 
