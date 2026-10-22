@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
             <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ costErrorText(resultFor(line, index)!) }}</p>
             <template v-else-if="resultFor(line, index)">
               <strong class="text-(--accent-strong)">{{ currency(resultFor(line, index)!.cost!) }}</strong>
-              <UBadge v-if="resultFor(line, index)!.sale" label="Sale" color="warning" variant="soft" />
+              <UBadge v-if="resultFor(line, index)!.sale" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" />
             </template>
           </div>
           <div class="flex min-h-11 items-center justify-end max-[900.01px]:absolute max-[900.01px]:right-2 max-[900.01px]:top-2">
@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
           <template v-if="savedTotal === null">Saved on {{ savedDate }} with no priced lines</template>
           <template v-else>Saved at {{ currency(savedTotal) }} on {{ savedDate }}</template>
           <template v-if="liveTotal !== null"> · now {{ currency(liveTotal) }}</template>
-          <strong v-if="change" data-recipe-change :class="change > 0 ? 'text-warning' : 'text-success'"> ({{ change > 0 ? '+' : '-' }}{{ currency(Math.abs(change)) }})</strong>
+          <PriceChange v-if="change" data-recipe-change class="ml-1.5" :value="change" />
         </p>
         <UButton v-if="canUpdateSavedPrice" label="Update saved price" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :disabled="saving" @click="saveRecipe(true)" />
       </div>

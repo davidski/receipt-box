@@ -136,4 +136,44 @@ describe('Highlights page', () => {
 
     expect(labels).toEqual(['$1', '$0'])
   })
+
+  it('shows every price movement with the shared glyph, color, true minus, and spoken direction', async () => {
+    reply = () => ({
+      ...highlights([{ month: '2026-09-01', totalSpent: 100 }]),
+      movers: [mover, { ...mover, id: '2', item: 'Butter', priceChangePercent: '-8' }],
+      coreItems: [coreItem, { ...coreItem, name: 'Rice', netChangePercent: 1.2, trend: 'flat' }, { ...coreItem, name: 'Salt', netChangePercent: null, trend: 'unknown' }],
+      priceIndex: [{ month: '2026-08-01', value: 100, matchedItems: 3 }, { month: '2026-09-01', value: 96.5, matchedItems: 3 }],
+      categoryPriceChanges: [{ category: 'Dairy', startMonth: '2026-08-01', endMonth: '2026-09-01', matchedItems: 3, change: 4.25 }],
+      spendChanges: [{ month: '2026-09-01', totalSpent: 100, change: -20.4, priceEffect: 3, basketEffect: -23.4, matchedItems: 4 }]
+    })
+    const wrapper = await mountPage()
+    const chips = wrapper.findAll('.sr-only').filter(node => /^(up|down|flat|no change|no comparison)/.test(node.text()))
+    const spoken = chips.map(node => node.text())
+
+    // Price index and spend explanation.
+    expect(spoken).toContain('down 3.5%')
+    expect(spoken).toContain('up 4.3%')
+    expect(spoken).toEqual(expect.arrayContaining(['down $20', 'up $3', 'down $23']))
+    // Recent movers, core items (including the flat and unknown cases), and shrinkflation.
+    expect(spoken).toEqual(expect.arrayContaining(['up 12%', 'down 8%', 'up 4%', 'flat, +1.2%', 'no comparison', 'up 14%']))
+    const html = wrapper.html()
+    expect(html).toContain('i-lucide:trending-up')
+    expect(html).toContain('i-lucide:trending-down')
+    expect(wrapper.text()).not.toMatch(/-\d+(\.\d+)?%/)
+    for (const chip of chips.filter(node => node.text().startsWith('up'))) expect(chip.element.parentElement!.className).toContain('error')
+    for (const chip of chips.filter(node => node.text().startsWith('down'))) expect(chip.element.parentElement!.className).toContain('success')
+  })
+
+  it('shows a spend move that rounds away as a flat chip, and an exact zero as "No change"', async () => {
+    reply = () => ({
+      ...highlights([{ month: '2026-09-01', totalSpent: 100 }]),
+      spendChanges: [{ month: '2026-09-01', totalSpent: 100, change: 0.4, priceEffect: -0.2, basketEffect: 0, matchedItems: 4 }]
+    })
+    const wrapper = await mountPage()
+    const cells = wrapper.get('.spend-explanation').findAll('div').slice(1)
+
+    expect(cells.map(cell => cell.get('[data-figure]').text())).toEqual(['$0', '$0', 'No change'])
+    expect(cells.map(cell => cell.find('.sr-only').exists() ? cell.get('.sr-only').text() : null)).toEqual(['flat, $0', 'flat, $0', null])
+    for (const cell of cells) expect(cell.get('span').classes()).toEqual(expect.arrayContaining(['text-xs', 'text-muted']))
+  })
 })

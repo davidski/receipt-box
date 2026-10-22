@@ -17,6 +17,7 @@ describe('ReceiptEntryLine', () => {
     })
     expect(wrapper.get('strong.tabular-nums').text()).toBe('$1,234.50')
     expect(wrapper.text()).toContain('Sale')
+    expect(wrapper.html()).toContain('i-lucide:tag')
     expect(wrapper.text()).toContain('Bulk')
     wrapper.unmount()
   })

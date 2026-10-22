@@ -114,9 +114,14 @@ These rules are not met everywhere yet. Each is fixed in the area's cleanup PR; 
 
 Never signal a state with color alone. Each price annotation is a chip with a word, a signed figure, or an icon.
 
-- Sale: `warning` soft badge with the label "Sale" and a tag icon.
-- Price increase: `error` soft badge with a plus sign, such as "+12%".
-- Price decrease: `success` soft badge with a minus sign, such as "−6%".
+- Sale: `warning` soft badge with the label "Sale" and a tag icon (`i-lucide-tag`).
+- Price movement: the `PriceChange` component, used everywhere a price goes up or down (history, highlights, recipes). Do not build one by hand.
+  - Increase: `error` soft badge, `i-lucide-trending-up`, and a plus sign, such as "+12%" or "+$0.40". Red is the `danger` token, which the contrast test holds to 7:1 on the badge tint in both themes. Amber stays reserved for sale, so a price that rose and is on sale never reads as one signal.
+  - Decrease: `success` soft badge, `i-lucide-trending-down`, and a true minus sign (U+2212), such as "−6%" or "−$0.40".
+  - No change: `neutral` soft badge, `i-lucide-minus`, and the words "No change", only when the value is exactly zero. A move that rounds away at the shown precision, such as $0.40 in a whole-dollar total, shows the unsigned figure ("$0") on the same neutral badge. A missing comparison shows "—". A caller that treats small moves as flat (Highlights uses under 2%) passes `flat`: it keeps the signed figure and the neutral badge.
+  - The figure comes from `formatSignedCurrency()` or `formatSignedPercent()` in `shared/utils/money.ts`. An amount that rounds to zero carries no sign.
+  - The glyph is decorative (`aria-hidden`) and the visible figure is hidden from screen readers, which instead hear "up $0.40", "down 6%", "flat, +1.2%", "no change", or "no comparison". The direction therefore never depends on color or on the glyph alone (WCAG 1.4.1).
+  - Plain-text figures inside a sentence, such as "+1.2% avg.", use the same formatters without the chip.
 
 Chips use the `chip` radius. Other states, such as loading, errors, and selection, follow the [Interaction baseline](#interaction-baseline), not this chip pattern.
 

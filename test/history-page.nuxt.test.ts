@@ -22,6 +22,7 @@ let includeReceipt = false
 let deletedEntries: string[]
 let includeEntry = false
 let withoutNormalizedPrice = false
+let priceChangePercent: string | null = null
 let holdReceiptResponse = false
 let releaseReceiptResponse: (() => void) | undefined
 const entry = {
@@ -35,10 +36,11 @@ beforeEach(() => {
   deletedEntries = []
   includeEntry = false
   withoutNormalizedPrice = false
+  priceChangePercent = null
   holdReceiptResponse = false
   releaseReceiptResponse = undefined
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
-  registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [{ ...entry, costPerUnit: withoutNormalizedPrice ? null : entry.costPerUnit }] : [], total: includeEntry ? 1 : 0 }))
+  registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [{ ...entry, costPerUnit: withoutNormalizedPrice ? null : entry.costPerUnit, priceChangePercent, comparisonBasis: priceChangePercent === null ? null : 'package' }] : [], total: includeEntry ? 1 : 0 }))
   registerEndpoint('/api/receipts/dates', () => ({ dates: [{ date: '2026-09-26', receiptCount: 1, itemCount: 0 }] }))
   registerEndpoint('/api/stores', () => [])
   registerEndpoint('/api/entries/23', { method: 'DELETE', handler: () => { deletedEntries.push('23'); return null } })
@@ -154,6 +156,28 @@ describe('Receipts home', () => {
     const cells = entryTable(wrapper).findAll('tbody tr td')
     expect(cells[4]!.text()).toBe('$2.00')
     expect(cells[5]!.text()).toBe('$2.00')
+  })
+
+  it.each([
+    ['12', 'up 12%', 'error', 'i-lucide-trending-up', '+12%'],
+    ['-12', 'down 12%', 'success', 'i-lucide-trending-down', '−12%']
+  ])('flags a %s%% price change with the shared movement chip', async (percent, spoken, color, icon, shown) => {
+    includeEntry = true
+    priceChangePercent = percent
+    const wrapper = await mountBrowser('/history/entries')
+    const chip = entryTable(wrapper).get('tbody tr td .sr-only')
+    expect(chip.text()).toBe(spoken)
+    expect(chip.element.parentElement!.className).toContain(color)
+    expect(chip.element.parentElement!.innerHTML).toContain(icon)
+    expect(chip.element.parentElement!.querySelector('[data-figure]')!.textContent).toBe(shown)
+    expect(chip.element.parentElement!.getAttribute('title')).toContain(shown)
+  })
+
+  it('shows no movement chip for a change under 10%', async () => {
+    includeEntry = true
+    priceChangePercent = '9'
+    const wrapper = await mountBrowser('/history/entries')
+    expect(entryTable(wrapper).find('tbody tr td .sr-only').exists()).toBe(false)
   })
 
   it('shows a dash when an entry has no normalized price', async () => {

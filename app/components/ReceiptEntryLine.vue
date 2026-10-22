@@ -22,7 +22,7 @@ defineProps<{
       <span class="mt-1 flex flex-wrap items-center gap-[0.3125rem] text-xs text-muted">
         {{ size }}
         <UBadge v-if="entry.category" :label="entry.category" color="primary" variant="soft" size="sm" />
-        <UBadge v-if="entry.saleItem" label="Sale" color="warning" variant="soft" size="sm" />
+        <UBadge v-if="entry.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" />
         <UBadge v-if="entry.nonGrocery" label="Non-grocery" color="neutral" variant="soft" size="sm" />
       </span>
       <small v-if="entry.notes" class="block mt-[0.3125rem] text-muted text-xs leading-[1.4]">{{ entry.notes }}</small>

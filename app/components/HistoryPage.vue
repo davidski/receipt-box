@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
-import { formatCurrency } from '../../shared/utils/money'
+import { formatCurrency, formatSignedPercent } from '../../shared/utils/money'
 
 type Entry = {
   id: string
@@ -266,15 +266,10 @@ function dateLabel(value: string) {
     : 'Unknown date'
 }
 
-function percentage(value: string | null) {
-  const number = Number(value)
-  return `${number > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number)}%`
-}
-
 function changeTitle(entry: Entry) {
   const basis = entry.comparisonBasis === 'normalized' ? 'normalized unit price' : 'package price'
   const date = entry.previousPurchasedOn ? dateLabel(entry.previousPurchasedOn) : 'the previous purchase'
-  return `${percentage(entry.priceChangePercent)} versus the ${basis} on ${date}`
+  return `${formatSignedPercent(Number(entry.priceChangePercent))} versus the ${basis} on ${date}`
 }
 
 function startEdit(entry: Entry | ReceiptEntry) {
@@ -596,26 +591,14 @@ async function confirmRemoveEntry() {
                 <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
               </NuxtLink>
               <span v-if="entry.saleItem || entry.nonGrocery || Math.abs(Number(entry.priceChangePercent)) >= 10" class="mt-1.5 flex flex-wrap gap-[0.3125rem]">
-                <UBadge v-if="entry.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" />
-                <UBadge
-                  v-if="Number(entry.priceChangePercent) >= 10"
-                  :label="`${percentage(entry.priceChangePercent)} higher`"
-                  icon="i-lucide-trending-up"
-                  color="error"
-                  variant="soft"
-                  size="sm"
+                <UBadge v-if="entry.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" />
+                <PriceChange
+                  v-if="Math.abs(Number(entry.priceChangePercent)) >= 10"
+                  :value="Number(entry.priceChangePercent)"
+                  unit="percent"
                   :title="changeTitle(entry)"
                 />
-                <UBadge
-                  v-else-if="Number(entry.priceChangePercent) <= -10"
-                  :label="`${percentage(entry.priceChangePercent)} lower`"
-                  icon="i-lucide-trending-down"
-                  color="success"
-                  variant="soft"
-                  size="sm"
-                  :title="changeTitle(entry)"
-                />
-                <UBadge v-if="entry.nonGrocery" label="Non-grocery" color="neutral" variant="soft" size="sm" />
+                <UBadge v-if="entry.nonGrocery" label="Non-grocery" color="neutral" variant="soft" />
               </span>
             </td>
             <td data-label="Store" :class="[tableCell, cardCell]">{{ entry.location }}</td>
