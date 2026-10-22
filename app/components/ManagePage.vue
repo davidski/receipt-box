@@ -1040,7 +1040,7 @@ async function exportXlsx() {
             <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" @click="loadBackfillPrompts" /></template>
           </UAlert>
           <UCheckbox
-            v-model="backfillPromptsEnabled"
+            :model-value="backfillPromptsEnabled"
             :disabled="!backfillPromptsLoaded"
             label="Prompt before updating previous entries"
             description="When enabled, ask before filling missing quantity or unit values in older entries for the same item. When disabled, older entries stay unchanged."

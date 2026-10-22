@@ -15,7 +15,8 @@ const shrink = {
   item: 'Cereal', previousPurchasedOn: '2026-07-01', purchasedOn: '2026-09-01', previousSize: 16, size: 14, unit: 'oz', previousPrice: 4, price: 4,
   previousUnitPrice: 0.25, unitPrice: 0.29, unitPriceLabel: 'per oz', sizeChangePercent: -12.5, unitCostChangePercent: 14
 }
-const highlights = (monthlySpend: { month: string, totalSpent: number }[]) => ({
+const crackers = { ...shrink, item: 'Crackers', previousPrice: 4, price: 4.5, sizeChangePercent: -5, unitCostChangePercent: 40 }
+const highlights = (monthlySpend: { month: string, totalSpent: number }[], shrinkflation = [shrink]) => ({
   availableYears: [2026],
   reportingPeriod: null,
   summary: { entries: 10, receipts: 4, items: 6, stores: 2, firstDate: '2026-07-01', lastDate: '2026-09-20' },
@@ -26,7 +27,7 @@ const highlights = (monthlySpend: { month: string, totalSpent: number }[]) => ({
   priceIndex: [],
   categoryPriceChanges: [],
   spendChanges: [],
-  shrinkflation: [shrink]
+  shrinkflation
 })
 
 const mounted: Array<{ unmount: () => void }> = []
@@ -94,6 +95,30 @@ describe('Highlights page', () => {
     expect(headers.map(header => header.attributes('aria-sort'))).toEqual(['none', 'none', 'none', 'descending'])
     await headers[0]!.get('button').trigger('click')
     expect(wrapper.findAll('table')[1]!.findAll('th')[0]!.attributes('aria-sort')).toBe('ascending')
+  })
+
+  it('sorts shrinkflation by impact first, then by any column, and reverses on a second click', async () => {
+    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }], [shrink, crackers])
+    const wrapper = await mountPage()
+    const table = () => wrapper.findAll('table')[1]!
+    const items = () => table().findAll('td[data-label="Item"] strong').map(cell => cell.text())
+    const sortBy = (column: string) => table().findAll('th button').find(button => button.text().includes(column))!.trigger('click')
+
+    expect(items()).toEqual(['Crackers', 'Cereal'])
+    await sortBy('Item')
+    expect(items()).toEqual(['Cereal', 'Crackers'])
+    await sortBy('Item')
+    expect(items()).toEqual(['Crackers', 'Cereal'])
+    await sortBy('Package')
+    expect(items()).toEqual(['Crackers', 'Cereal'])
+    await sortBy('Package')
+    expect(items()).toEqual(['Cereal', 'Crackers'])
+    await sortBy('price')
+    expect(items()).toEqual(['Crackers', 'Cereal'])
+    await sortBy('impact')
+    expect(items()).toEqual(['Crackers', 'Cereal'])
+    await sortBy('impact')
+    expect(items()).toEqual(['Cereal', 'Crackers'])
   })
 
   it('draws monthly spend on a pretty scale that starts at zero and covers the tallest bar', async () => {

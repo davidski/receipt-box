@@ -4,7 +4,9 @@ import { createError, getQuery, readBody } from 'h3'
 import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterView } from 'vue-router'
+import { clearNuxtState, useState } from '#imports'
 import ReceiptEntryForm from '../app/components/ReceiptEntryForm.vue'
+import { maxEntryNotesLength } from '../shared/utils/entry-notes'
 
 const UInput = defineComponent({
   inheritAttrs: false,
@@ -144,6 +146,8 @@ let failEntrySaves: boolean
 let deleteAttempts: number
 let failDeletes: boolean
 let backfillChecks: number
+let backfillCounts: { size: number, unit: number, either: number }
+let backfillUpdates: any[]
 let suggestions: Array<{ value: string, category?: string | null, size: string, unit: string, price: string }>
 let categories: string[]
 let entryBodies: Array<{ method: string, body: any }>
@@ -186,6 +190,8 @@ beforeEach(() => {
   deleteAttempts = 0
   failDeletes = false
   backfillChecks = 0
+  backfillCounts = { size: 1, unit: 1, either: 1 }
+  backfillUpdates = []
   suggestions = []
   categories = ['Beverages']
   entryBodies = []
@@ -238,9 +244,13 @@ beforeEach(() => {
   })
   registerEndpoint('/api/suggestions', () => suggestions)
   registerEndpoint('/api/categories', () => categories)
-  registerEndpoint('/api/items/backfill', () => {
+  registerEndpoint('/api/items/backfill', async (event: any) => {
+    if (event.method === 'PATCH') {
+      backfillUpdates.push(await readBody(event))
+      return { updated: 1 }
+    }
     backfillChecks++
-    return { size: 1, unit: 1, either: 1 }
+    return backfillCounts
   })
 registerEndpoint('/api/entries', {
     method: 'POST',
@@ -1079,6 +1089,307 @@ describe('receipt item entry interactions', () => {
     expect(sizeOf('Delete receipt')).toBe('xl')
     expect(sizeOf('Export receipt')).toBe('xl')
     expect(sizeOf('Save and add another')).toBe('xl')
+  })
+})
+
+describe('receipt line keyboard flow', () => {
+  const key = (wrapper: Awaited<ReturnType<typeof mountForm>>, selector: string, init: KeyboardEventInit) =>
+    wrapper.get(selector).trigger('keydown', { key: 'Enter', ...init })
+
+  async function completeFirstLine() {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    return wrapper
+  }
+
+  it('walks Enter from Price to Size to Unit, then starts the next row', async () => {
+    const wrapper = await completeFirstLine()
+
+    await key(wrapper, '[data-line-price]', {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-size]').element)
+
+    await key(wrapper, '[data-line-size]', {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-unit]').element)
+
+    await key(wrapper, '[data-line-unit]', {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(2)
+    expect(document.activeElement).toBe(wrapper.findAll('[data-line-item]')[1]!.element)
+  })
+
+  it('tabs from Unit through the sale and details toggles to the next row', async () => {
+    const wrapper = await completeFirstLine()
+
+    await wrapper.get('[data-line-unit]').trigger('keydown', { key: 'Tab' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-sale]').element)
+
+    await wrapper.get('[data-line-sale]').trigger('keydown', { key: 'Tab' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-details]').element)
+
+    await wrapper.get('[data-line-details]').trigger('keydown', { key: 'Tab' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(2)
+    expect(document.activeElement).toBe(wrapper.findAll('[data-line-item]')[1]!.element)
+  })
+
+  for (const [name, modifier] of [['Command', { metaKey: true }], ['Control', { ctrlKey: true }]] as const) {
+    for (const field of ['item', 'price', 'size', 'unit']) {
+      it(`${name}+Enter finishes a complete row from ${field}`, async () => {
+        const wrapper = await completeFirstLine()
+
+        await key(wrapper, `[data-line-${field}]`, modifier)
+        await vi.advanceTimersByTimeAsync(0)
+
+        expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(2)
+        expect(document.activeElement).toBe(wrapper.findAll('[data-line-item]')[1]!.element)
+      })
+    }
+  }
+
+  it('returns to Item when finishing a row without one', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-price]').setValue('4.99')
+
+    await key(wrapper, '[data-line-price]', { metaKey: true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(1)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-item]').element)
+  })
+
+  it('returns to Price when finishing a row without one', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+
+    await key(wrapper, '[data-line-item]', { ctrlKey: true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(1)
+    expect(document.activeElement).toBe(wrapper.get('[data-line-price]').element)
+  })
+
+  it('moves to the next existing row instead of adding another', async () => {
+    sourceReceiptForTests = {
+      ...receipt(),
+      itemCount: 2,
+      entries: [receipt().entries[0]!, { ...receipt().entries[0]!, id: 'entry-2', item: 'Tea', price: '3.50' }]
+    }
+    const wrapper = await mountForm('', 'receipt-1')
+
+    await key(wrapper, '[data-line-price]', { metaKey: true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(wrapper.findAll('[data-receipt-line]')).toHaveLength(2)
+    expect(document.activeElement).toBe(wrapper.findAll('[data-line-item]')[1]!.element)
+  })
+
+  it('fills size and unit from a chosen suggestion and moves focus to Price', async () => {
+    suggestions = [{ value: 'Ground coffee', size: '16', unit: 'lb', price: '8.99' }]
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Ground')
+    await vi.advanceTimersByTimeAsync(160)
+    await flushPromises()
+    await wrapper.findAllComponents(UInputMenu)[1]!.get('[data-option="Ground coffee"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect((wrapper.get('[data-line-item]').element as HTMLInputElement).value).toBe('Ground coffee')
+    expect((wrapper.get('[data-line-size]').element as HTMLInputElement).value).toBe('16')
+    expect((wrapper.get('[data-line-unit]').element as HTMLInputElement).value).toBe('lb')
+    expect(document.activeElement).toBe(wrapper.get('[data-line-price]').element)
+  })
+})
+
+describe('receipt line controls', () => {
+  it('toggles the sale flag and reports its state through its label and title', async () => {
+    const wrapper = await mountForm()
+    const sale = () => wrapper.get('[data-line-sale]')
+
+    expect(sale().attributes('aria-label')).toBe('Mark as purchased at a sale price')
+    expect(sale().attributes('title')).toBe('Mark as purchased at a sale price.')
+    await sale().trigger('click')
+    expect(sale().attributes('aria-label')).toBe('Remove sale-price flag')
+    expect(sale().attributes('title')).toBe('Purchased at a sale price. Click to remove.')
+    await sale().trigger('click')
+    expect(sale().attributes('aria-label')).toBe('Mark as purchased at a sale price')
+  })
+
+  it('toggles the details panel and reports its state through its label, title and aria-expanded', async () => {
+    const wrapper = await mountForm()
+    const details = () => wrapper.get('[data-line-details]')
+
+    expect(wrapper.find('[data-line-panel]').exists()).toBe(false)
+    expect(details().attributes('aria-label')).toBe('Show details')
+    expect(details().attributes('title')).toBe('Show item details')
+    expect(details().attributes('aria-expanded')).toBe('false')
+    await details().trigger('click')
+    expect(wrapper.find('[data-line-panel]').exists()).toBe(true)
+    expect(details().attributes('aria-label')).toBe('Hide details')
+    expect(details().attributes('title')).toBe('Hide item details')
+    expect(details().attributes('aria-expanded')).toBe('true')
+  })
+
+  it('names each line in its remove button and title', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    await wrapper.get('[data-line-item]').trigger('keydown', { key: 'Enter', metaKey: true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    const remove = wrapper.findAll('[data-line-remove]')
+    expect(remove.map(button => button.attributes('aria-label'))).toEqual(['Remove line 1', 'Remove line 2'])
+    expect(remove.map(button => button.attributes('title'))).toEqual(['Remove line 1', 'Remove line 2'])
+  })
+
+  it('limits notes, shows a live character count and ties the category hint to its selector', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-details]').trigger('click')
+    const notes = wrapper.get('[data-line-notes]')
+    const describedBy = (selector: string) => document.getElementById(wrapper.get(selector).attributes('aria-describedby')!)
+
+    expect(notes.attributes('maxlength')).toBe(String(maxEntryNotesLength))
+    expect(describedBy('[data-line-notes]')!.textContent).toBe(`0/${maxEntryNotesLength}`)
+    expect(describedBy('[data-line-notes]')!.getAttribute('aria-live')).toBe('polite')
+    await notes.setValue('Farmers market')
+    expect(describedBy('[data-line-notes]')!.textContent).toBe(`14/${maxEntryNotesLength}`)
+    expect(describedBy('[data-line-category]')!.textContent).not.toBe('')
+  })
+})
+
+describe('receipt discard warning', () => {
+  const unload = () => {
+    const event = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(event)
+    return event.defaultPrevented
+  }
+
+  it('asks the browser to confirm leaving the page only while rows are unsaved', async () => {
+    const wrapper = await mountForm()
+    expect(unload()).toBe(false)
+
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    expect(unload()).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    expect(unload()).toBe(false)
+  })
+
+  it('stops warning once the form is gone', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    expect(unload()).toBe(true)
+
+    wrapper.unmount()
+    expect(unload()).toBe(false)
+  })
+})
+
+describe('previous-entry backfill prompt', () => {
+  async function saveDimensions(size: string, unit: string) {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    if (size) await wrapper.get('[data-line-size]').setValue(size)
+    if (unit) await wrapper.get('[data-line-unit]').setValue(unit)
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    if (unit) {
+      await wrapper.get('[data-line-unit]').trigger('blur')
+      await flushPromises()
+    }
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+    return wrapper
+  }
+  const button = (wrapper: Awaited<ReturnType<typeof mountForm>>, label: string) =>
+    wrapper.findAll('button').find(candidate => candidate.text() === label)!
+  const checkbox = (wrapper: Awaited<ReturnType<typeof mountForm>>, label: string) => wrapper.findAll('[role="checkbox"]').find(candidate => candidate.text() === label)
+
+  it('offers both new dimensions, counts the union and sends only the selected fields', async () => {
+    backfillCounts = { size: 2, unit: 3, either: 4 }
+    const wrapper = await saveDimensions('12', 'oz')
+
+    expect(wrapper.text()).toContain('Update previous entries?')
+    expect(checkbox(wrapper, 'Update missing sizes')!.attributes('aria-checked')).toBe('true')
+    expect(checkbox(wrapper, 'Update missing units')!.attributes('aria-checked')).toBe('true')
+    expect(button(wrapper, 'Update 4 entries')).toBeDefined()
+
+    await checkbox(wrapper, 'Update missing units')!.trigger('click')
+    expect(button(wrapper, 'Update 2 entries')).toBeDefined()
+    await button(wrapper, 'Update 2 entries').trigger('click')
+    await vi.waitFor(() => expect(wrapper.text()).not.toContain('Update previous entries?'))
+
+    expect(backfillUpdates).toEqual([{ item: 'Coffee', excludeId: 'entry-new', size: '12', unit: 'oz', fields: ['size'] }])
+  })
+
+  it('disables the update button when nothing is selected', async () => {
+    backfillCounts = { size: 1, unit: 1, either: 1 }
+    const wrapper = await saveDimensions('12', 'oz')
+
+    await checkbox(wrapper, 'Update missing sizes')!.trigger('click')
+    await checkbox(wrapper, 'Update missing units')!.trigger('click')
+
+    expect(button(wrapper, 'Update 0 entries').attributes('disabled')).toBeDefined()
+  })
+
+  it('offers only the dimension that was entered and leaves older entries alone when kept unchanged', async () => {
+    backfillCounts = { size: 2, unit: 5, either: 6 }
+    const wrapper = await saveDimensions('12', '')
+
+    expect(checkbox(wrapper, 'Update missing sizes')).toBeDefined()
+    expect(checkbox(wrapper, 'Update missing units')).toBeUndefined()
+    expect(button(wrapper, 'Update 2 entries')).toBeDefined()
+
+    await button(wrapper, 'Keep unchanged').trigger('click')
+    await flushPromises()
+    expect(backfillUpdates).toEqual([])
+    expect(wrapper.text()).not.toContain('Update previous entries?')
+  })
+
+  it('does not prompt when no earlier entry is missing the entered dimension', async () => {
+    backfillCounts = { size: 0, unit: 4, either: 4 }
+    const wrapper = await saveDimensions('12', '')
+
+    expect(backfillChecks).toBe(1)
+    expect(wrapper.text()).not.toContain('Update previous entries?')
+  })
+
+  it('keeps the prompt open and shows the error when the update fails', async () => {
+    backfillCounts = { size: 1, unit: 0, either: 1 }
+    const wrapper = await saveDimensions('12', '')
+    registerEndpoint('/api/items/backfill', async (event: any) => {
+      if (event.method === 'PATCH') throw createError({ statusCode: 500, statusMessage: 'Backfill failed' })
+      return backfillCounts
+    })
+
+    await button(wrapper, 'Update 1 entry').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Update previous entries?')
+    expect(wrapper.text()).toContain('Backfill failed')
+  })
+
+  it('follows the signed-in preference instead of local storage', async () => {
+    registerEndpoint('/api/preferences/backfill-prompts', () => ({ enabled: false }))
+    clearNuxtState(['backfill-prompts-enabled', 'backfill-prompts-loaded'])
+    useState('oidc-enabled').value = true
+    try {
+      const wrapper = await saveDimensions('12', 'oz')
+
+      expect(backfillChecks).toBe(0)
+      expect(wrapper.text()).not.toContain('Update previous entries?')
+    } finally {
+      clearNuxtState(['oidc-enabled', 'backfill-prompts-enabled', 'backfill-prompts-loaded'])
+    }
   })
 })
 

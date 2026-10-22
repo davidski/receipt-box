@@ -19,6 +19,7 @@ const UButton = defineComponent({
 const UIcon = defineComponent({ setup: () => () => h('span') })
 const mounted: Array<{ unmount: () => void }> = []
 let includeReceipt = false
+let deletedEntries: string[]
 let includeEntry = false
 let withoutNormalizedPrice = false
 let holdReceiptResponse = false
@@ -31,6 +32,7 @@ const entry = {
 
 beforeEach(() => {
   includeReceipt = false
+  deletedEntries = []
   includeEntry = false
   withoutNormalizedPrice = false
   holdReceiptResponse = false
@@ -39,6 +41,7 @@ beforeEach(() => {
   registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [{ ...entry, costPerUnit: withoutNormalizedPrice ? null : entry.costPerUnit }] : [], total: includeEntry ? 1 : 0 }))
   registerEndpoint('/api/receipts/dates', () => ({ dates: [{ date: '2026-09-26', receiptCount: 1, itemCount: 0 }] }))
   registerEndpoint('/api/stores', () => [])
+  registerEndpoint('/api/entries/23', { method: 'DELETE', handler: () => { deletedEntries.push('23'); return null } })
   registerEndpoint('/api/categories', () => [])
   registerEndpoint('/api/receipts', async (event) => {
     const query = getQuery(event)
@@ -207,5 +210,53 @@ describe('Receipts home', () => {
     notes.dispatchEvent(new Event('input', { bubbles: true }))
     await flushPromises()
     expect(document.getElementById('edit-notes-character-count')?.textContent).toBe('100/100')
+  })
+
+  it('keeps sort and filter choices in the URL and drops them when back at the defaults', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries')
+    const query = () => wrapper.vm.$router.currentRoute.value.query
+
+    await entryTable(wrapper).findAll('thead th button').find(button => button.text() === 'Item')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'On sale')!.trigger('click')
+    await vi.waitFor(() => expect(query()).toMatchObject({ sort: 'item', direction: 'asc', filter: 'sale' }))
+
+    await entryTable(wrapper).findAll('thead th button').find(button => button.text() === 'Date')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'All')!.trigger('click')
+    await vi.waitFor(() => expect(query()).toEqual({}))
+  })
+
+  it('sends an unknown history view to the receipts calendar, keeping the query', async () => {
+    const wrapper = await mountBrowser('/history/entries')
+    const router = wrapper.vm.$router
+
+    await router.push('/history/nonsense?store=Market')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/history/receipts/calendar?store=Market')
+  })
+
+  it('asks before deleting a purchase and only deletes once confirmed', async () => {
+    includeEntry = true
+    const wrapper = await mountBrowser('/history/entries', document.body)
+    // The confirmation opens on top of the editor, so the last matching button is the confirmation's.
+    const press = (label: string) => [...document.querySelectorAll('button')].filter(button => button.textContent?.trim() === label).at(-1) as HTMLButtonElement
+    await entryTable(wrapper).find('tbody tr').trigger('dblclick')
+    await flushPromises()
+
+    press('Delete').click()
+    await flushPromises()
+    expect(document.body.textContent).toContain('Delete purchase?')
+    expect(deletedEntries).toEqual([])
+
+    press('Cancel').click()
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('Delete purchase?')
+    expect(deletedEntries).toEqual([])
+
+    press('Delete').click()
+    await flushPromises()
+    press('Delete purchase').click()
+    await vi.waitFor(() => expect(deletedEntries).toEqual(['23']))
+    await vi.waitFor(() => expect(document.querySelector('.edit-dialog')).toBeNull())
   })
 })
