@@ -54,10 +54,12 @@ describe('Recipes page', () => {
     expect(wrapper.findAll('[data-recipes-row]')).toHaveLength(6)
     expect(pancakes.get('[data-col="now"]').text()).toBe('$12.00')
     expect(pancakes.get('[data-col="saved"]').text()).toBe(`$10.00${savedDate}`)
-    expect(pancakes.get('[data-col="change"]').text()).toBe('+$2.00')
-    expect(pancakes.get('[data-col="change"] span').classes().join(' ')).toContain('warning')
+    expect(pancakes.get('[data-col="change"] [data-figure]').text()).toBe('+$2.00')
+    expect(pancakes.get('[data-col="change"] .sr-only').text()).toBe('up $2.00')
+    expect(pancakes.get('[data-col="change"] span').classes().join(' ')).toContain('error')
     const bread = wrapper.findAll('[data-recipes-row]').find(r => r.text().includes('Bread'))!
-    expect(bread.get('[data-col="change"]').text()).toBe('-$1.00')
+    expect(bread.get('[data-col="change"] [data-figure]').text()).toBe('−$1.00')
+    expect(bread.get('[data-col="change"] .sr-only').text()).toBe('down $1.00')
     expect(bread.get('[data-col="change"] span').classes().join(' ')).toContain('success')
     const salad = wrapper.findAll('[data-recipes-row]').find(r => r.text().includes('Salad'))!
     expect(salad.get('[data-col="change"]').text()).toBe('No change')

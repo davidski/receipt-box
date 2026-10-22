@@ -232,22 +232,25 @@ describe('Recipe cost page', () => {
       expect(bodies.every(body => !body.lines.some(line => line.item === 'Salt'))).toBe(true)
     })
 
-    it('shows the saved snapshot with an upward change in warning color', async () => {
+    it('shows the saved snapshot with an upward change in the shared increase treatment', async () => {
       reply = costOf(14.2)
       const wrapper = await mountAt('?recipe=7')
       const snapshot = wrapper.get('[data-recipe-snapshot]')
 
       expect(snapshot.text()).toContain(`Saved at $12.35 on ${savedDate} · now $14.20`)
-      expect(snapshot.get('[data-recipe-change]').text()).toBe('(+$1.85)')
-      expect(snapshot.get('[data-recipe-change]').classes()).toContain('text-warning')
+      const change = snapshot.get('[data-recipe-change]')
+      expect(change.get('[data-figure]').text()).toBe('+$1.85')
+      expect(change.get('.sr-only').text()).toBe('up $1.85')
+      expect(change.classes().join(' ')).toContain('error')
     })
 
-    it('shows a downward change in success color', async () => {
+    it('shows a downward change in the shared decrease treatment', async () => {
       reply = costOf(10.35)
       const wrapper = await mountAt('?recipe=7')
       const change = wrapper.get('[data-recipe-change]')
-      expect(change.text()).toBe('(-$2.00)')
-      expect(change.classes()).toContain('text-success')
+      expect(change.get('[data-figure]').text()).toBe('−$2.00')
+      expect(change.get('.sr-only').text()).toBe('down $2.00')
+      expect(change.classes().join(' ')).toContain('success')
     })
 
     it('hides the change and the Update saved price button when the price is unchanged', async () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { sparklinePoints } from '../../shared/utils/highlight-reports'
 import { prettyScale } from '../../shared/utils/chart-scale'
-import { formatCurrency, formatSignedCurrency } from '../../shared/utils/money'
+import { formatCurrency, formatSignedPercent } from '../../shared/utils/money'
 
 type HighlightEntry = {
   id: string
@@ -274,11 +274,6 @@ const coverageText = computed(() => {
     : 'No purchases in this period.'
 })
 
-function percentage(value: string) {
-  const number = Number(value)
-  return `${number > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number)}%`
-}
-
 const stabilityDetails = {
   limited: { label: 'Limited history', color: 'neutral' as const, icon: 'i-lucide-circle-help' },
   stable: { label: 'Stable', color: 'success' as const, icon: 'i-lucide-equal-approximately' },
@@ -292,15 +287,6 @@ function cadenceLabel(days: number | null) {
   if (days < 10) return `Every ${Math.max(1, Math.round(days))} days`
   const weeks = Math.round(days / 7)
   return weeks === 1 ? 'About weekly' : `Every ${weeks} weeks`
-}
-
-function changeLabel(value: number | null) {
-  if (value === null) return '—'
-  return `${value > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`
-}
-
-function wholeChangeLabel(value: number) {
-  return `${value > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)}%`
 }
 
 
@@ -370,7 +356,7 @@ function unitCurrency(value: number) {
             </div>
             <p class="mt-[0.3125rem] max-w-170 text-xs text-muted">Month-to-month price movement for recurring, comparable non-sale items, weighted by prior-month spending. The first month is 100.</p>
           </div>
-          <UBadge v-if="priceIndexSummary" :label="`${changeLabel(priceIndexSummary.change)} overall`" :color="priceIndexSummary.change > 0 ? 'error' : priceIndexSummary.change < 0 ? 'success' : 'neutral'" variant="soft" />
+          <span v-if="priceIndexSummary" class="inline-flex items-center gap-1.5 text-sm"><PriceChange :value="priceIndexSummary.change" unit="percent" :digits="1" />overall</span>
         </div>
         <div v-if="priceIndexChart" ref="priceIndexContainer" class="w-full max-w-full overflow-hidden">
           <svg :viewBox="`0 0 ${priceIndexChart.width} ${priceIndexChart.height}`" role="img" aria-label="Same-item regular purchase price index over time" class="block w-full h-[16.25rem]">
@@ -404,7 +390,7 @@ function unitCurrency(value: number) {
           <li v-for="entry in data.categoryPriceChanges.slice(0, 5)" :key="entry.category" class="grid grid-cols-[minmax(8.125rem,1fr)_minmax(13.75rem,2fr)_auto] items-center gap-3.5 border-t border-line py-[0.6875rem] max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-x-2.5 max-sm:gap-y-[0.3125rem]">
             <strong>{{ entry.category }}</strong>
             <span class="text-xs text-(--muted) max-sm:col-start-1">{{ monthLabel(entry.startMonth) }}–{{ monthLabel(entry.endMonth) }} · {{ entry.matchedItems }} matched items</span>
-            <UBadge class="max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-1" :label="changeLabel(entry.change)" :color="entry.change > 0 ? 'error' : entry.change < 0 ? 'success' : 'neutral'" variant="soft" />
+            <PriceChange class="max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-1" :value="entry.change" unit="percent" :digits="1" />
           </li>
         </ul>
         <p v-else class="category-price-empty m-0 text-sm text-(--muted)">No category has enough regular-price history to compare yet. <NuxtLink to="/data/items">Assign categories to more items</NuxtLink>.</p>
@@ -465,9 +451,9 @@ function unitCurrency(value: number) {
         <div v-if="selectedSpendChange" class="spend-explanation mt-2 grid grid-cols-[repeat(4,1fr)] gap-px overflow-hidden rounded-card [background:var(--line)] [border:1px_solid_var(--line)] max-sm:grid-cols-[1fr_1fr]" aria-live="polite">
           <div><strong>{{ monthLabel(selectedSpendChange.month) }}</strong><span>{{ formatCurrency(selectedSpendChange.totalSpent, { whole: true }) }} spent</span></div>
           <template v-if="selectedSpendChange.change !== null">
-            <div><span>Change from prior month</span><strong>{{ formatSignedCurrency(selectedSpendChange.change, { whole: true }) }}</strong></div>
-            <div><span>Same-package price effect</span><strong>{{ formatSignedCurrency(selectedSpendChange.priceEffect, { whole: true }) }}</strong></div>
-            <div><span>Different/additional purchases</span><strong>{{ formatSignedCurrency(selectedSpendChange.basketEffect, { whole: true }) }}</strong></div>
+            <div><span>Change from prior month</span><PriceChange class="justify-self-start" :value="selectedSpendChange.change" whole /></div>
+            <div><span>Same-package price effect</span><PriceChange class="justify-self-start" :value="selectedSpendChange.priceEffect" whole /></div>
+            <div><span>Different/additional purchases</span><PriceChange class="justify-self-start" :value="selectedSpendChange.basketEffect" whole /></div>
             <small>Price effect uses {{ selectedSpendChange.matchedItems }} matched {{ selectedSpendChange.matchedItems === 1 ? 'item' : 'items' }}; the remainder reflects basket composition and shopping frequency.</small>
           </template>
         </div>
@@ -498,7 +484,7 @@ function unitCurrency(value: number) {
                 <td data-label="Price behavior" class="max-sm:justify-items-start">
                   <div class="core-item-inline flex items-center gap-2 whitespace-nowrap max-sm:grid max-sm:justify-items-start max-sm:gap-[0.3125rem] max-sm:whitespace-normal">
                     <UBadge v-bind="stabilityDetails[item.stability]" variant="soft" />
-                    <span class="text-sm">{{ item.averageChangePercent === null ? 'Limited comparable history' : `${changeLabel(item.averageChangePercent)} avg. · ${item.priceObservations} prices` }}</span>
+                    <span class="text-sm">{{ item.averageChangePercent === null ? 'Limited comparable history' : `${formatSignedPercent(item.averageChangePercent, { digits: 1 })} avg. · ${item.priceObservations} prices` }}</span>
                   </div>
                 </td>
                 <td data-label="Trend">
@@ -508,12 +494,7 @@ function unitCurrency(value: number) {
                   <span v-else class="text-(--muted)">—</span>
                 </td>
                 <td data-label="Net change" class="max-sm:justify-items-start">
-                  <UBadge
-                    :label="changeLabel(item.netChangePercent)"
-                    :icon="item.trend === 'up' ? 'i-lucide-trending-up' : item.trend === 'down' ? 'i-lucide-trending-down' : item.trend === 'flat' ? 'i-lucide-move-right' : 'i-lucide-minus'"
-                    :color="item.trend === 'up' ? 'error' : item.trend === 'down' ? 'success' : 'neutral'"
-                    variant="soft"
-                  />
+                  <PriceChange :value="item.netChangePercent" unit="percent" :digits="1" :flat="item.trend === 'flat'" />
                 </td>
               </tr>
             </tbody>
@@ -544,13 +525,13 @@ function unitCurrency(value: number) {
             <tbody>
               <tr v-for="entry in sortedShrinkflation" :key="`${entry.item}-${entry.purchasedOn}`">
                 <td data-label="Item"><NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline"><strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" /></NuxtLink><span class="mt-[0.1875rem] block text-sm text-muted">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</span></td>
-                <td data-label="Package change"><strong>{{ entry.previousSize }} → {{ entry.size }} {{ entry.unit }}</strong><span class="mt-[0.1875rem] block text-sm text-muted">{{ changeLabel(entry.sizeChangePercent) }}</span></td>
+                <td data-label="Package change"><strong>{{ entry.previousSize }} → {{ entry.size }} {{ entry.unit }}</strong><span class="mt-[0.1875rem] block text-sm text-muted">{{ formatSignedPercent(entry.sizeChangePercent, { digits: 1 }) }}</span></td>
                 <td data-label="Shelf price"><strong>{{ formatCurrency(entry.previousPrice) }} → {{ formatCurrency(entry.price) }}</strong></td>
                 <td data-label="Unit-cost impact">
                   <div class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap max-sm:grid max-sm:justify-items-start max-sm:whitespace-normal">
                     <strong>{{ unitCurrency(entry.previousUnitPrice) }} → {{ unitCurrency(entry.unitPrice) }}</strong>
                     <span>{{ entry.unitPriceLabel }}</span>
-                    <UBadge :label="wholeChangeLabel(entry.unitCostChangePercent)" color="error" variant="soft" />
+                    <PriceChange :value="entry.unitCostChangePercent" unit="percent" />
                   </div>
                 </td>
               </tr>
@@ -581,11 +562,9 @@ function unitCurrency(value: number) {
                       <span class="truncate text-sm text-(--muted) max-sm:overflow-visible max-sm:text-clip max-sm:whitespace-normal">{{ entry.previousLocation }} → {{ entry.location }}</span>
                     </td>
                     <td data-label="Change" class="max-sm:justify-items-end">
-                      <UBadge
-                        :label="percentage(entry.priceChangePercent)"
-                        :icon="Number(entry.priceChangePercent) > 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
-                        :color="Number(entry.priceChangePercent) > 0 ? 'error' : 'success'"
-                        variant="soft"
+                      <PriceChange
+                        :value="Number(entry.priceChangePercent)"
+                        unit="percent"
                         :title="`Compared with the ${entry.comparisonBasis} price on ${shortDate(entry.previousPurchasedOn)}`"
                       />
                     </td>

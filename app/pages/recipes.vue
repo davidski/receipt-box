@@ -130,11 +130,7 @@ onMounted(load)
                 <span class="block text-sm text-(--muted)">{{ dateText(recipe.savedAt) }}</span>
               </td>
               <td data-col="change" class="px-4 py-3 text-right">
-                <template v-if="changeOf(recipe) !== null">
-                  <UBadge v-if="changeOf(recipe)! > 0" :label="`+${currency(changeOf(recipe)! / 100)}`" color="warning" variant="soft" />
-                  <UBadge v-else-if="changeOf(recipe)! < 0" :label="`-${currency(-changeOf(recipe)! / 100)}`" color="success" variant="soft" />
-                  <UBadge v-else label="No change" color="neutral" variant="soft" />
-                </template>
+                <PriceChange v-if="changeOf(recipe) !== null" :value="changeOf(recipe)! / 100" />
               </td>
             </tr>
           </tbody>
