@@ -310,7 +310,7 @@ function unitCurrency(value: number) {
         <h1 class="leading-[1.04] text-display">Price highlights</h1>
         <p>Recent activity and notable price movement.</p>
       </div>
-      <div class="flex items-end gap-2.5 max-sm:justify-between">
+      <div class="flex flex-wrap items-end gap-2.5 max-sm:justify-between">
         <UFormField label="Period" class="period-field w-60 max-sm:w-[min(15rem,_100%)]">
           <USelect v-model="selectedPeriod" class="touch-target" :items="periodOptions" icon="i-lucide-calendar-range" aria-label="Highlight period" :content="{ bodyLock: false }" />
         </UFormField>

@@ -369,7 +369,7 @@ async function confirmRemoveEntry() {
         <h1 class="leading-[1.04] text-display">Receipts</h1>
         <p>{{ view === 'receipts' ? 'Browse receipts by date.' : 'Browse individual purchase entries.' }}</p>
       </div>
-      <nav class="m-0 flex w-max shrink-0 items-center gap-[0.3125rem] rounded-card p-1 bg-surface border border-line max-[56.25rem]:[&>*]:flex-1 max-[56.25rem]:[&>*]:justify-center max-[56.25rem]:mb-0 max-[56.25rem]:w-full" aria-label="Receipts view">
+      <nav class="m-0 flex w-max shrink-0 flex-wrap items-center gap-[0.3125rem] rounded-card p-1 bg-surface border border-line max-[56.25rem]:[&>*]:flex-1 max-[56.25rem]:[&>*]:justify-center max-[56.25rem]:mb-0 max-[56.25rem]:w-full" aria-label="Receipts view">
         <UButton to="/" label="Calendar" icon="i-lucide-calendar-days" :color="historyView === 'receipts-calendar' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-calendar' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-calendar' ? 'page' : undefined" />
         <UButton to="/history/receipts/list" label="Receipt list" icon="i-lucide-receipt-text" :color="historyView === 'receipts-list' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-list' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-list' ? 'page' : undefined" />
         <UButton to="/history/entries" label="Item entries" icon="i-lucide-list" :color="historyView === 'entries' ? 'primary' : 'neutral'" :variant="historyView === 'entries' ? 'soft' : 'ghost'" :aria-current="historyView === 'entries' ? 'page' : undefined" />
@@ -448,7 +448,7 @@ async function confirmRemoveEntry() {
             <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-accent uppercase">Selected date</p><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
             <div class="flex flex-wrap items-center justify-start gap-3.5">
               <span v-if="receiptData" class="flex-[0_0_7rem] text-sm whitespace-nowrap text-muted">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
-              <nav class="flex gap-1.5" aria-label="Receipt day navigation">
+              <nav class="flex flex-wrap gap-1.5" aria-label="Receipt day navigation">
                 <UButton
                   type="button"
                   label="Older"
@@ -513,11 +513,11 @@ async function confirmRemoveEntry() {
         <section v-else class="col-span-full min-w-0 rounded-card p-6 shadow-(--shadow) bg-surface border border-line max-sm:p-[1.125rem_0.875rem]" aria-labelledby="receipt-list-heading">
           <header class="mb-4 flex items-end justify-between gap-4.5 max-sm:items-start">
             <div class="mt-1.25"><h2 id="receipt-list-heading">Shopping history</h2></div>
-            <div class="flex items-center gap-3.5">
+            <div class="flex flex-wrap items-center gap-3.5">
               <span v-if="receiptData" class="text-sm text-muted">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
             </div>
           </header>
-          <div v-if="receiptData && receiptData.total > 50" class="pagination m-[-0.25rem_0_1rem] mt-6 flex items-center justify-center gap-[1.125rem] text-sm text-muted max-sm:gap-[0.5rem]" aria-label="Receipt list pagination">
+          <div v-if="receiptData && receiptData.total > 50" class="pagination m-[-0.25rem_0_1rem] mt-6 flex flex-wrap items-center justify-center gap-[1.125rem] text-sm text-muted max-sm:gap-[0.5rem]" aria-label="Receipt list pagination">
             <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="receiptListOffset === 0" @click="receiptListOffset = Math.max(0, receiptListOffset - 50)" />
             <span>{{ receiptListOffset + 1 }}–{{ Math.min(receiptListOffset + 50, receiptData.total) }} of {{ receiptData.total }}</span>
             <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="receiptListOffset + 50 >= receiptData.total" @click="receiptListOffset += 50" />
@@ -564,7 +564,7 @@ async function confirmRemoveEntry() {
       <div v-else-if="error" class="error-state grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-muted">Could not load the price history.</div>
       <div v-else-if="!data?.entries.length" class="grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-muted">No matching entries.</div>
       <template v-else>
-      <div v-if="data && data.total > limit" class="pagination m-[-0.25rem_0_1rem] mt-6 flex items-center justify-center gap-[1.125rem] text-sm text-muted max-sm:gap-[0.5rem]" aria-label="Price history pagination">
+      <div v-if="data && data.total > limit" class="pagination m-[-0.25rem_0_1rem] mt-6 flex flex-wrap items-center justify-center gap-[1.125rem] text-sm text-muted max-sm:gap-[0.5rem]" aria-label="Price history pagination">
         <UButton class="touch-target" type="button" label="Newer" leading-icon="i-lucide-arrow-left" color="neutral" variant="outline" :disabled="offset === 0" @click="offset = Math.max(0, offset - limit)" />
         <span>{{ offset + 1 }}–{{ Math.min(offset + limit, data.total) }} of {{ data.total }}</span>
         <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
