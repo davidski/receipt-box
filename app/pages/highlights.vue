@@ -449,11 +449,11 @@ function unitCurrency(value: number) {
         </div>
         <div v-else class="grid min-h-[8.125rem] place-items-center text-center text-(--muted)">No purchases in this period.</div>
         <div v-if="selectedSpendChange" class="spend-explanation mt-2 grid grid-cols-[repeat(4,1fr)] gap-px overflow-hidden rounded-card [background:var(--line)] [border:1px_solid_var(--line)] max-sm:grid-cols-[1fr_1fr]" aria-live="polite">
-          <div><strong>{{ monthLabel(selectedSpendChange.month) }}</strong><span>{{ formatCurrency(selectedSpendChange.totalSpent, { whole: true }) }} spent</span></div>
+          <div><strong>{{ monthLabel(selectedSpendChange.month) }}</strong><span class="text-xs text-muted">{{ formatCurrency(selectedSpendChange.totalSpent, { whole: true }) }} spent</span></div>
           <template v-if="selectedSpendChange.change !== null">
-            <div><span>Change from prior month</span><PriceChange class="justify-self-start" :value="selectedSpendChange.change" whole /></div>
-            <div><span>Same-package price effect</span><PriceChange class="justify-self-start" :value="selectedSpendChange.priceEffect" whole /></div>
-            <div><span>Different/additional purchases</span><PriceChange class="justify-self-start" :value="selectedSpendChange.basketEffect" whole /></div>
+            <div><span class="text-xs text-muted">Change from prior month</span><PriceChange class="justify-self-start" :value="selectedSpendChange.change" whole /></div>
+            <div><span class="text-xs text-muted">Same-package price effect</span><PriceChange class="justify-self-start" :value="selectedSpendChange.priceEffect" whole /></div>
+            <div><span class="text-xs text-muted">Different/additional purchases</span><PriceChange class="justify-self-start" :value="selectedSpendChange.basketEffect" whole /></div>
             <small>Price effect uses {{ selectedSpendChange.matchedItems }} matched {{ selectedSpendChange.matchedItems === 1 ? 'item' : 'items' }}; the remainder reflects basket composition and shopping frequency.</small>
           </template>
         </div>
@@ -530,7 +530,7 @@ function unitCurrency(value: number) {
                 <td data-label="Unit-cost impact">
                   <div class="shrinkflation-impact flex items-center justify-end gap-2 whitespace-nowrap max-sm:grid max-sm:justify-items-start max-sm:whitespace-normal">
                     <strong>{{ unitCurrency(entry.previousUnitPrice) }} → {{ unitCurrency(entry.unitPrice) }}</strong>
-                    <span>{{ entry.unitPriceLabel }}</span>
+                    <span class="text-sm text-muted">{{ entry.unitPriceLabel }}</span>
                     <PriceChange :value="entry.unitCostChangePercent" unit="percent" />
                   </div>
                 </td>

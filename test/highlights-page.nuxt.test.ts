@@ -163,4 +163,17 @@ describe('Highlights page', () => {
     for (const chip of chips.filter(node => node.text().startsWith('up'))) expect(chip.element.parentElement!.className).toContain('error')
     for (const chip of chips.filter(node => node.text().startsWith('down'))) expect(chip.element.parentElement!.className).toContain('success')
   })
+
+  it('shows a spend move that rounds away as a flat chip, and an exact zero as "No change"', async () => {
+    reply = () => ({
+      ...highlights([{ month: '2026-09-01', totalSpent: 100 }]),
+      spendChanges: [{ month: '2026-09-01', totalSpent: 100, change: 0.4, priceEffect: -0.2, basketEffect: 0, matchedItems: 4 }]
+    })
+    const wrapper = await mountPage()
+    const cells = wrapper.get('.spend-explanation').findAll('div').slice(1)
+
+    expect(cells.map(cell => cell.get('[data-figure]').text())).toEqual(['$0', '$0', 'No change'])
+    expect(cells.map(cell => cell.find('.sr-only').exists() ? cell.get('.sr-only').text() : null)).toEqual(['flat, $0', 'flat, $0', null])
+    for (const cell of cells) expect(cell.get('span').classes()).toEqual(expect.arrayContaining(['text-xs', 'text-muted']))
+  })
 })

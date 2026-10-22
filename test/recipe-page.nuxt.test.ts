@@ -100,6 +100,7 @@ describe('Recipe cost page', () => {
     const text = wrapper.text()
     expect(text).toContain('$1.25')
     expect(text).toContain('Sale')
+    expect(wrapper.findAll('[data-recipe-cost]')[0]!.html()).toContain('i-lucide:tag')
     expect(text).toContain('No purchases recorded for this item.')
     expect(text).toContain('This unit can\'t be converted to the unit it was bought in.')
     expect(text).toContain('The latest purchase has no package size.')

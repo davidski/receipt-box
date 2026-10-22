@@ -115,7 +115,7 @@ These rules are not met everywhere yet. Each is fixed in the area's cleanup PR; 
 Never signal a state with color alone. Each price annotation is a chip with a word, a signed figure, or an icon.
 
 - Sale: `warning` soft badge with the label "Sale" and a tag icon (`i-lucide-tag`).
-- Price movement: the `PriceChange` component, used everywhere a price goes up or down (receipts, history, highlights, recipes). Do not build one by hand.
+- Price movement: the `PriceChange` component, used everywhere a price goes up or down (history, highlights, recipes). Do not build one by hand.
   - Increase: `error` soft badge, `i-lucide-trending-up`, and a plus sign, such as "+12%" or "+$0.40". Red is the `danger` token, which the contrast test holds to 7:1 on the badge tint in both themes. Amber stays reserved for sale, so a price that rose and is on sale never reads as one signal.
   - Decrease: `success` soft badge, `i-lucide-trending-down`, and a true minus sign (U+2212), such as "−6%" or "−$0.40".
   - No change: `neutral` soft badge, `i-lucide-minus`, and the words "No change", only when the value is exactly zero. A move that rounds away at the shown precision, such as $0.40 in a whole-dollar total, shows the unsigned figure ("$0") on the same neutral badge. A missing comparison shows "—". A caller that treats small moves as flat (Highlights uses under 2%) passes `flat`: it keeps the signed figure and the neutral badge.
