@@ -116,6 +116,7 @@ const positiveNumber = (value: unknown): number | null => {
 /**
  * A package's size in base units, or null when it cannot be priced:
  * `non_grocery` entry, null/non-positive size, or null/unconvertible unit.
+ * Numeric strings must be plain decimals ('1.5'); '1e3' or '0x10' give null.
  */
 export function normalizePackageQuantity(
   package_: { size: unknown, unit: unknown, nonGrocery?: boolean | null }
@@ -141,6 +142,7 @@ const MEALIE_STANDARD_UNITS: Record<string, string> = {
  * A Mealie recipe quantity in base units: `quantity × standardQuantity × standardUnit`.
  * Never looks at the unit's name. Null when the unit is unstandardized (missing or unknown
  * `standardUnit`, non-positive `standardQuantity`) or the quantity is not positive.
+ * Numeric strings must be plain decimals.
  */
 export function normalizeMealieQuantity(
   quantity: unknown,
