@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { costLine, summarizeRecipeCost, toBaseUnit } from '../shared/utils/recipe-cost.ts'
+import { costLine, summarizeRecipeCost } from '../shared/utils/recipe-cost.ts'
+import { toBaseUnit } from '../shared/utils/units.ts'
 
 const purchase = (overrides = {}) => ({ price: '4.00', size: '500.000', unit: 'g', saleItem: false, ...overrides })
 const line = (overrides = {}) => ({ item: 'Flour', quantity: 100, unit: 'g', ...overrides })
