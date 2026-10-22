@@ -143,4 +143,8 @@ describe('normalizeMealieQuantity', () => {
       assert.equal(normalizeMealieQuantity(1, value, 'gram'), null, `standardQuantity ${String(value)}`)
     }
   })
+
+  test('rejects a product that overflows to Infinity', () => {
+    assert.equal(normalizeMealieQuantity(1e308, 10, 'gram'), null)
+  })
 })

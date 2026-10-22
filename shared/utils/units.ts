@@ -72,7 +72,6 @@ export function normalizeUnit(value: unknown): string | null {
   return UNIT_ALIASES[key] ?? unit
 }
 
-
 /** Grams per mass unit. */
 export const MASS_GRAMS: Record<string, number> = {
   g: 1,
@@ -151,5 +150,6 @@ export function normalizeMealieQuantity(
   const factor = positiveNumber(standardQuantity)
   if (amount === null || factor === null) return null
   if (typeof standardUnit !== 'string' || !Object.hasOwn(MEALIE_STANDARD_UNITS, standardUnit)) return null
-  return toBaseUnit(amount * factor, MEALIE_STANDARD_UNITS[standardUnit])
+  const total = amount * factor
+  return Number.isFinite(total) ? toBaseUnit(total, MEALIE_STANDARD_UNITS[standardUnit]) : null
 }
