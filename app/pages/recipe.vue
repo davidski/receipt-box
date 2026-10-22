@@ -265,7 +265,7 @@ onBeforeUnmount(() => {
        
         @update:model-value="pickRecipe"
       />
-      <UInput v-model="name" aria-label="Recipe name" placeholder="Recipe name" maxlength="120" class="min-w-48 flex-1" :ui="{ base: 'px-2.5 py-2' }" />
+      <UInput v-model="name" aria-label="Recipe name" placeholder="Recipe name" maxlength="120" class="min-w-0 flex-1 sm:min-w-48" :ui="{ base: 'px-2.5 py-2' }" />
       <UButton icon="i-lucide-save" :label="loadedId ? 'Save changes' : 'Save recipe'" :disabled="!canSave" :loading="saving" @click="saveRecipe()" />
       <UButton to="/recipes" icon="i-lucide-list" label="All recipes" color="neutral" variant="ghost" />
       <UButton v-if="loadedId" icon="i-lucide-trash-2" label="Delete" color="error" variant="outline" :disabled="saving" @click="deleteConfirmOpen = true" />

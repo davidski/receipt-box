@@ -76,7 +76,7 @@ const categoryMergeSelection = reactive<Record<string, string | undefined>>({})
 // Field spacing recipe from the design doc (Inputs, Field spacing); Manage forms keep a muted bold label.
 const fieldSpacing = { container: 'mt-1.5 grid gap-2', help: 'mt-0', error: 'mt-0' }
 const manageField = { ...fieldSpacing, label: 'font-bold text-muted' }
-const mergeTriggerUi = { base: 'touch-target w-auto rounded-control border-0 px-2.5 py-1.5 text-sm md:text-sm', placeholder: 'text-ink', leadingIcon: 'text-ink', trailingIcon: 'text-ink', content: 'w-60' }
+const mergeTriggerUi = { base: 'touch-target w-auto max-w-full rounded-control border-0 px-2.5 py-1.5 text-sm md:text-sm', placeholder: 'text-ink', leadingIcon: 'text-ink', trailingIcon: 'text-ink', content: 'w-60' }
 const categoryBusyId = ref<string | null>(null)
 const categoryError = ref('')
 const itemTargets = reactive<Record<string, string>>({})
@@ -779,7 +779,7 @@ async function exportXlsx() {
         <UAlert v-if="storeNotice" color="success" variant="soft" icon="i-lucide-circle-check" :description="storeNotice" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
         <p class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">Stores with purchase history can be renamed or merged. Only unused stores can be deleted.</p>
         <ul class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
-          <li v-for="store in stores || []" :key="store.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
+          <li v-for="store in stores || []" :key="store.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:flex-col max-sm:items-stretch">
             <form v-if="editingStoreId === store.id" data-testid="store-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] items-end gap-2 max-sm:grid-cols-2" @submit.prevent="saveStore(store)">
               <UFormField :label="`Rename ${store.name}`" :ui="manageField" class="min-w-0 max-sm:col-span-full">
                 <UInput v-model="editingStoreName" autofocus />
@@ -789,7 +789,7 @@ async function exportXlsx() {
             </form>
             <template v-else>
               <div><strong class="block">{{ store.name }}</strong><span class="block mt-[0.1875rem] text-muted text-xs">{{ store.uses.toLocaleString() }} {{ store.uses === 1 ? 'entry' : 'entries' }}</span></div>
-              <div class="flex gap-1 max-sm:flex-col">
+              <div class="flex flex-wrap gap-1">
                 <UButton class="touch-target" type="button" label="Rename" icon="i-lucide-pencil" color="neutral" variant="ghost" @click="startStoreEdit(store)" />
                 <UButton class="touch-target" type="button" label="Delete" icon="i-lucide-trash-2" color="error" variant="ghost" :disabled="store.uses > 0" :title="store.uses > 0 ? 'Rename this store to merge its existing entries before deleting it.' : `Delete ${store.name}`" @click="deleteStore(store)" />
               </div>
@@ -817,7 +817,7 @@ async function exportXlsx() {
         <div v-if="categoriesStatus === 'pending'" class="mt-4.5 flex min-h-[6.875rem] items-center gap-[0.5625rem] text-muted"><UIcon name="i-lucide-loader-circle" class="animate-spin [animation-duration:.9s] w-[1.25rem] h-[1.25rem] text-accent" /><span>Loading categories…</span></div>
         <p v-else-if="!categoriesLoadError && !categories?.length" class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">No categories yet. Add one here or assign one to an item.</p>
         <ul v-else-if="!categoriesLoadError" class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
-          <li v-for="category in categories || []" :key="category.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
+          <li v-for="category in categories || []" :key="category.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:flex-col max-sm:items-stretch">
             <form v-if="editingCategoryId === category.id" data-testid="category-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] items-end gap-2 max-sm:grid-cols-2" @submit.prevent="saveCategory(category)">
               <UFormField :label="`Rename ${category.name}`" :ui="manageField" class="min-w-0 max-sm:col-span-full">
                 <UInput v-model="editingCategoryName" autofocus maxlength="100" />
@@ -830,7 +830,7 @@ async function exportXlsx() {
                 <strong class="block">{{ category.name }}</strong>
                 <span class="block mt-[0.1875rem] text-muted text-xs">{{ category.itemCount.toLocaleString() }} {{ category.itemCount === 1 ? 'item' : 'items' }} across {{ category.entryCount.toLocaleString() }} unique {{ category.entryCount === 1 ? 'entry' : 'entries' }}</span>
               </div>
-              <div class="flex gap-1 max-sm:flex-col">
+              <div class="flex flex-wrap gap-1">
                 <UButton class="touch-target" type="button" label="Rename" icon="i-lucide-pencil" color="neutral" variant="ghost" :disabled="categoryBusyId !== null" @click="startCategoryEdit(category)" />
                 <USelectMenu
                   v-model="categoryMergeSelection[category.id]"
