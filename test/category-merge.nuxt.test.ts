@@ -376,3 +376,30 @@ it('labels the add-category field and the rename-category field with visible tex
   expect(wrapper.get('form[data-testid="category-edit"] label').text()).toBe('Rename Dairy')
   wrapper.unmount()
 })
+
+it('stacks the add-store and add-category fields on phones so the label does not wrap', async () => {
+  for (const [route, form] of [['/data/stores', 'store-add'], ['/data/categories', 'category-add']]) {
+    const wrapper = await mountSuspended(ManagePage, { route, global: { stubs: labelledStubs } })
+    await flushPromises()
+    expect(wrapper.get(`form[data-testid="${form}"]`).classes()).toEqual(expect.arrayContaining(['grid-cols-[1fr_auto]', 'max-sm:grid-cols-1']))
+    wrapper.unmount()
+  }
+})
+
+it('sets the item-change review sentences in ink, not muted, on the accent-soft panel', async () => {
+  const wrapper = await mountSuspended(ManagePage, {
+    route: '/data/items',
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+  })
+  await flushPromises()
+  await wrapper.get('select[placeholder="Choose an item"]').setValue('Soy milk')
+  await flushPromises()
+  await wrapper.get('input[aria-label="Rename to"]').setValue('Milk')
+  const sentences = wrapper.get('.bg-accent-soft.border').findAll('span.block')
+  expect(sentences.length).toBeGreaterThan(0)
+  for (const sentence of sentences) {
+    expect(sentence.classes()).toContain('text-ink')
+    expect(sentence.classes()).not.toContain('text-muted')
+  }
+  wrapper.unmount()
+})

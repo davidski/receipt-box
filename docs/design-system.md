@@ -72,7 +72,7 @@ Contrast is computed with the WCAG relative-luminance formula. `test/theme-contr
 |---|---|---|
 | `ink`, `muted`, `accent`, `accent-strong`, `danger`, `success`, `warning` | `bg`, `surface`, `surface-muted`, and the token's own soft fill or Nuxt UI 10% tint | 7:1 (AAA, WCAG 1.4.6) |
 | `ink` | `accent-soft`, `danger-soft` | 7:1 |
-| `muted` | `accent-soft`, `danger-soft` | 4.5:1 (AA). It stays below 7:1 on these tinted fills, so sentences on them use `ink`, as the receipt editor's confirmations and split bar do. |
+| `muted` | `accent-soft`, `danger-soft` | 4.5:1 (AA). It falls below 7:1 on these tinted fills in the light theme, so sentences on them use `ink`, as the receipt editor's confirmations and split bar do. |
 | `on-accent-fill` | `accent-fill` and `accent-fill-hover` | 7:1 |
 | Text on danger buttons | `danger` | 7:1 |
 | `placeholder` | `bg`, `surface`, `surface-muted` | 4.5:1 (AA, WCAG 1.4.3) |

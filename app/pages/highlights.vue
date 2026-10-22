@@ -436,9 +436,10 @@ function unitCurrency(value: number) {
               </g>
             </g>
             <g>
+              <g v-for="bar in monthlySpendChart.bars" :key="bar.month">
+              <!-- A month with no spending has no bar to select or ring, so it gets no Tab stop or hover target (as a gap month on the index chart). -->
               <g
-                v-for="bar in monthlySpendChart.bars"
-                :key="bar.month"
+                v-if="bar.totalSpent > 0"
                 class="group focus-visible:outline-none!"
                 role="button"
                 tabindex="0"
@@ -464,6 +465,7 @@ function unitCurrency(value: number) {
                   :height="Math.max(bar.height, bar.totalSpent > 0 ? 2 : 0)"
                   rx="3"
                 />
+              </g>
                 <text v-if="bar.showLabel" class="fill-muted text-xs" :x="bar.x" :y="monthlySpendChart.height - 20" text-anchor="middle">{{ bar.label }}</text>
               </g>
             </g>

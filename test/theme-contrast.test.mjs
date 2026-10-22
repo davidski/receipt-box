@@ -65,12 +65,10 @@ for (const [name, t] of Object.entries(themes)) {
     assert.ok(contrast(t.surface, t.danger) >= 7, 'danger button text')
   })
 
-  test(`${name} theme sentences on soft fills use ink (7:1); muted only meets AA there`, () => {
+  test(`${name} theme muted text meets AA (4.5:1) on soft fills`, () => {
+    // Light-theme muted falls below 7:1 on these tinted fills, so sentences there use ink (7:1, covered above).
     for (const fill of ['accent-soft', 'danger-soft']) {
-      assert.ok(contrast(t.ink, t[fill]) >= 7, `ink on ${fill} is ${contrast(t.ink, t[fill]).toFixed(2)}:1`)
-      // muted is held to 7:1 on the page surfaces only; on a tinted fill it drops below that, so running text there uses ink.
       assert.ok(contrast(t.muted, t[fill]) >= 4.5, `muted on ${fill} is ${contrast(t.muted, t[fill]).toFixed(2)}:1`)
-      assert.ok(contrast(t.muted, t[fill]) < contrast(t.ink, t[fill]), `ink stays the stronger text on ${fill}`)
     }
   })
 

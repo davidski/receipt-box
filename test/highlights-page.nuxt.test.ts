@@ -274,6 +274,24 @@ describe('Highlights page', () => {
       expect(spendMonth(wrapper)).toBe('September 2026')
     })
 
+    it('gives a month with no spending no Tab stop and no hover selection', async () => {
+      reply = () => ({
+        ...highlights([{ month: '2026-07-01', totalSpent: 0 }, { month: '2026-08-01', totalSpent: 410 }, { month: '2026-09-01', totalSpent: 1230 }]),
+        spendChanges: [{ month: '2026-09-01', totalSpent: 1230, change: 200, priceEffect: 3, basketEffect: 197, matchedItems: 4 }]
+      })
+      const wrapper = await mountPage()
+      const svg = wrapper.get('svg[aria-label="Total purchase dollars by month"]')
+
+      // Only the two months with spending are buttons; the empty month keeps its axis label.
+      expect(spendBars(wrapper)).toHaveLength(2)
+      expect(spendBars(wrapper).map(bar => bar.attributes('aria-label'))).toEqual(['August 2026: $410', 'September 2026: $1,230'])
+      expect(svg.findAll('[tabindex]')).toHaveLength(2)
+      expect(svg.text()).toContain('Jul 26')
+
+      await svg.findAll('g').find(group => group.text() === 'Jul 26')!.trigger('pointerenter')
+      expect(spendMonth(wrapper)).toBe('September 2026')
+    })
+
     it('removes the shared Escape listener when the page unmounts', async () => {
       const add = vi.spyOn(window, 'addEventListener')
       const remove = vi.spyOn(window, 'removeEventListener')
