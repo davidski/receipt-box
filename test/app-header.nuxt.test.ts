@@ -32,3 +32,15 @@ describe('App header recipe navigation', () => {
     expect(nav.findAll('a').find(a => a.text() === 'Recipes')!.attributes('aria-current')).toBeUndefined()
   })
 })
+
+describe('App header version', () => {
+  it('shows the build version linking to the GitHub repository', async () => {
+    const wrapper = await mountSuspended(AppHeader, { route: '/' })
+    mounted.push(wrapper)
+    await flushPromises()
+    const version = wrapper.get('a.app-version')
+    expect(version.text()).toBe('dev')
+    expect(version.attributes('href')).toBe('https://github.com/davidski/receipt-box')
+    expect(version.attributes('aria-label')).toBe('Version dev, view source on GitHub')
+  })
+})

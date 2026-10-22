@@ -49,6 +49,8 @@ export default defineNuxtConfig({
     databaseUrl: '',
     public: {
       appName: 'Receipt Box',
+      // Build-time version label: a v* tag or short commit hash from CI, else 'dev'.
+      appVersion: process.env.APP_VERSION || 'dev',
       // Browser-visible and therefore also embedded in the static client build.
       apiBase
     }

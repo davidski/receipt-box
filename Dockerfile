@@ -11,8 +11,10 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 FROM dependencies AS build
 ARG NUXT_APP_BASE_URL=/
 ARG NUXT_PUBLIC_API_BASE
+ARG APP_VERSION=dev
 ENV NUXT_APP_BASE_URL=$NUXT_APP_BASE_URL
 ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE
+ENV APP_VERSION=$APP_VERSION
 COPY . .
 RUN pnpm build
 
