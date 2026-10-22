@@ -235,6 +235,15 @@ describe('Receipts home', () => {
     expect(router.currentRoute.value.fullPath).toBe('/history/receipts/calendar?store=Market')
   })
 
+  it('sends bare /history to the receipts calendar, keeping the query', async () => {
+    const wrapper = await mountBrowser('/history/entries')
+    const router = wrapper.vm.$router
+
+    await router.push('/history?store=Market')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/history/receipts/calendar?store=Market')
+  })
+
   it('asks before deleting a purchase and only deletes once confirmed', async () => {
     includeEntry = true
     const wrapper = await mountBrowser('/history/entries', document.body)
