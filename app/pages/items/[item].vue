@@ -38,21 +38,16 @@ function updateChartWidth() {
   chartWidth.value = Math.max(300, available || window.innerWidth - 64)
 }
 
-// Escape dismisses the selected point from anywhere, so a hover or tap selection never gets stuck open (WCAG 1.4.13).
-function dismissPoint(event: KeyboardEvent) {
-  if (event.key === 'Escape') selectedPoint.value = null
-}
-
 onMounted(() => {
   nextTick(updateChartWidth)
   window.addEventListener('resize', updateChartWidth)
-  window.addEventListener('keydown', dismissPoint)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateChartWidth)
-  window.removeEventListener('keydown', dismissPoint)
 })
+
+useEscapeDismiss(() => { selectedPoint.value = null })
 
 useHead(() => ({ title: data.value?.item ? `${data.value.item} price history` : 'Item price history' }))
 

@@ -65,6 +65,15 @@ for (const [name, t] of Object.entries(themes)) {
     assert.ok(contrast(t.surface, t.danger) >= 7, 'danger button text')
   })
 
+  test(`${name} theme sentences on soft fills use ink (7:1); muted only meets AA there`, () => {
+    for (const fill of ['accent-soft', 'danger-soft']) {
+      assert.ok(contrast(t.ink, t[fill]) >= 7, `ink on ${fill} is ${contrast(t.ink, t[fill]).toFixed(2)}:1`)
+      // muted is held to 7:1 on the page surfaces only; on a tinted fill it drops below that, so running text there uses ink.
+      assert.ok(contrast(t.muted, t[fill]) >= 4.5, `muted on ${fill} is ${contrast(t.muted, t[fill]).toFixed(2)}:1`)
+      assert.ok(contrast(t.muted, t[fill]) < contrast(t.ink, t[fill]), `ink stays the stronger text on ${fill}`)
+    }
+  })
+
   test(`${name} theme placeholders meet AA and control edges meet 3:1`, () => {
     for (const bg of backgrounds) {
       assert.ok(contrast(t.placeholder, bg) >= 4.5, `placeholder on ${bg}`)
@@ -137,7 +146,7 @@ test('chart marks follow the design doc weights and never rely on color alone', 
     assert.match(page, /<polyline[^>]*stroke-2/)
   }
   // Index points: 10px visible dot inside a 2px surface ring, with a 32px hover target.
-  assert.match(highlights, /<circle class="fill-transparent" :cx="point\.x" :cy="point\.y" r="16" \/><circle class="fill-\(--chart-series\) stroke-\(--surface\) stroke-2" :cx="point\.x" :cy="point\.y" r="6" \/>/)
+  assert.match(highlights, /<circle class="[^"]*fill-transparent[^"]*" :cx="point\.x" :cy="point\.y" r="16" \/><circle class="fill-\(--chart-series\) stroke-\(--surface\) stroke-2" :cx="point\.x" :cy="point\.y" r="6" \/>/)
   // Item points: regular prices are circles, sale prices are diamonds.
   assert.match(item, /<path v-if="point\.saleItem" class="fill-sale-mark stroke-surface stroke-2"/)
   assert.match(item, /<circle v-else class="fill-chart-series stroke-surface stroke-2" :cx="point\.x" :cy="point\.y" r="6" \/>/)

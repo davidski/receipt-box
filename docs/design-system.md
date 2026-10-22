@@ -71,6 +71,8 @@ Contrast is computed with the WCAG relative-luminance formula. `test/theme-contr
 | Foreground | Backgrounds | Target |
 |---|---|---|
 | `ink`, `muted`, `accent`, `accent-strong`, `danger`, `success`, `warning` | `bg`, `surface`, `surface-muted`, and the token's own soft fill or Nuxt UI 10% tint | 7:1 (AAA, WCAG 1.4.6) |
+| `ink` | `accent-soft`, `danger-soft` | 7:1 |
+| `muted` | `accent-soft`, `danger-soft` | 4.5:1 (AA). It stays below 7:1 on these tinted fills, so sentences on them use `ink`, as the receipt editor's confirmations and split bar do. |
 | `on-accent-fill` | `accent-fill` and `accent-fill-hover` | 7:1 |
 | Text on danger buttons | `danger` | 7:1 |
 | `placeholder` | `bg`, `surface`, `surface-muted` | 4.5:1 (AA, WCAG 1.4.3) |
@@ -105,10 +107,7 @@ The app does not claim full AAA conformance. The W3C does not recommend requirin
 
 ### Known gaps
 
-These rules are not met everywhere yet. Each is fixed in the area's cleanup PR; new work meets the rule from the start.
-
-- **Chart tooltips** on the Highlights charts use the SVG `<title>` element. It shows on mouse hover only, so keyboard, touch, and Escape behavior from [Charts](#missing-data-and-interaction) is missing. The item price chart is done: hover, focus, and tap select a point, and Escape dismisses it.
-- **Link underlines.** Some links in running text underline only on hover.
+None. Every rule above is met; new work meets it from the start.
 
 ## State
 
@@ -291,5 +290,5 @@ Charts follow the tidyverse and ggplot2 approach: map data to visual properties 
 - Purchases are irregular, so a price chart connects consecutive purchases; a week without a purchase is not missing data.
 - Aggregated series, such as the monthly price index, have one expected value per period. When a period has no value, break the line instead of interpolating across it, and keep the x-axis covering the full selected period.
 - Every data point has a tooltip on hover, keyboard focus, and tap, giving its date, value with unit, and status, such as sale. Tooltips stay open while hovered, and close on Escape (WCAG 1.4.13).
-- Charts with many points should not need a Tab stop per point. Offer arrow-key movement between points, or rely on the data table.
+- Arrow-key movement between points is not provided. Each point is a Tab stop, Escape dismisses the readout, and the data table is the accessible alternative where the page has one.
 - The same numbers are available in a table on the page, and the chart's subtitle or caption states the main trend in words.
