@@ -125,9 +125,13 @@ describe('normalizeMealieQuantity', () => {
     assert.equal(normalizeMealieQuantity(1, 1, 'ounce').base, 'g')
   })
 
-  test('unit definitions are not read by name: tablespoon = 0.5 fluid_ounce', () => {
-    close(normalizeMealieQuantity(2, 0.5, 'fluid_ounce'), 'mL', 29.5735295625)
-    assert.equal(normalizeMealieQuantity(2, 1, 'tablespoon'), null)
+  test('accepts decimal strings but rejects hex, exponent and padded strings', () => {
+    close(normalizeMealieQuantity('2', '0.5', 'fluid_ounce'), 'mL', 29.5735295625)
+    close(normalizeMealieQuantity('.5', 1, 'gram'), 'g', 0.5)
+    for (const value of ['0x10', '1e3', ' 1', '1.', '-1', 'Infinity']) {
+      assert.equal(normalizeMealieQuantity(value, 1, 'gram'), null, value)
+      assert.equal(normalizePackageQuantity({ size: value, unit: 'g' }), null, value)
+    }
   })
 
   test('anything else is unstandardized', () => {

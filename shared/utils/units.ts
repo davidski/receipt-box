@@ -107,7 +107,8 @@ export function toBaseUnit(quantity: number, unitValue: unknown): BaseQuantity |
 
 const positiveNumber = (value: unknown): number | null => {
   if (typeof value !== 'number' && typeof value !== 'string') return null
-  if (value === '') return null
+  // Decimal strings only (Postgres NUMERIC); Number() would also accept '0x10' and '1e3'.
+  if (typeof value === 'string' && !/^\d*\.?\d+$/.test(value)) return null
   const number = Number(value)
   return Number.isFinite(number) && number > 0 ? number : null
 }
