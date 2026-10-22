@@ -769,8 +769,10 @@ async function exportXlsx() {
       <div>
         <h2 class="text-heading">Manage stores</h2>
         <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add stores before shopping, correct their names, or merge duplicates by renaming one to an existing store. Renaming updates every matching history entry.</p>
-        <form data-testid="store-add" class="mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addStore">
-          <UInput v-model="newStoreName" aria-label="New store name" placeholder="New store name" size="lg" />
+        <form data-testid="store-add" class="mt-4.5 grid grid-cols-[1fr_auto] items-end gap-2.5 max-sm:grid-cols-1" @submit.prevent="addStore">
+          <UFormField label="New store name" :ui="manageField" class="min-w-0">
+            <UInput v-model="newStoreName" size="lg" />
+          </UFormField>
           <UButton class="touch-target" type="submit" label="Add store" icon="i-lucide-plus" :disabled="!newStoreName.trim()" :loading="storeBusy && !editingStoreId" />
         </form>
         <UAlert v-if="storeError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="storeError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
@@ -778,10 +780,12 @@ async function exportXlsx() {
         <p class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">Stores with purchase history can be renamed or merged. Only unused stores can be deleted.</p>
         <ul class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
           <li v-for="store in stores || []" :key="store.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
-            <form v-if="editingStoreId === store.id" data-testid="store-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-sm:grid-cols-[1fr_auto]" @submit.prevent="saveStore(store)">
-              <UInput v-model="editingStoreName" :aria-label="`Rename ${store.name}`" autofocus />
-              <UButton type="submit" :label="storeMergeTarget(store) ? 'Merge' : 'Save'" :icon="storeMergeTarget(store) ? 'i-lucide-git-merge' : undefined" size="sm" :disabled="!editingStoreName.trim()" :loading="storeBusy" />
-              <UButton class="max-sm:col-span-full" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="cancelStoreEdit" />
+            <form v-if="editingStoreId === store.id" data-testid="store-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] items-end gap-2 max-sm:grid-cols-2" @submit.prevent="saveStore(store)">
+              <UFormField :label="`Rename ${store.name}`" :ui="manageField" class="min-w-0 max-sm:col-span-full">
+                <UInput v-model="editingStoreName" autofocus />
+              </UFormField>
+              <UButton class="touch-target" type="submit" :label="storeMergeTarget(store) ? 'Merge' : 'Save'" :icon="storeMergeTarget(store) ? 'i-lucide-git-merge' : undefined" size="sm" :disabled="!editingStoreName.trim()" :loading="storeBusy" />
+              <UButton class="touch-target" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="cancelStoreEdit" />
             </form>
             <template v-else>
               <div><strong class="block">{{ store.name }}</strong><span class="block mt-[0.1875rem] text-muted text-xs">{{ store.uses.toLocaleString() }} {{ store.uses === 1 ? 'entry' : 'entries' }}</span></div>
@@ -800,8 +804,10 @@ async function exportXlsx() {
       <div>
         <h2 class="text-heading">Manage categories</h2>
         <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add or rename categories, or merge and remove categories shared by every purchase of an item.</p>
-        <form data-testid="category-add" class="mt-4.5 grid grid-cols-[1fr_auto] gap-2.5" @submit.prevent="addCategory">
-          <UInput v-model="newCategoryName" aria-label="New category name" placeholder="New category name" size="lg" maxlength="100" />
+        <form data-testid="category-add" class="mt-4.5 grid grid-cols-[1fr_auto] items-end gap-2.5 max-sm:grid-cols-1" @submit.prevent="addCategory">
+          <UFormField label="New category name" :ui="manageField" class="min-w-0">
+            <UInput v-model="newCategoryName" size="lg" maxlength="100" />
+          </UFormField>
           <UButton class="touch-target" type="submit" label="Add category" icon="i-lucide-plus" :disabled="!newCategoryName.trim()" :loading="categoryAdding" />
         </form>
         <UAlert v-if="categoryError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="categoryError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
@@ -812,10 +818,12 @@ async function exportXlsx() {
         <p v-else-if="!categoriesLoadError && !categories?.length" class="mt-3 -mb-[0.3125rem] text-sm max-w-[38.75rem] text-muted leading-[1.55]">No categories yet. Add one here or assign one to an item.</p>
         <ul v-else-if="!categoriesLoadError" class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
           <li v-for="category in categories || []" :key="category.id" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:items-start">
-            <form v-if="editingCategoryId === category.id" data-testid="category-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] gap-2 max-sm:grid-cols-[1fr_auto]" @submit.prevent="saveCategory(category)">
-              <UInput v-model="editingCategoryName" :aria-label="`Rename ${category.name}`" autofocus maxlength="100" />
-              <UButton type="submit" label="Save" size="sm" :disabled="!editingCategoryName.trim()" :loading="categoryBusyId === category.id" />
-              <UButton class="max-sm:col-span-full" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="editingCategoryId = null" />
+            <form v-if="editingCategoryId === category.id" data-testid="category-edit" class="grid w-full grid-cols-[minmax(10rem,1fr)_auto_auto] items-end gap-2 max-sm:grid-cols-2" @submit.prevent="saveCategory(category)">
+              <UFormField :label="`Rename ${category.name}`" :ui="manageField" class="min-w-0 max-sm:col-span-full">
+                <UInput v-model="editingCategoryName" autofocus maxlength="100" />
+              </UFormField>
+              <UButton class="touch-target" type="submit" label="Save" size="sm" :disabled="!editingCategoryName.trim()" :loading="categoryBusyId === category.id" />
+              <UButton class="touch-target" type="button" label="Cancel" size="sm" color="neutral" variant="ghost" @click="editingCategoryId = null" />
             </form>
             <template v-else>
               <div>
@@ -918,9 +926,9 @@ async function exportXlsx() {
             <UIcon name="i-lucide-list-checks" class="flex-[0_0_auto] w-[1.1875rem] h-[1.1875rem] mt-[0.125rem] text-accent-strong" />
             <div>
               <strong class="block">Review this change</strong>
-              <span v-if="nameWillChange" class="block mt-[0.1875rem] text-muted text-xs leading-[1.45]">Rename all {{ selectedItemUses }} {{ selectedItemUses === 1 ? 'entry' : 'entries' }} from “{{ renameItemSource }}” to “{{ renameItemTarget.trim() }}”.</span>
-              <span v-if="categoryWillChange" class="block mt-[0.1875rem] text-muted text-xs leading-[1.45]">Set category for all purchases of “{{ renameItemTarget.trim() }}” to {{ renameItemCategory || 'Uncategorized' }}.</span>
-              <span v-if="packageWillChange" class="block mt-[0.1875rem] text-muted text-xs leading-[1.45]">Change {{ packageUpdateCount }} matching {{ packageUpdateCount === 1 ? 'entry' : 'entries' }} to {{ replacementSize }} {{ replacementUnit.trim() }}. Normalized prices will be recalculated.</span>
+              <span v-if="nameWillChange" class="block mt-[0.1875rem] text-ink text-xs leading-[1.45]">Rename all {{ selectedItemUses }} {{ selectedItemUses === 1 ? 'entry' : 'entries' }} from “{{ renameItemSource }}” to “{{ renameItemTarget.trim() }}”.</span>
+              <span v-if="categoryWillChange" class="block mt-[0.1875rem] text-ink text-xs leading-[1.45]">Set category for all purchases of “{{ renameItemTarget.trim() }}” to {{ renameItemCategory || 'Uncategorized' }}.</span>
+              <span v-if="packageWillChange" class="block mt-[0.1875rem] text-ink text-xs leading-[1.45]">Change {{ packageUpdateCount }} matching {{ packageUpdateCount === 1 ? 'entry' : 'entries' }} to {{ replacementSize }} {{ replacementUnit.trim() }}. Normalized prices will be recalculated.</span>
             </div>
           </div>
 
@@ -962,7 +970,7 @@ async function exportXlsx() {
             <div class="grid">
               <label v-for="variant in group.variants" :key="variant.name" :class="itemTargets[group.id] === variant.name ? 'bg-accent-soft' : 'hover:bg-accent-soft/55'" class="grid grid-cols-[auto_minmax(0,_1fr)_auto] gap-[0.6875rem] items-center min-h-[3.875rem] p-[0.625rem_1.0625rem] border-t border-line cursor-pointer max-sm:grid-cols-[auto_minmax(0,1fr)]">
                 <input v-model="itemTargets[group.id]" type="radio" :name="`item-target-${group.id}`" :value="variant.name" class="w-[1.0625rem] h-[1.0625rem] accent-accent">
-                <span><strong class="block">{{ variant.name }}</strong><small class="block mt-[0.1875rem] text-muted text-xs">{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }}, last used {{ variant.lastUsed }}</small></span>
+                <span><strong class="block">{{ variant.name }}</strong><small :class="itemTargets[group.id] === variant.name ? 'text-ink' : 'text-muted'" class="block mt-[0.1875rem] text-xs">{{ variant.uses }} {{ variant.uses === 1 ? 'entry' : 'entries' }}, last used {{ variant.lastUsed }}</small></span>
                 <span :class="itemTargets[group.id] === variant.name ? 'text-accent-strong' : 'text-muted'" class="text-xs font-bold max-sm:col-start-2">{{ itemTargets[group.id] === variant.name ? 'Keep this name' : 'Merge this name' }}</span>
               </label>
             </div>

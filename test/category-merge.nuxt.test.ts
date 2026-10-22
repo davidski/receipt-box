@@ -1,5 +1,5 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
-import { flushPromises } from '@vue/test-utils'
+import { DOMWrapper, flushPromises } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createError, readBody } from 'h3'
@@ -7,6 +7,11 @@ import ManagePage from '../app/components/ManagePage.vue'
 import { clearNuxtState, useState } from '#imports'
 
 const Slot = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
+// Renders the field's label next to its control, so tests can find a control by the label a person sees.
+const Field = defineComponent({
+  props: { label: String },
+  setup: (props, { slots }) => () => h('div', [props.label ? h('label', props.label) : null, slots.default?.()])
+})
 const Button = defineComponent({
   props: { label: String, disabled: Boolean },
   setup: (props, { attrs }) => () => h('button', { ...attrs, disabled: props.disabled }, props.label)
@@ -33,6 +38,9 @@ const CategoryInput = defineComponent({
     onChange: (event: Event) => emit('update:modelValue', (event.target as HTMLSelectElement).value || null)
   }, [h('option', { value: '' }, 'Uncategorized'), ...(props.items || []).map((name: string) => h('option', { value: name }, name))])
 })
+
+const inputLabelled = (wrapper: { findAll: (selector: string) => any[] }, text: string) =>
+  wrapper.findAll('label').find(label => label.text() === text)!.element.parentElement!.querySelector('input')!
 
 let requests: Record<string, unknown>[]
 let categoryRequests: Record<string, unknown>[]
@@ -107,7 +115,7 @@ beforeEach(() => {
 async function openConflict() {
   const wrapper = await mountSuspended(ManagePage, {
     route: '/data/items',
-    global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
   })
   await flushPromises()
   await wrapper.get('select[placeholder="Choose an item"]').setValue('Soy milk')
@@ -136,12 +144,12 @@ it('requires a category choice before retrying a conflicting rename', async () =
 it('renames, merges, and deletes managed categories with impact confirmation', async () => {
   const wrapper = await mountSuspended(ManagePage, {
     route: '/data/categories',
-    global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
   })
   await flushPromises()
   expect(wrapper.text()).toContain('2 items across 5 unique entries')
   await wrapper.findAll('button').find(button => button.text() === 'Rename')!.trigger('click')
-  await wrapper.get('input[aria-label="Rename Dairy"]').setValue('Milk')
+  await new DOMWrapper(inputLabelled(wrapper, 'Rename Dairy')).setValue('Milk')
   await wrapper.get('form[data-testid="category-edit"]').trigger('submit')
   await flushPromises()
   expect(categoryRequests[0]).toMatchObject({ method: 'PATCH', body: { name: 'Milk' } })
@@ -172,17 +180,17 @@ it('renames, merges, and deletes managed categories with impact confirmation', a
 it('adds a category and reports a duplicate name', async () => {
   const wrapper = await mountSuspended(ManagePage, {
     route: '/data/categories',
-    global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
   })
   await flushPromises()
-  await wrapper.get('input[aria-label="New category name"]').setValue(' Frozen Foods ')
+  await new DOMWrapper(inputLabelled(wrapper, 'New category name')).setValue(' Frozen Foods ')
   await wrapper.get('form[data-testid="category-add"]').trigger('submit')
   await flushPromises()
   expect(categoryRequests[0]).toMatchObject({ method: 'POST', body: { name: 'Frozen Foods' } })
   await vi.waitFor(() => expect(wrapper.text()).toContain('Frozen Foods'))
   expect(wrapper.text()).toContain('0 items across 0 unique entries')
 
-  await wrapper.get('input[aria-label="New category name"]').setValue('frozen foods')
+  await new DOMWrapper(inputLabelled(wrapper, 'New category name')).setValue('frozen foods')
   await wrapper.get('form[data-testid="category-add"]').trigger('submit')
   await flushPromises()
   expect(categoryRequests).toHaveLength(2)
@@ -213,7 +221,7 @@ it('shows a failed resolution without claiming the rename succeeded', async () =
 it('changes an item category for all of its historical entries', async () => {
   const wrapper = await mountSuspended(ManagePage, {
     route: '/data/items',
-    global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
   })
   await flushPromises()
   await wrapper.get('select[placeholder="Choose an item"]').setValue('Soy milk')
@@ -235,7 +243,7 @@ it('changes an item category for all of its historical entries', async () => {
 it('clears an item category for all of its historical entries', async () => {
   const wrapper = await mountSuspended(ManagePage, {
     route: '/data/items',
-    global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
   })
   await flushPromises()
   await wrapper.get('select[placeholder="Choose an item"]').setValue('Soy milk')
@@ -251,19 +259,19 @@ it('clears an item category for all of its historical entries', async () => {
 })
 
 it('fetches duplicate item suggestions only once Items is opened', async () => {
-  const stores = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, UInput: Input, UModal: Modal, UIcon: true } } })
+  const stores = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, UInput: Input, UModal: Modal, UIcon: true } } })
   await flushPromises()
   expect(duplicateFetches).toBe(0)
   stores.unmount()
 
-  const items = await mountSuspended(ManagePage, { route: '/data/items', global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } } })
+  const items = await mountSuspended(ManagePage, { route: '/data/items', global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } } })
   await flushPromises()
   expect(duplicateFetches).toBe(1)
   items.unmount()
 })
 
 it('sends an unknown Manage section to Stores and keeps the query', async () => {
-  const wrapper = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: { UCard: Slot, UFormField: Slot, UButton: Button, UInput: Input, UModal: Modal, UIcon: true } } })
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, UInput: Input, UModal: Modal, UIcon: true } } })
   await wrapper.vm.$router.push('/data/nonsense?from=nav')
   await flushPromises()
   expect(wrapper.vm.$router.currentRoute.value.fullPath).toBe('/data/stores?from=nav')
@@ -327,5 +335,71 @@ it('puts the receipt-prompt preference back and explains when the account save f
   await preferenceToggle(wrapper).trigger('click')
   await vi.waitFor(() => expect(wrapper.text()).toContain('Could not save this preference. Try again.'))
   expect(preferenceToggle(wrapper).attributes('aria-checked')).toBe('true')
+  wrapper.unmount()
+})
+
+// Real Nuxt UI field and input, so the label is tied to its control the way a screen reader sees it.
+const labelledStubs = { UCard: Slot, UButton: Button, UModal: Modal, USelectMenu: Select, UIcon: true }
+function expectLabelled(wrapper: Awaited<ReturnType<typeof mountSuspended>>, text: string, formSelector: string) {
+  const label = wrapper.get(`${formSelector} label`)
+  const input = wrapper.get(`${formSelector} input`).element as HTMLInputElement
+  expect(label.text()).toBe(text)
+  expect(input.id).not.toBe('')
+  expect(label.attributes('for')).toBe(input.id)
+  expect(input.getAttribute('aria-label')).toBeNull()
+  expect(input.placeholder).toBe('')
+}
+
+it('labels the add-store field and the rename-store field with visible text', async () => {
+  registerEndpoint('/api/stores', () => [{ id: 'store-1', name: 'Corner Market', uses: 3 }])
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/stores', global: { stubs: labelledStubs } })
+  await flushPromises()
+  expectLabelled(wrapper, 'New store name', 'form[data-testid="store-add"]')
+
+  await wrapper.findAll('button').find(button => button.text() === 'Rename')!.trigger('click')
+  await flushPromises()
+  expectLabelled(wrapper, 'Rename Corner Market', 'form[data-testid="store-edit"]')
+  expect(wrapper.find('form[data-testid="store-add"] label').exists()).toBe(true)
+  wrapper.unmount()
+})
+
+it('labels the add-category field and the rename-category field with visible text', async () => {
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/categories', global: { stubs: labelledStubs } })
+  await flushPromises()
+  expectLabelled(wrapper, 'New category name', 'form[data-testid="category-add"]')
+
+  await wrapper.findAll('button').find(button => button.text() === 'Rename')!.trigger('click')
+  await flushPromises()
+  expectLabelled(wrapper, 'Rename Dairy', 'form[data-testid="category-edit"]')
+  // A label that survives typing is the point: the field keeps its name once it holds a value.
+  await wrapper.get('form[data-testid="category-edit"] input').setValue('Milk')
+  expect(wrapper.get('form[data-testid="category-edit"] label').text()).toBe('Rename Dairy')
+  wrapper.unmount()
+})
+
+it('stacks the add-store and add-category fields on phones so the label does not wrap', async () => {
+  for (const [route, form] of [['/data/stores', 'store-add'], ['/data/categories', 'category-add']]) {
+    const wrapper = await mountSuspended(ManagePage, { route, global: { stubs: labelledStubs } })
+    await flushPromises()
+    expect(wrapper.get(`form[data-testid="${form}"]`).classes()).toEqual(expect.arrayContaining(['grid-cols-[1fr_auto]', 'max-sm:grid-cols-1']))
+    wrapper.unmount()
+  }
+})
+
+it('sets the item-change review sentences in ink, not muted, on the accent-soft panel', async () => {
+  const wrapper = await mountSuspended(ManagePage, {
+    route: '/data/items',
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput } }
+  })
+  await flushPromises()
+  await wrapper.get('select[placeholder="Choose an item"]').setValue('Soy milk')
+  await flushPromises()
+  await wrapper.get('input[aria-label="Rename to"]').setValue('Milk')
+  const sentences = wrapper.get('.bg-accent-soft.border').findAll('span.block')
+  expect(sentences.length).toBeGreaterThan(0)
+  for (const sentence of sentences) {
+    expect(sentence.classes()).toContain('text-ink')
+    expect(sentence.classes()).not.toContain('text-muted')
+  }
   wrapper.unmount()
 })

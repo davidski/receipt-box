@@ -1,6 +1,6 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import HighlightsPage from '../app/pages/highlights.vue'
 
 const mover = {
@@ -175,5 +175,136 @@ describe('Highlights page', () => {
     expect(cells.map(cell => cell.get('[data-figure]').text())).toEqual(['$0', '$0', 'No change'])
     expect(cells.map(cell => cell.find('.sr-only').exists() ? cell.get('.sr-only').text() : null)).toEqual(['flat, $0', 'flat, $0', null])
     for (const cell of cells) expect(cell.get('span').classes()).toEqual(expect.arrayContaining(['text-xs', 'text-muted']))
+  })
+
+  describe('chart point selection', () => {
+    const months = [{ month: '2026-08-01', totalSpent: 410 }, { month: '2026-09-01', totalSpent: 1230 }]
+    const index = [
+      { month: '2026-07-01', value: 100, matchedItems: 3 },
+      { month: '2026-08-01', value: null, matchedItems: 0 },
+      { month: '2026-09-01', value: 103.2, matchedItems: 4 },
+      { month: '2026-10-01', value: 104.5, matchedItems: 1 }
+    ]
+    const indexMarks = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.get('svg[aria-label^="Same-item"]').findAll('g[role="button"]')
+    const spendBars = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.get('svg[aria-label="Total purchase dollars by month"]').findAll('g[role="button"]')
+    const readout = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.find('[data-index-readout]')
+    const spendMonth = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.get('.spend-explanation strong').text()
+    const withCharts = () => {
+      reply = () => ({
+        ...highlights(months),
+        priceIndex: index,
+        spendChanges: [
+          { month: '2026-08-01', totalSpent: 410, change: null, priceEffect: null, basketEffect: null, matchedItems: 0 },
+          { month: '2026-09-01', totalSpent: 1230, change: 200, priceEffect: 3, basketEffect: 197, matchedItems: 4 }
+        ]
+      })
+    }
+
+    it('has no SVG title tooltips, which only show on mouse hover', async () => {
+      withCharts()
+      const wrapper = await mountPage()
+      expect(wrapper.find('svg title').exists()).toBe(false)
+    })
+
+    it('selects an index point on hover, focus, click, and keyboard, and skips months with no value', async () => {
+      withCharts()
+      const wrapper = await mountPage()
+      const marks = indexMarks(wrapper)
+      // The August gap has no value, so it draws no point and gets no Tab stop.
+      expect(marks).toHaveLength(3)
+      expect(readout(wrapper).exists()).toBe(false)
+      expect(marks.map(mark => mark.attributes('tabindex'))).toEqual(['0', '0', '0'])
+      expect(marks[0]!.attributes('aria-label')).toBe('July 2026: index 100.0, 3 matched items')
+
+      await marks[0]!.trigger('pointerenter')
+      expect(readout(wrapper).text()).toContain('100.0')
+      expect(readout(wrapper).text()).toContain('July 2026')
+
+      await marks[1]!.trigger('focus')
+      expect(readout(wrapper).text()).toContain('103.2')
+      expect(readout(wrapper).text()).toContain('4 matched items')
+
+      await marks[2]!.trigger('click')
+      expect(readout(wrapper).text()).toContain('1 matched item')
+      expect(readout(wrapper).text()).not.toContain('items')
+
+      await marks[0]!.trigger('keydown', { key: 'Enter' })
+      expect(readout(wrapper).text()).toContain('July 2026')
+      await marks[1]!.trigger('keydown', { key: ' ' })
+      expect(readout(wrapper).text()).toContain('September 2026')
+    })
+
+    it('dismisses the index readout with Escape, ignores other keys, and clears it when the period changes', async () => {
+      withCharts()
+      const wrapper = await mountPage()
+      await indexMarks(wrapper)[0]!.trigger('click')
+      expect(readout(wrapper).exists()).toBe(true)
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+      await flushPromises()
+      expect(readout(wrapper).exists()).toBe(true)
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(readout(wrapper).exists()).toBe(false)
+
+      await indexMarks(wrapper)[0]!.trigger('click')
+      expect(readout(wrapper).exists()).toBe(true)
+      await wrapper.getComponent({ name: 'USelect' }).vm.$emit('update:modelValue', 'all')
+      await flushPromises()
+      expect(readout(wrapper).exists()).toBe(false)
+    })
+
+    it('selects a spend month on hover and focus, and Escape returns to the latest month', async () => {
+      withCharts()
+      const wrapper = await mountPage()
+      const bars = spendBars(wrapper)
+      expect(bars).toHaveLength(2)
+      expect(spendMonth(wrapper)).toBe('September 2026')
+
+      await bars[0]!.trigger('pointerenter')
+      expect(spendMonth(wrapper)).toBe('August 2026')
+      await bars[1]!.trigger('focus')
+      expect(spendMonth(wrapper)).toBe('September 2026')
+      await bars[0]!.trigger('click')
+      expect(spendMonth(wrapper)).toBe('August 2026')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(spendMonth(wrapper)).toBe('September 2026')
+    })
+
+    it('gives a month with no spending no Tab stop and no hover selection', async () => {
+      reply = () => ({
+        ...highlights([{ month: '2026-07-01', totalSpent: 0 }, { month: '2026-08-01', totalSpent: 410 }, { month: '2026-09-01', totalSpent: 1230 }]),
+        spendChanges: [{ month: '2026-09-01', totalSpent: 1230, change: 200, priceEffect: 3, basketEffect: 197, matchedItems: 4 }]
+      })
+      const wrapper = await mountPage()
+      const svg = wrapper.get('svg[aria-label="Total purchase dollars by month"]')
+
+      // Only the two months with spending are buttons; the empty month keeps its axis label.
+      expect(spendBars(wrapper)).toHaveLength(2)
+      expect(spendBars(wrapper).map(bar => bar.attributes('aria-label'))).toEqual(['August 2026: $410', 'September 2026: $1,230'])
+      expect(svg.findAll('[tabindex]')).toHaveLength(2)
+      expect(svg.text()).toContain('Jul 26')
+
+      await svg.findAll('g').find(group => group.text() === 'Jul 26')!.trigger('pointerenter')
+      expect(spendMonth(wrapper)).toBe('September 2026')
+    })
+
+    it('removes the shared Escape listener when the page unmounts', async () => {
+      const add = vi.spyOn(window, 'addEventListener')
+      const remove = vi.spyOn(window, 'removeEventListener')
+      withCharts()
+      const wrapper = await mountPage()
+      const handler = add.mock.calls.find(([type]) => type === 'keydown')?.[1]
+      expect(handler).toBeTypeOf('function')
+      expect(remove).not.toHaveBeenCalledWith('keydown', handler)
+
+      wrapper.unmount()
+      mounted.splice(0)
+      expect(remove).toHaveBeenCalledWith('keydown', handler)
+      vi.restoreAllMocks()
+    })
   })
 })

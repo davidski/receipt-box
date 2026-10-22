@@ -73,11 +73,17 @@ const periodOptions = computed(() => [
 ])
 const maxStoreSpend = computed(() => Math.max(1, ...(data.value?.topStores.map(store => store.totalSpent) || [])))
 const selectedSpendMonth = ref<string | null>(null)
+const selectedIndexMonth = ref<string | null>(null)
 
 watch(selectedPeriod, () => {
   selectedSpendMonth.value = null
+  selectedIndexMonth.value = null
 })
 
+useEscapeDismiss(() => {
+  selectedSpendMonth.value = null
+  selectedIndexMonth.value = null
+})
 
 
 function monthLabel(value: string, compact = false) {
@@ -252,6 +258,8 @@ const priceIndexChart = computed(() => {
   return { width, height, plot, positioned, ticks, segments }
 })
 
+const selectedIndexPoint = computed(() => priceIndexChart.value?.positioned.find(point => point.month === selectedIndexMonth.value && point.value !== null) || null)
+
 const priceIndexSummary = computed(() => {
   const points = (data.value?.priceIndex || []).filter((point): point is typeof point & { value: number } => point.value !== null)
   const first = points[0]
@@ -360,7 +368,6 @@ function unitCurrency(value: number) {
         </div>
         <div v-if="priceIndexChart" ref="priceIndexContainer" class="w-full max-w-full overflow-hidden">
           <svg :viewBox="`0 0 ${priceIndexChart.width} ${priceIndexChart.height}`" role="img" aria-label="Same-item regular purchase price index over time" class="block w-full h-[16.25rem]">
-            <title>Regular purchase price index</title>
             <g>
               <g v-for="tick in priceIndexChart.ticks" :key="tick.y">
                 <line class="stroke-line" :x1="priceIndexChart.plot.left" :x2="priceIndexChart.width - priceIndexChart.plot.right" :y1="tick.y" :y2="tick.y" />
@@ -369,12 +376,28 @@ function unitCurrency(value: number) {
             </g>
             <polyline v-for="segment in priceIndexChart.segments" :key="segment" class="fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="segment" />
             <g v-for="point in priceIndexChart.positioned" :key="point.month">
-              <g v-if="point.y !== null && point.value !== null"><title>{{ monthLabel(point.month) }} · {{ point.value.toFixed(1) }} · {{ point.matchedItems }} matched items</title><circle class="fill-transparent" :cx="point.x" :cy="point.y" r="16" /><circle class="fill-(--chart-series) stroke-(--surface) stroke-2" :cx="point.x" :cy="point.y" r="6" /></g>
+              <g
+                v-if="point.y !== null && point.value !== null"
+                class="group/point focus:outline-none!"
+                role="button"
+                tabindex="0"
+                :aria-label="`${monthLabel(point.month)}: index ${point.value.toFixed(1)}, ${point.matchedItems} matched items`"
+                @click="selectedIndexMonth = point.month"
+                @pointerenter="selectedIndexMonth = point.month"
+                @focus="selectedIndexMonth = point.month"
+                @keydown.enter.prevent="selectedIndexMonth = point.month"
+                @keydown.space.prevent="selectedIndexMonth = point.month"
+              ><circle class="cursor-pointer fill-transparent group-focus-visible/point:stroke-3 group-focus-visible/point:stroke-(--focus-ring)" :cx="point.x" :cy="point.y" r="16" /><circle class="fill-(--chart-series) stroke-(--surface) stroke-2" :cx="point.x" :cy="point.y" r="6" /></g>
               <text v-if="point.showLabel" class="fill-muted text-xs" :x="point.x" :y="priceIndexChart.height - 16" :text-anchor="point.x < priceIndexChart.plot.left + 20 ? 'start' : point.x > priceIndexChart.width - priceIndexChart.plot.right - 20 ? 'end' : 'middle'">{{ monthLabel(point.month, true) }}</text>
             </g>
           </svg>
         </div>
         <div v-else class="grid min-h-[8.125rem] place-items-center text-center text-(--muted)">At least three matched regular items across consecutive months are needed.</div>
+        <div v-if="selectedIndexPoint" data-index-readout class="mt-2 flex min-h-12 flex-wrap items-center gap-[0.4375rem_0.875rem] rounded-card border border-line bg-surface-muted p-[0.625rem_0.8125rem] text-sm" aria-live="polite">
+          <strong>{{ selectedIndexPoint.value!.toFixed(1) }}</strong>
+          <span class="text-muted">{{ monthLabel(selectedIndexPoint.month) }}</span>
+          <span class="text-muted">{{ selectedIndexPoint.matchedItems }} matched {{ selectedIndexPoint.matchedItems === 1 ? 'item' : 'items' }}</span>
+        </div>
         <p v-if="priceIndexSummary" class="m-[0.375rem_0_0] text-right text-xs text-(--muted)">Latest month uses {{ priceIndexSummary.latest.matchedItems }} matched {{ priceIndexSummary.latest.matchedItems === 1 ? 'item' : 'items' }}.</p>
       </UCard>
 
@@ -406,7 +429,6 @@ function unitCurrency(value: number) {
             role="img"
             aria-label="Total purchase dollars by month"
            class="block w-full h-[18.75rem]">
-            <title>Monthly purchase spending</title>
             <g>
               <g v-for="tick in monthlySpendChart.ticks" :key="tick.y">
                 <line class="stroke-line" :x1="monthlySpendChart.plot.left" :x2="monthlySpendChart.width - monthlySpendChart.plot.right" :y1="tick.y" :y2="tick.y" />
@@ -414,14 +436,17 @@ function unitCurrency(value: number) {
               </g>
             </g>
             <g>
+              <g v-for="bar in monthlySpendChart.bars" :key="bar.month">
+              <!-- A month with no spending has no bar to select or ring, so it gets no Tab stop or hover target (as a gap month on the index chart). -->
               <g
-                v-for="bar in monthlySpendChart.bars"
-                :key="bar.month"
+                v-if="bar.totalSpent > 0"
                 class="group focus-visible:outline-none!"
                 role="button"
                 tabindex="0"
                 :aria-label="`${monthLabel(bar.month)}: ${formatCurrency(bar.totalSpent, { whole: true })}`"
                 @click="selectedSpendMonth = bar.month"
+                @pointerenter="selectedSpendMonth = bar.month"
+                @focus="selectedSpendMonth = bar.month"
                 @keydown.enter.prevent="selectedSpendMonth = bar.month"
                 @keydown.space.prevent="selectedSpendMonth = bar.month"
               >
@@ -439,9 +464,8 @@ function unitCurrency(value: number) {
                   :width="bar.barWidth"
                   :height="Math.max(bar.height, bar.totalSpent > 0 ? 2 : 0)"
                   rx="3"
-                >
-                  <title>{{ monthLabel(bar.month) }} · {{ formatCurrency(bar.totalSpent, { whole: true }) }}</title>
-                </rect>
+                />
+              </g>
                 <text v-if="bar.showLabel" class="fill-muted text-xs" :x="bar.x" :y="monthlySpendChart.height - 20" text-anchor="middle">{{ bar.label }}</text>
               </g>
             </g>
