@@ -154,7 +154,7 @@ test('chart marks follow the design doc weights and never rely on color alone', 
 test('receipt date and store fields use the shared field spacing', async () => {
   const form = await readFile(new URL('../app/components/ReceiptEntryForm.vue', import.meta.url), 'utf8')
   // The container gap owns the spacing, so help and error drop Nuxt UI's own mt-2 instead of adding to it.
-  assert.match(form, /const fieldSpacing = \{ container: 'mt-1\.5 grid gap-2', help: 'mt-0', error: 'mt-0' \}/)
+  assert.match(form, /const fieldSpacing = \{ container: 'mt-1\.5 grid gap-2 lg:mt-0', label: 'lg:sr-only', help: 'mt-0', error: 'mt-0' \}/)
   for (const field of ['date-field', 'receipt-store-field']) {
     const tag = form.match(new RegExp(`<UFormField[^>]*${field}[^>]*>`))[0]
     assert.match(tag, /:ui="fieldSpacing"/)
