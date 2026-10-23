@@ -4,6 +4,7 @@ import { createError, getQuery, readBody } from 'h3'
 import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterView } from 'vue-router'
+import { UApp } from '#components'
 import { clearNuxtState, useState } from '#imports'
 import ReceiptEntryForm from '../app/components/ReceiptEntryForm.vue'
 import { maxEntryNotesLength } from '../shared/utils/entry-notes'
@@ -70,15 +71,17 @@ const UButton = defineComponent({
     color: String,
     to: [String, Object],
     disabled: Boolean,
-    loading: Boolean
+    loading: Boolean,
+    ui: Object
   },
   setup(props, { attrs }) {
-    return () => h('button', { ...attrs, type: 'button', 'data-icon': props.icon, 'data-variant': props.variant, 'data-color': props.color, 'data-to': props.to ? JSON.stringify(props.to) : undefined, disabled: props.disabled || props.loading }, props.label)
+    return () => h('button', { ...attrs, type: 'button', 'data-label-class': props.ui?.label, 'data-icon': props.icon, 'data-variant': props.variant, 'data-color': props.color, 'data-to': props.to ? JSON.stringify(props.to) : undefined, disabled: props.disabled || props.loading }, props.label)
   }
 })
 
 const UFormField = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
 const UPopover = defineComponent({ setup: (_, { slots }) => () => h('div', [slots.default?.(), slots.content?.()]) })
+const UTooltip = defineComponent({ props: { text: String }, setup: (_, { slots }) => () => h('span', slots.default?.()) })
 const UIcon = defineComponent({ setup: () => () => h('span') })
 const UAlert = defineComponent({ props: { description: String }, setup: props => () => h('div', props.description) })
 const UModal = defineComponent({
@@ -113,7 +116,7 @@ const USwitch = defineComponent({
   }
 })
 
-const stubs = { UInput, UInputMenu, UButton, UFormField, UPopover, UIcon, UAlert, UModal, UCheckbox, USwitch }
+const stubs = { UInput, UInputMenu, UButton, UFormField, UPopover, UTooltip, UIcon, UAlert, UModal, UCheckbox, USwitch }
 const RouteView = defineComponent({ setup: () => () => h(RouterView) })
 const localStorageStub = {
   values: new Map<string, string>(),
@@ -340,20 +343,41 @@ describe('receipt item entry interactions', () => {
     wrapper.unmount()
   })
 
-  it('shows the current date and store in the read-only sticky footer summary', async () => {
+  it('keeps date and store in the header only, not in the sticky footer', async () => {
     const wrapper = await mountForm()
-    const footerContext = wrapper.get('[data-receipt-footer-context]')
+    const footer = wrapper.get('[data-receipt-footer]')
 
-    expect(footerContext.text()).toContain('DateAug 10, 2026')
-    expect(footerContext.text()).toContain('StoreTest Store')
-    expect(footerContext.find('input, button').exists()).toBe(false)
-    // The footer's muted 12px span rule must not shrink the store value.
-    const storeValue = footerContext.findAll('dd')[1]
-    expect(storeValue.attributes('title')).toBe('Test Store')
-    expect(storeValue.find('span').exists()).toBe(false)
+    expect(wrapper.find('[data-receipt-footer-context]').exists()).toBe(false)
+    expect(footer.find('dl, time').exists()).toBe(false)
+    expect(footer.text()).not.toContain('Test Store')
+    expect(wrapper.get('header').text()).toContain('Aug 10, 2026')
+    // The footer is one row: status, then count and total, then the main action.
+    expect(footer.classes().some(name => name.startsWith('max-xl:'))).toBe(false)
+    expect(footer.findAll('button').map(button => button.text())).toEqual(['Save and add another'])
+    wrapper.unmount()
+  })
 
-    await wrapper.get('[data-receipt-store]').setValue('Other Store')
-    await vi.waitFor(() => expect(wrapper.get('[data-receipt-footer-context]').text()).toContain('Other Store'))
+  it('keeps the help sentence in the DOM and on a named info button', async () => {
+    const wrapper = await mountForm()
+
+    expect(wrapper.get('header p').text()).toBe('Choose a store and enter its purchases. Completed rows save automatically.')
+    expect(wrapper.get('header [aria-label="About this page"]').attributes('data-icon')).toBe('i-lucide-info')
+    wrapper.unmount()
+  })
+
+  it('gives the saved-receipt footer actions accessible names and titles', async () => {
+    sourceReceiptForTests = receipt()
+    const wrapper = await mountForm('', 'receipt-1')
+    const footer = wrapper.get('[data-receipt-footer]')
+
+    for (const name of ['Delete receipt', 'Export receipt']) {
+      const button = footer.get(`[aria-label="${name}"]`)
+      expect(button.attributes('title')).toBe(name)
+      expect(button.attributes('data-variant')).toBe('ghost')
+      // Icon-only at every width so the edit footer stays one row on phones.
+      expect(button.attributes('data-label-class')).toBe('sr-only')
+    }
+    expect(footer.find('[data-receipt-footer-context]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -696,8 +720,10 @@ describe('receipt item entry interactions', () => {
   it('renders each lock beside its input, never inside another button or link', async () => {
     matchingReceipt = receipt()
     // Real Nuxt UI components: the stubs cannot show where the trailing slot or sibling lands.
-    const wrapper = await mountSuspended(ReceiptEntryForm, {
-      props: { initialDate: '2026-08-10', initialLocation: 'Test Store', initialReceiptId: 'receipt-1' },
+    // UApp supplies the tooltip provider the header's info button needs.
+    const wrapper = await mountSuspended(defineComponent({
+      render: () => h(UApp, null, () => h(ReceiptEntryForm, { initialDate: '2026-08-10', initialLocation: 'Test Store', initialReceiptId: 'receipt-1' }))
+    }), {
       route: '/',
       attachTo: document.body
     })
