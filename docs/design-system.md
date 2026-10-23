@@ -101,7 +101,8 @@ When you add a token, a pair, or an interaction state that is not in this matrix
 - **Links.** Links inside running text are underlined at rest, not only on hover, because the accent is close to body text in lightness (WCAG 1.4.1). Navigation and table row links can rely on position and context instead.
 - **Motion.** Transitions are short and only respond to something the person did. Animations that loop or move on their own are turned off with Tailwind's `motion-reduce:` variant. Loading spinners are the exception: they show that work is in progress, which WCAG 2.3.3 counts as essential.
 - **Themes.** The app follows the system light or dark setting until the person picks one with the header toggle, which is remembered. Check new work in both themes, including focus, selected states, and charts.
-- **Checks before merging visual work.** Look at the change in both themes, at 200% text size, at a 320px-wide viewport (WCAG 1.4.4 and 1.4.10), and with keyboard only. Data tables may scroll sideways; the controls around them must still reflow.
+- **Primary target: 1024×640.** Our main user works on a laptop at this viewport. Key pages fit their main content and actions without sideways scrolling, and the most important content shows without scrolling down. The 640px height is the tight constraint: check sticky headers and footers, chart heights, and modals against it.
+- **Checks before merging visual work.** Look at the change at 1024×640 first, then in both themes, at 200% text size, at a 320px-wide viewport (WCAG 1.4.4 and 1.4.10), and with keyboard only. Data tables may scroll sideways; the controls around them must still reflow.
 
 The app does not claim full AAA conformance. The W3C does not recommend requiring AAA for a whole site.
 
