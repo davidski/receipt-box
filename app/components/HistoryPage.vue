@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PriceLine } from '../../shared/utils/price-line'
 import { maxEntryNotesLength } from '../../shared/utils/entry-notes'
 import { formatCurrency, formatSignedPercent } from '../../shared/utils/money'
 
@@ -22,7 +23,7 @@ type Entry = {
   comparisonBasis: 'normalized' | 'package' | null
 }
 
-type EntryList = { entries: Entry[], total: number }
+type EntryList = { entries: (Entry & { priceLine?: PriceLine })[], total: number }
 type ReceiptEntry = Omit<Entry, 'previousPrice' | 'previousCostPerUnit' | 'previousPurchasedOn' | 'priceChangePercent' | 'comparisonBasis'>
 type Receipt = { id: string, purchasedOn: string, location: string, total: string, itemCount: number, entries: ReceiptEntry[] }
 type ReceiptList = { receipts: Receipt[], total: number }
@@ -96,7 +97,8 @@ const query = computed(() => ({
   changeFilter: changeFilter.value,
   category: category.value,
   limit,
-  offset: offset.value
+  offset: offset.value,
+  priceLines: '1'
 }))
 const { data, pending, error, refresh } = await useFetch<EntryList>(apiUrl('/entries'), { query })
 const receiptQuery = computed(() => ({
@@ -591,6 +593,7 @@ async function confirmRemoveEntry() {
               <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
                 <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
               </NuxtLink>
+              <PriceLine v-if="(entry.priceLine?.values.length ?? 0) > 1" class="mt-1.5" :values="entry.priceLine!.values" :sale="entry.priceLine!.sale" :label="`${entry.item} price line, last 12 months`" />
               <span v-if="entry.saleItem || entry.nonGrocery || Math.abs(Number(entry.priceChangePercent)) >= 10" class="mt-1.5 flex flex-wrap gap-[0.3125rem]">
                 <SaleMark v-if="entry.saleItem" />
                 <PriceChange

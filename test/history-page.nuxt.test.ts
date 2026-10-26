@@ -31,7 +31,12 @@ const entry = {
   previousPrice: null, previousCostPerUnit: null, previousPurchasedOn: null, priceChangePercent: null, comparisonBasis: null
 }
 
+let entryPriceLine: { values: number[], sale: boolean[] } | undefined
+let entriesQuery: Record<string, unknown> = {}
+
 beforeEach(() => {
+  entryPriceLine = undefined
+  entriesQuery = {}
   includeReceipt = false
   deletedEntries = []
   includeEntry = false
@@ -40,7 +45,10 @@ beforeEach(() => {
   holdReceiptResponse = false
   releaseReceiptResponse = undefined
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
-  registerEndpoint('/api/entries', () => ({ entries: includeEntry ? [{ ...entry, costPerUnit: withoutNormalizedPrice ? null : entry.costPerUnit, priceChangePercent, comparisonBasis: priceChangePercent === null ? null : 'package' }] : [], total: includeEntry ? 1 : 0 }))
+  registerEndpoint('/api/entries', (event) => {
+    entriesQuery = getQuery(event)
+    return { entries: includeEntry ? [{ ...entry, costPerUnit: withoutNormalizedPrice ? null : entry.costPerUnit, priceChangePercent, comparisonBasis: priceChangePercent === null ? null : 'package', priceLine: entryPriceLine }] : [], total: includeEntry ? 1 : 0 }
+  })
   registerEndpoint('/api/receipts/dates', () => ({ dates: [{ date: '2026-09-26', receiptCount: 1, itemCount: 0 }] }))
   registerEndpoint('/api/stores', () => [])
   registerEndpoint('/api/entries/23', { method: 'DELETE', handler: () => { deletedEntries.push('23'); return null } })
@@ -185,6 +193,24 @@ describe('Receipts home', () => {
     withoutNormalizedPrice = true
     const wrapper = await mountBrowser('/history/entries')
     expect(entryTable(wrapper).findAll('tbody tr td')[5]!.text()).toBe('—')
+  })
+
+  it('asks for price lines and draws one under each item with sale diamonds', async () => {
+    includeEntry = true
+    entryPriceLine = { values: [2, 1.5, 2], sale: [false, true, false] }
+    const wrapper = await mountBrowser('/history/entries')
+    const line = entryTable(wrapper).get('td[data-label="Item"] svg[role="img"]')
+
+    expect(entriesQuery.priceLines).toBe('1')
+    expect(line.attributes('aria-label')).toContain('price line, last 12 months')
+    expect(line.findAll('[data-sale-point]')).toHaveLength(1)
+  })
+
+  it('draws no price line for an item with a single price', async () => {
+    includeEntry = true
+    entryPriceLine = { values: [2], sale: [false] }
+    const wrapper = await mountBrowser('/history/entries')
+    expect(entryTable(wrapper).find('td[data-label="Item"] svg[role="img"]').exists()).toBe(false)
   })
 
   it('names the entries table and scopes every column header', async () => {

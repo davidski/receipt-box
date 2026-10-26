@@ -5,11 +5,12 @@ import HighlightsPage from '../app/pages/highlights.vue'
 
 const mover = {
   id: '1', purchasedOn: '2026-09-20', item: 'Whole milk', location: 'Corner Market', size: '1', unit: 'gal', price: '4.50', saleItem: false,
-  previousPurchasedOn: '2026-08-20', previousLocation: 'Big Grocer', priceChangePercent: '12', comparisonBasis: 'normalized'
+  previousPurchasedOn: '2026-08-20', previousLocation: 'Big Grocer', priceChangePercent: '12', comparisonBasis: 'normalized',
+  priceLine: { values: [4, 4.5], sale: [false, false] }
 }
 const coreItem = {
   name: 'Whole milk', purchases: 5, activeMonths: 4, averageDaysBetween: 14, lastPurchasedOn: '2026-09-20', priceObservations: 5,
-  averageChangePercent: 2, netChangePercent: 4, stability: 'stable', trend: 'up', priceSeries: [4, 3.5, 4.5], saleSeries: [false, true, false]
+  averageChangePercent: 2, netChangePercent: 4, stability: 'stable', trend: 'up', priceLine: { values: [4, 3.5, 4.5], sale: [false, true, false] }
 }
 const shrink = {
   item: 'Cereal', previousPurchasedOn: '2026-07-01', purchasedOn: '2026-09-01', previousSize: 16, size: 14, unit: 'oz', previousPrice: 4, price: 4,
@@ -92,6 +93,20 @@ describe('Highlights page', () => {
 
     expect(line.findAll('[data-sale-point]')).toHaveLength(1)
     expect(line.find('[data-latest-point]').exists()).toBe(true)
+  })
+
+  it('draws a price line under each mover that has more than one price', async () => {
+    reply = () => ({
+      ...highlights([{ month: '2026-09-01', totalSpent: 100 }]),
+      movers: [mover, { ...mover, id: '2', item: 'Rye bread', priceLine: { values: [3], sale: [false] } }]
+    })
+    const wrapper = await mountPage()
+    const movers = wrapper.findAll('table').find(table => table.get('caption').text().startsWith('Items whose price changed'))!
+    const items = movers.findAll('td[data-label="Item"]')
+
+    expect(items).toHaveLength(2)
+    expect(items[0]!.find('svg[aria-label="Whole milk price line"]').exists()).toBe(true)
+    expect(items[1]!.find('svg[role="img"]').exists()).toBe(false)
   })
 
   it('omits the hero figure when the index has fewer than two months', async () => {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PriceLine } from '../../shared/utils/price-line'
 import { prettyScale } from '../../shared/utils/chart-scale'
 import { formatCurrency, formatSignedPercent } from '../../shared/utils/money'
 
@@ -18,6 +19,7 @@ type PriceMover = HighlightEntry & {
   previousLocation: string
   priceChangePercent: string
   comparisonBasis: 'normalized' | 'package'
+  priceLine: PriceLine
 }
 
 type Highlights = {
@@ -37,8 +39,7 @@ type Highlights = {
     netChangePercent: number | null
     stability: 'limited' | 'stable' | 'steady' | 'changing' | 'volatile'
     trend: 'flat' | 'up' | 'down' | 'unknown'
-    priceSeries: number[]
-    saleSeries: boolean[]
+    priceLine: PriceLine
   }[]
   monthlySpend: { month: string, totalSpent: number }[]
   priceIndex: { month: string, value: number | null, matchedItems: number }[]
@@ -509,7 +510,7 @@ function unitCurrency(value: number) {
                   </div>
                 </td>
                 <td data-label="Trend">
-                  <PriceLine v-if="item.priceSeries.length > 1" :values="item.priceSeries" :sale="item.saleSeries" :label="`${item.name} price line`" />
+                  <PriceLine v-if="item.priceLine.values.length > 1" :values="item.priceLine.values" :sale="item.priceLine.sale" :label="`${item.name} price line`" />
                   <span v-else class="text-(--muted)">—</span>
                 </td>
                 <td data-label="Net change" class="max-sm:justify-items-start">
@@ -574,6 +575,7 @@ function unitCurrency(value: number) {
                   <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
                     <strong class="truncate">{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
                   </NuxtLink>
+                  <PriceLine v-if="entry.priceLine.values.length > 1" class="mt-1.5" :values="entry.priceLine.values" :sale="entry.priceLine.sale" :label="`${entry.item} price line`" />
                     </td>
                     <td data-label="Comparison" class="grid gap-[0.125rem] overflow-hidden max-sm:overflow-visible">
                       <strong class="truncate text-sm text-(--ink) max-sm:overflow-visible max-sm:text-clip max-sm:whitespace-normal">{{ shortDate(entry.previousPurchasedOn) }} → {{ shortDate(entry.purchasedOn) }}</strong>
