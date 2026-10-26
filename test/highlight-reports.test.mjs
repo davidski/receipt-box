@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { categoryPriceChanges, priceIndex, shrinkflation, sparklinePoints, spendChanges } from '../shared/utils/highlight-reports.ts'
+import { categoryPriceChanges, priceIndex, shrinkflation, sparklineCoordinates, sparklinePoints, spendChanges } from '../shared/utils/highlight-reports.ts'
 
 function row(overrides = {}) {
   return {
@@ -129,4 +129,11 @@ test('sparklinePoints handles changing, flat, empty, and single-value series', (
   assert.equal(sparklinePoints([5]), '60,16')
   assert.equal(sparklinePoints([5, 5]), '0,16 120,16')
   assert.equal(sparklinePoints([1, 3, 2]), '0,32 60,0 120,16')
+})
+
+test('sparklineCoordinates scales into the given box and centers flat or single series', () => {
+  assert.deepEqual(sparklineCoordinates([1, 3, 2], 112, 24), [[0, 24], [56, 0], [112, 12]])
+  assert.deepEqual(sparklineCoordinates([2, 2], 100, 20), [[0, 10], [100, 10]])
+  assert.deepEqual(sparklineCoordinates([7], 100, 20), [[50, 10]])
+  assert.deepEqual(sparklineCoordinates([]), [])
 })

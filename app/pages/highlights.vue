@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { sparklinePoints } from '../../shared/utils/highlight-reports'
 import { prettyScale } from '../../shared/utils/chart-scale'
 import { formatCurrency, formatSignedPercent } from '../../shared/utils/money'
 
@@ -39,6 +38,7 @@ type Highlights = {
     stability: 'limited' | 'stable' | 'steady' | 'changing' | 'volatile'
     trend: 'flat' | 'up' | 'down' | 'unknown'
     priceSeries: number[]
+    saleSeries: boolean[]
   }[]
   monthlySpend: { month: string, totalSpent: number }[]
   priceIndex: { month: string, value: number | null, matchedItems: number }[]
@@ -509,9 +509,7 @@ function unitCurrency(value: number) {
                   </div>
                 </td>
                 <td data-label="Trend">
-                  <svg v-if="item.priceSeries.length > 1" class="core-sparkline block h-6 w-full max-w-30 min-w-20" viewBox="0 0 120 32" role="img" :aria-label="`${item.name} regular price trend`">
-                    <polyline :points="sparklinePoints(item.priceSeries)" />
-                  </svg>
+                  <PriceLine v-if="item.priceSeries.length > 1" :values="item.priceSeries" :sale="item.saleSeries" :label="`${item.name} price line`" />
                   <span v-else class="text-(--muted)">—</span>
                 </td>
                 <td data-label="Net change" class="max-sm:justify-items-start">

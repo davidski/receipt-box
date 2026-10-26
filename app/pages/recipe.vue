@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
             <p v-if="resultFor(line, index)?.error" class="m-0 text-xs text-(--muted)">{{ costErrorText(resultFor(line, index)!) }}</p>
             <template v-else-if="resultFor(line, index)">
               <strong class="text-(--accent-strong)">{{ currency(resultFor(line, index)!.cost!) }}</strong>
-              <UBadge v-if="resultFor(line, index)!.sale" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" />
+              <SaleMark v-if="resultFor(line, index)!.sale" />
             </template>
           </div>
           <div class="flex min-h-11 items-center justify-end max-[900.01px]:absolute max-[900.01px]:right-2 max-[900.01px]:top-2">

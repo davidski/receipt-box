@@ -291,7 +291,7 @@ function packageLabel(entry: HistoryEntry) {
           <strong>{{ formatCurrency(selectedPoint.normalizedPrice) }}</strong>
           <span class="text-muted">{{ dateLabel(selectedPoint.purchasedOn) }}</span>
           <span class="text-muted">{{ selectedPoint.location }}</span>
-          <UBadge v-if="selectedPoint.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" />
+          <SaleMark v-if="selectedPoint.saleItem" />
         </div>
       </UCard>
 
@@ -313,7 +313,7 @@ function packageLabel(entry: HistoryEntry) {
             </thead>
             <tbody class="max-sm:grid max-sm:gap-2.5">
               <tr v-for="point in newestFirst" :key="point.id" class="max-sm:grid max-sm:grid-cols-2 max-sm:gap-2.5 max-sm:rounded-card max-sm:border max-sm:border-line max-sm:bg-surface max-sm:p-3.5">
-                <td data-label="Date" :class="tdData">{{ dateLabel(point.purchasedOn) }} <UBadge v-if="point.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" size="sm" /></td>
+                <td data-label="Date" :class="tdData">{{ dateLabel(point.purchasedOn) }} <SaleMark v-if="point.saleItem" /></td>
                 <td data-label="Store" :class="tdData">{{ point.location }}</td>
                 <td data-label="Package" :class="tdData">{{ packageLabel(point) }}</td>
                 <td data-label="Price" :class="[tdData, 'text-right max-sm:text-left']">{{ formatCurrency(point.price) }}</td>
