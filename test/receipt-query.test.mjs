@@ -107,6 +107,7 @@ describe('moveStoreReceipts', () => {
 
     assert.equal(await moveStoreReceipts(tx, 'Old Market', 'Market'), 2)
     assert.equal(queries.length, 7)
+    assert.match(queries[0].sql, /purchased_on::text AS purchased_on/)
     assert.deepEqual(queries[0].values, ['Old Market'])
     assert.deepEqual(queries[1].values, ['2026-08-05', 'Market'])
     assert.deepEqual(queries[4].values, ['2026-08-06', 'Market'])
