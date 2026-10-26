@@ -207,7 +207,8 @@ test('interaction states use their own tokens instead of opacity on text-bearing
   assert.match(appConfig, /const inputBase = '[^']*rounded-\(--radius-input\)/)
   assert.match(stylesheet, /^:is\(a, button, input, select, textarea, summary, \[tabindex\]\):focus-visible \{\n  outline: 3px solid var\(--focus-ring\);/m)
   assert.doesNotMatch(stylesheet, /--gold:/, 'the unused gold token stays removed')
-  assert.match(stylesheet, /\.core-sparkline polyline \{[^}]*stroke-width: 2;/)
+  const priceLine = await readFile(new URL('../app/components/PriceLine.vue', import.meta.url), 'utf8')
+  assert.match(priceLine, /<polyline [^>]*\bstroke-2\b/)
 })
 
 test('dark mode charts use the fill tone, and light mode charts use the accent', () => {

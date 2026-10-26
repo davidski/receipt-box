@@ -202,15 +202,18 @@ export function shrinkflation(rows: HighlightObservation[]): ShrinkflationItem[]
   return findings.sort((a, b) => b.purchasedOn.localeCompare(a.purchasedOn) || b.unitCostChangePercent - a.unitCostChangePercent).slice(0, 10)
 }
 
-export function sparklinePoints(values: number[], width = 120, height = 32) {
-  if (!values.length) return ''
+export function sparklineCoordinates(values: number[], width = 120, height = 32): [number, number][] {
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min
   return values.map((value, index) => {
     const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width
     const y = range === 0 ? height / 2 : height - ((value - min) / range) * height
-    return `${Number(x.toFixed(1))},${Number(y.toFixed(1))}`
-  }).join(' ')
+    return [Number(x.toFixed(1)), Number(y.toFixed(1))]
+  })
+}
+
+export function sparklinePoints(values: number[], width = 120, height = 32) {
+  return sparklineCoordinates(values, width, height).map(point => point.join(',')).join(' ')
 }
 import { normalizedHistoricalPrice } from './normalized-price.ts'

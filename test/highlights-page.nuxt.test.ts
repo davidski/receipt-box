@@ -9,7 +9,7 @@ const mover = {
 }
 const coreItem = {
   name: 'Whole milk', purchases: 5, activeMonths: 4, averageDaysBetween: 14, lastPurchasedOn: '2026-09-20', priceObservations: 5,
-  averageChangePercent: 2, netChangePercent: 4, stability: 'stable', trend: 'up', priceSeries: [4, 4.2, 4.5]
+  averageChangePercent: 2, netChangePercent: 4, stability: 'stable', trend: 'up', priceSeries: [4, 3.5, 4.5], saleSeries: [false, true, false]
 }
 const shrink = {
   item: 'Cereal', previousPurchasedOn: '2026-07-01', purchasedOn: '2026-09-01', previousSize: 16, size: 14, unit: 'oz', previousPrice: 4, price: 4,
@@ -83,6 +83,15 @@ describe('Highlights page', () => {
     const spend = wrapper.findAll('p').find(node => node.text().startsWith('You spent'))!
     expect(spend.text()).toBe('You spent $1,200.50 across 4 receipts and 6 unique items.')
     expect(spend.find('.text-cents').text()).toBe('.50')
+  })
+
+  it('draws each core item as a price line with its sale purchases as diamonds', async () => {
+    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
+    const wrapper = await mountPage()
+    const line = wrapper.get('svg[aria-label="Whole milk price line"]')
+
+    expect(line.findAll('[data-sale-point]')).toHaveLength(1)
+    expect(line.find('[data-latest-point]').exists()).toBe(true)
   })
 
   it('omits the hero figure when the index has fewer than two months', async () => {

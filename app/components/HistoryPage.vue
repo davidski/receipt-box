@@ -592,7 +592,7 @@ async function confirmRemoveEntry() {
                 <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
               </NuxtLink>
               <span v-if="entry.saleItem || entry.nonGrocery || Math.abs(Number(entry.priceChangePercent)) >= 10" class="mt-1.5 flex flex-wrap gap-[0.3125rem]">
-                <UBadge v-if="entry.saleItem" label="Sale" icon="i-lucide-tag" color="warning" variant="soft" />
+                <SaleMark v-if="entry.saleItem" />
                 <PriceChange
                   v-if="Math.abs(Number(entry.priceChangePercent)) >= 10"
                   :value="Number(entry.priceChangePercent)"

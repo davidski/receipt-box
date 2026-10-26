@@ -195,7 +195,6 @@ button:disabled, a[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
 .core-item-inline > span { color: var(--muted); }
 
-.core-sparkline polyline { fill: none; stroke: var(--chart-series); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; vector-effect: non-scaling-stroke; }
 
 .shrinkflation-impact > strong, .shrinkflation-impact > span { white-space: nowrap; }
 
