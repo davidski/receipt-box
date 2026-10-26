@@ -364,15 +364,15 @@ async function confirmRemoveEntry() {
 
 <template>
   <div class="mx-auto w-full max-w-300">
-    <header class="page-heading my-[0.9375rem] mb-8 items-end flex items-start justify-between gap-5 max-[56.25rem]:grid max-[56.25rem]:items-start max-sm:grid max-sm:items-start">
-      <div>
+    <header class="page-heading my-[0.9375rem] mb-8 items-end flex items-start justify-between gap-5 max-[56.25rem]:grid max-[56.25rem]:grid-cols-[minmax(0,1fr)] max-[56.25rem]:items-start max-sm:grid max-sm:items-start">
+      <div class="max-sm:wrap-anywhere">
         <h1 class="leading-[1.04] text-display">Receipts</h1>
         <p>{{ view === 'receipts' ? 'Browse receipts by date.' : 'Browse individual purchase entries.' }}</p>
       </div>
       <nav class="m-0 flex w-max shrink-0 flex-wrap items-center gap-[0.3125rem] rounded-card p-1 bg-surface border border-line max-[56.25rem]:[&>*]:flex-1 max-[56.25rem]:[&>*]:justify-center max-[56.25rem]:mb-0 max-[56.25rem]:w-full" aria-label="Receipts view">
-        <UButton to="/" label="Calendar" icon="i-lucide-calendar-days" :color="historyView === 'receipts-calendar' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-calendar' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-calendar' ? 'page' : undefined" />
-        <UButton to="/history/receipts/list" label="Receipt list" icon="i-lucide-receipt-text" :color="historyView === 'receipts-list' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-list' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-list' ? 'page' : undefined" />
-        <UButton to="/history/entries" label="Item entries" icon="i-lucide-list" :color="historyView === 'entries' ? 'primary' : 'neutral'" :variant="historyView === 'entries' ? 'soft' : 'ghost'" :aria-current="historyView === 'entries' ? 'page' : undefined" />
+        <UButton to="/" label="Calendar" icon="i-lucide-calendar-days" :ui="{ label: 'whitespace-normal' }" :color="historyView === 'receipts-calendar' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-calendar' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-calendar' ? 'page' : undefined" />
+        <UButton to="/history/receipts/list" label="Receipt list" icon="i-lucide-receipt-text" :ui="{ label: 'whitespace-normal' }" :color="historyView === 'receipts-list' ? 'primary' : 'neutral'" :variant="historyView === 'receipts-list' ? 'soft' : 'ghost'" :aria-current="historyView === 'receipts-list' ? 'page' : undefined" />
+        <UButton to="/history/entries" label="Item entries" icon="i-lucide-list" :ui="{ label: 'whitespace-normal' }" :color="historyView === 'entries' ? 'primary' : 'neutral'" :variant="historyView === 'entries' ? 'soft' : 'ghost'" :aria-current="historyView === 'entries' ? 'page' : undefined" />
       </nav>
     </header>
 
@@ -401,7 +401,8 @@ async function confirmRemoveEntry() {
           :label="filter.label"
           :icon="filter.icon"
           size="md"
-          class="touch-target"
+          class="touch-target max-w-full"
+          :ui="{ label: 'whitespace-normal' }"
           :color="changeFilter === filter.value ? filter.activeColor : 'neutral'"
           :variant="changeFilter === filter.value ? 'soft' : 'ghost'"
           @click="changeFilter = filter.value"
@@ -415,7 +416,7 @@ async function confirmRemoveEntry() {
       <div class="grid grid-cols-[20.625rem_minmax(0,1fr)] items-start gap-6 max-[56.25rem]:grid-cols-1 min-[47.5rem]:max-[56.25rem]:grid-cols-[17.5rem_minmax(0,_1fr)]">
         <template v-if="receiptMode === 'calendar'">
         <aside class="sticky top-24 rounded-card p-4.5 shadow-(--shadow) bg-surface border border-line max-[56.25rem]:static max-[56.25rem]:w-[min(20.625rem,_100%)] min-[47.5rem]:max-[56.25rem]:w-full max-sm:w-full max-sm:p-[0.875rem]" aria-label="Choose a receipt date">
-          <div class="grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-1.5">
+          <div class="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-1.5">
             <UButton type="button" icon="i-lucide-chevron-left" aria-label="Previous month" color="neutral" variant="ghost" @click="moveCalendarMonth(-1)" />
             <h2 class="overflow-hidden text-center text-base text-ellipsis whitespace-nowrap" aria-live="polite">{{ selectedCalendarMonthLabel }}</h2>
             <UButton type="button" icon="i-lucide-chevron-right" aria-label="Next month" color="neutral" variant="ghost" @click="moveCalendarMonth(1)" />
@@ -511,8 +512,8 @@ async function confirmRemoveEntry() {
         </section>
         </template>
         <section v-else class="col-span-full min-w-0 rounded-card p-6 shadow-(--shadow) bg-surface border border-line max-sm:p-[1.125rem_0.875rem]" aria-labelledby="receipt-list-heading">
-          <header class="mb-4 flex items-end justify-between gap-4.5 max-sm:items-start">
-            <div class="mt-1.25"><h2 id="receipt-list-heading">Shopping history</h2></div>
+          <header class="mb-4 flex flex-wrap items-end justify-between gap-4.5 max-sm:items-start">
+            <div class="mt-1.25 max-sm:wrap-anywhere"><h2 id="receipt-list-heading">Shopping history</h2></div>
             <div class="flex flex-wrap items-center gap-3.5">
               <span v-if="receiptData" class="text-sm text-muted">{{ receiptData.total.toLocaleString() }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
             </div>
@@ -527,7 +528,7 @@ async function confirmRemoveEntry() {
           <div v-else-if="!receiptData?.receipts.length" class="grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-muted">No receipts recorded yet.</div>
           <template v-else>
             <div class="overflow-hidden rounded-card border border-line max-sm:overflow-visible max-sm:border-0">
-              <table :class="[cardTable, 'w-full border-collapse text-base']">
+              <table :class="[cardTable, 'w-full border-collapse text-base max-sm:grid-cols-[minmax(0,1fr)]']">
                 <caption class="sr-only">Receipt date, store, and total</caption>
                 <thead>
                   <tr>
@@ -539,11 +540,11 @@ async function confirmRemoveEntry() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="receipt in receiptData.receipts" :key="receipt.id" tabindex="0" :class="[tableRow, cardRow, 'max-sm:grid-cols-[1fr_auto] max-sm:gap-y-2.5 max-sm:gap-x-3.5']" @click="focusHistoryRow" @dblclick="openReceipt(receipt, $event)">
+                  <tr v-for="receipt in receiptData.receipts" :key="receipt.id" tabindex="0" :class="[tableRow, cardRow, 'max-sm:min-w-0 max-sm:grid-cols-[minmax(0,1fr)] min-[360px]:max-sm:grid-cols-[1fr_auto] max-sm:gap-y-2.5 max-sm:gap-x-3.5']" @click="focusHistoryRow" @dblclick="openReceipt(receipt, $event)">
                     <td data-label="Date" :class="[tableCell, cardCell, 'max-sm:col-span-full max-sm:text-base']"><strong>{{ dateLabel(receipt.purchasedOn) }}</strong></td>
-                    <td data-label="Store" :class="[tableCell, cardCell, 'max-sm:col-span-full']"><span class="inline-flex items-center gap-2"><UIcon class="text-accent" name="i-lucide-store" aria-hidden="true" />{{ receipt.location }}</span></td>
+                    <td data-label="Store" :class="[tableCell, cardCell, 'max-sm:col-span-full max-sm:wrap-anywhere']"><span class="inline-flex items-center gap-2"><UIcon class="text-accent" name="i-lucide-store" aria-hidden="true" />{{ receipt.location }}</span></td>
                     <td data-label="Items" :class="[tableCell, cardCell, 'text-right text-muted tabular-nums max-sm:col-start-1 max-sm:row-start-3 max-sm:text-left']">{{ receipt.itemCount }}</td>
-                    <td data-label="Total" :class="[tableCell, cardCell, 'text-right font-[750] text-accent-strong tabular-nums max-sm:col-start-2 max-sm:row-start-3 max-sm:justify-items-end']">{{ formatCurrency(receipt.total) }}</td>
+                    <td data-label="Total" :class="[tableCell, cardCell, 'text-right font-[750] text-accent-strong tabular-nums max-sm:col-start-1 max-sm:row-start-4 min-[360px]:max-sm:col-start-2 min-[360px]:max-sm:row-start-3 max-sm:justify-items-end']">{{ formatCurrency(receipt.total) }}</td>
                     <td :class="[tableCell, cardCellBare, 'text-right max-sm:col-span-full']"><NuxtLink class="inline-flex items-center gap-1.25 text-sm text-muted hover:text-accent-strong hover:underline hover:underline-offset-[3px] focus-visible:text-accent-strong focus-visible:underline focus-visible:underline-offset-[3px] max-sm:w-full max-sm:justify-end max-sm:border-t max-sm:border-line max-sm:pt-1.5" :to="`/receipts/${receipt.id}`" :aria-label="`Edit ${receipt.location} receipt from ${dateLabel(receipt.purchasedOn)}`">Edit <UIcon class="size-3.5" name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink></td>
                   </tr>
                 </tbody>
@@ -570,7 +571,7 @@ async function confirmRemoveEntry() {
         <UButton class="touch-target" type="button" label="Older" trailing-icon="i-lucide-arrow-right" color="neutral" variant="outline" :disabled="offset + limit >= data.total" @click="offset += limit" />
       </div>
       <div class="overflow-hidden rounded-card shadow-(--shadow) bg-surface border border-line max-sm:overflow-visible max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
-      <table :class="[cardTable, 'w-full table-fixed border-collapse text-base']">
+      <table :class="[cardTable, 'w-full table-fixed border-collapse text-base max-sm:grid-cols-[minmax(0,1fr)]']">
         <caption class="sr-only">Purchase entries</caption>
         <thead>
           <tr>
@@ -584,7 +585,7 @@ async function confirmRemoveEntry() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="entry in data.entries" :key="entry.id" tabindex="0" :class="[tableRow, cardRow, 'max-sm:grid-cols-2']" @click="focusHistoryRow" @dblclick="editEntryFromRow(entry, $event)">
+          <tr v-for="entry in data.entries" :key="entry.id" tabindex="0" :class="[tableRow, cardRow, 'max-sm:min-w-0 max-sm:wrap-anywhere max-sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]']" @click="focusHistoryRow" @dblclick="editEntryFromRow(entry, $event)">
             <td data-label="Date" :class="[tableCell, cardCell]">{{ dateLabel(entry.purchasedOn) }}</td>
             <td data-label="Item" :class="[tableCell, cardCell, 'max-sm:col-span-full max-sm:row-start-1 max-sm:text-base']">
               <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">

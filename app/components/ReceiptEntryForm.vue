@@ -14,7 +14,7 @@ import { entryCsv } from '../utils/csv-export'
 
 // Design doc field spacing: 0.375rem from label to control, 0.5rem from control to anything attached below it.
 // At lg the header is one row, so its field labels stay for screen readers only.
-const fieldSpacing = { container: 'mt-1.5 grid gap-2 lg:mt-0', label: 'lg:sr-only', help: 'mt-0', error: 'mt-0' }
+const fieldSpacing = { container: 'mt-1.5 grid gap-2 lg:mt-0 min-w-0', label: 'lg:sr-only', help: 'mt-0', error: 'mt-0' }
 
 type Suggestion = {
   value: string
@@ -1328,10 +1328,10 @@ async function deleteReceipt() {
 
 <template>
   <form class="overflow-visible rounded-card border border-line bg-surface shadow-(--shadow)" @submit.prevent>
-    <header class="flex items-start justify-between gap-8 rounded-t-card border-b border-line p-[clamp(1.5rem,3vw,2.25rem)] max-lg:grid max-sm:p-[1.375rem_1.125rem] lg:items-center lg:gap-3 lg:px-6 lg:py-1.5">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:gap-2">
+    <header class="flex items-start justify-between gap-8 rounded-t-card border-b border-line p-[clamp(1.5rem,3vw,2.25rem)] max-lg:grid max-lg:grid-cols-[minmax(0,1fr)] max-sm:p-[1.375rem_1.125rem] lg:items-center lg:gap-3 lg:px-6 lg:py-1.5">
+      <div class="flex max-lg:min-w-0 flex-col lg:flex-row lg:items-center lg:gap-2">
         <!-- First in the DOM so focus follows the lg toolbar order; below lg it sits under the help text. -->
-        <UButton :to="{ path: '/', query: { date: form.purchasedOn } }" :label="`Back to ${dateDisplayLabel(form.purchasedOn)}`" :aria-label="`Back to ${dateDisplayLabel(form.purchasedOn)}`" :title="`Back to ${dateDisplayLabel(form.purchasedOn)}`" :ui="{ label: 'lg:sr-only' }" icon="i-lucide-arrow-left" color="neutral" variant="ghost" class="mt-3 self-start max-lg:order-last lg:mt-0 lg:px-2.5" />
+        <UButton :to="{ path: '/', query: { date: form.purchasedOn } }" :label="`Back to ${dateDisplayLabel(form.purchasedOn)}`" :aria-label="`Back to ${dateDisplayLabel(form.purchasedOn)}`" :title="`Back to ${dateDisplayLabel(form.purchasedOn)}`" :ui="{ label: 'lg:sr-only whitespace-normal' }" icon="i-lucide-arrow-left" color="neutral" variant="ghost" class="mt-3 self-start max-lg:order-last lg:mt-0 lg:px-2.5" />
         <h1 class="leading-[1.04] text-display lg:text-title">{{ hasReceipt ? 'Edit receipt' : 'Add receipt' }}</h1>
         <UTooltip :text="helpText">
           <UButton type="button" icon="i-lucide-info" color="neutral" variant="ghost" size="sm" aria-label="About this page" class="max-lg:hidden" />
@@ -1345,14 +1345,14 @@ async function deleteReceipt() {
           <time class="flex min-h-11 items-center text-base text-ink lg:min-h-0" data-receipt-date-display :datetime="form.purchasedOn">{{ dateDisplayLabel(form.purchasedOn) }}</time>
         </div>
         <UFormField v-else label="Date" name="purchasedOn" required :ui="fieldSpacing" class="field date-field relative grid min-w-0 text-sm font-medium text-muted max-sm:grid-cols-[auto_1fr] max-sm:items-center">
-          <UInput ref="dateInput" v-model="form.purchasedOn" type="date" :ui="{ base: '[&::-webkit-calendar-picker-indicator]:hidden' }" required size="lg" :disabled="!allowDateChange">
+          <UInput ref="dateInput" v-model="form.purchasedOn" type="date" class="min-w-0" :ui="{ base: '[&::-webkit-calendar-picker-indicator]:hidden' }" required size="lg" :disabled="!allowDateChange">
             <template #trailing>
               <UButton ref="dateLock" type="button" :icon="allowDateChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowDateChange ? 'Lock the date' : 'Unlock to change the date'" :color="allowDateChange ? 'primary' : 'neutral'" :variant="allowDateChange ? 'soft' : 'ghost'" @click="toggleLock('date')" />
             </template>
           </UInput>
         </UFormField>
         <UFormField label="Store" name="location" required class="field receipt-store-field relative grid min-w-0" :ui="fieldSpacing" :error="storeError">
-          <div class="relative">
+          <div class="relative grid min-w-0">
             <UInputMenu ref="storeInput" v-model="form.location" data-receipt-store :ui="hasReceipt ? { base: 'pe-[4.75rem]' } : undefined" :items="locationSuggestions.map(suggestion => suggestion.value)" create-item icon="i-lucide-store" placeholder="Choose or add a store…" required size="lg" :disabled="hasReceipt && !allowStoreChange" @create="createLocation" />
             <!-- A sibling, not a #trailing slot: that slot sits inside the menu's trigger button. -->
             <UButton v-if="hasReceipt" ref="storeLock" type="button" :icon="allowStoreChange ? 'i-lucide-lock-open' : 'i-lucide-lock'" :aria-label="allowStoreChange ? 'Lock the store' : 'Unlock to change the store'" :color="allowStoreChange ? 'primary' : 'neutral'" :variant="allowStoreChange ? 'soft' : 'ghost'" class="absolute inset-y-0 right-9 my-auto h-fit" @click="toggleLock('store')" />
@@ -1387,7 +1387,7 @@ async function deleteReceipt() {
     </div>
 
     <ol v-if="canEnterLines" class="m-0 list-none p-0 [counter-reset:receipt-line] max-lg:grid max-lg:gap-3 max-lg:bg-bg max-lg:p-4 max-sm:p-3">
-      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" :style="rowStyle(index)" :class="dragIndex === index ? 'z-10 bg-accent-soft shadow-lg' : 'transition-transform duration-150 motion-reduce:transition-none'" class="relative grid grid-cols-[minmax(14.375rem,2fr)_7.5rem_6.25rem_8.125rem_7.875rem] items-center gap-2.5 border-t border-line py-3 lg:py-2 pr-6 pl-13.5 focus-within:bg-accent-soft/32 lg:first:border-t-0 max-lg:grid-cols-[minmax(0,_1fr)_7rem_6.25rem_6rem_7.875rem] max-lg:rounded-card max-lg:border max-lg:bg-surface max-lg:p-[2.625rem_0.875rem_0.875rem] max-lg:shadow-(--shadow) max-lg:focus-within:border-accent max-lg:focus-within:bg-surface max-sm:grid-cols-[1fr_1fr] max-sm:gap-[0.75rem_0.625rem]">
+      <li v-for="(line, index) in renderedLines" :key="line.key" :data-receipt-line="line.key" :style="rowStyle(index)" :class="dragIndex === index ? 'z-10 bg-accent-soft shadow-lg' : 'transition-transform duration-150 motion-reduce:transition-none'" class="relative grid grid-cols-[minmax(14.375rem,2fr)_7.5rem_6.25rem_8.125rem_7.875rem] items-center gap-2.5 border-t border-line py-3 lg:py-2 pr-6 pl-13.5 focus-within:bg-accent-soft/32 lg:first:border-t-0 max-lg:grid-cols-[minmax(0,_1fr)_7rem_6.25rem_6rem_7.875rem] max-lg:rounded-card max-lg:border max-lg:bg-surface max-lg:p-[2.625rem_0.875rem_0.875rem] max-lg:shadow-(--shadow) max-lg:focus-within:border-accent max-lg:focus-within:bg-surface max-sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] max-sm:gap-[0.75rem_0.625rem]">
         <UCheckbox
           v-if="splitSelectionMode && line.id"
           class="receipt-split-line-checkbox absolute top-[50%] left-3 z-2 transform-[translateY(-50%)] max-lg:top-[0.4375rem] max-lg:left-[0.5rem] max-lg:transform-none"
@@ -1432,7 +1432,7 @@ async function deleteReceipt() {
           <span class="label hidden max-lg:mb-1.25 max-lg:block">Unit</span>
           <UnitInput :data-line-unit="line.key" v-model="line.unit" @blur="checkItemBackfillOnUnitExit(line)" @commit="finishLine(line)" @tab-next="focusLineSale(line)" @keydown.meta.enter.exact.prevent="finishLine(line)" @keydown.ctrl.enter.exact.prevent="finishLine(line)" :ui="{ base: 'px-2.5 py-2' }" />
         </UFormField>
-        <div class="flex justify-center gap-0 self-end max-sm:col-start-2 max-sm:justify-start">
+        <div class="flex flex-wrap justify-center gap-0 self-end max-sm:col-start-2 max-sm:justify-start">
           <UButton
             type="button"
             :data-line-sale="line.key"
@@ -1525,7 +1525,7 @@ async function deleteReceipt() {
           <span class="block text-xs text-muted">{{ enteredLines.length }} {{ enteredLines.length === 1 ? 'line' : 'lines' }}</span>
           <strong class="mt-0.5 block font-display text-heading text-accent-strong tabular-nums lg:mt-0 lg:text-title"><MoneyAmount :value="receiptTotal" /></strong>
         </div>
-        <UButton v-if="!splitSelectionMode" type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" size="xl" class="touch-target" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
+        <UButton v-if="!splitSelectionMode" type="button" label="Save and add another" icon="i-lucide-receipt-text" color="primary" variant="soft" size="xl" class="touch-target max-w-full" :ui="{ label: 'whitespace-normal' }" aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter" title="Save and add another receipt (Command/Control+Alt+Enter)" :disabled="!canSaveAndAddAnother" @click="saveAndAddAnotherReceipt" />
       </template>
     </footer>
 

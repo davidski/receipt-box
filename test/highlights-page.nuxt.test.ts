@@ -137,6 +137,16 @@ describe('Highlights page', () => {
     expect(labels).toEqual(['$1', '$0'])
   })
 
+  it('keeps the unit-cost impact left-aligned on phones and right-aligned from sm up', async () => {
+    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
+    const wrapper = await mountPage()
+    const impact = wrapper.get('.shrinkflation-impact')
+
+    expect(impact.classes()).not.toContain('justify-end')
+    expect(impact.classes()).toContain('sm:justify-end')
+    expect(impact.classes()).toContain('max-sm:grid-cols-[minmax(0,1fr)]')
+  })
+
   it('shows every price movement with the shared glyph, color, true minus, and spoken direction', async () => {
     reply = () => ({
       ...highlights([{ month: '2026-09-01', totalSpent: 100 }]),
@@ -199,6 +209,22 @@ describe('Highlights page', () => {
         ]
       })
     }
+
+    it('spaces price-index month labels so none touch, and always labels the first and latest month', async () => {
+      const twelve = Array.from({ length: 12 }, (_, i) => ({
+        month: `${new Date(Date.UTC(2025, 10 + i, 1)).toISOString().slice(0, 7)}-01`,
+        value: 100 + i,
+        matchedItems: 3
+      }))
+      reply = () => ({ ...highlights(months), priceIndex: twelve })
+      const wrapper = await mountPage()
+      const labels = wrapper.get('svg[aria-label^="Same-item"]').findAll('text').filter(text => /^[A-Z][a-z]{2} \d{2}$/.test(text.text()))
+      const xs = labels.map(text => Number(text.attributes('x')))
+
+      expect(labels[0]!.text()).toBe('Nov 25')
+      expect(labels.at(-1)!.text()).toBe('Oct 26')
+      for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeGreaterThanOrEqual(64)
+    })
 
     it('has no SVG title tooltips, which only show on mouse hover', async () => {
       withCharts()
