@@ -339,6 +339,7 @@ function unitCurrency(value: number) {
       <section class="mb-6 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-end gap-x-10 gap-y-4 max-md:grid-cols-1" aria-labelledby="price-index-heading">
         <div class="grid max-w-80 gap-2">
           <p v-if="priceIndexSummary" data-index-hero class="m-0 font-display text-hero font-extrabold tracking-[-0.03em] tabular-nums">{{ priceIndexSummary.latest.value.toFixed(1) }}</p>
+          <p v-if="priceIndexSummary" data-index-month class="m-0 text-sm text-muted">{{ monthLabel(priceIndexSummary.latest.month) }}</p>
           <div class="flex items-center gap-[0.3125rem]">
             <h2 id="price-index-heading" class="text-title wrap-anywhere">Regular purchase price index</h2>
               <UPopover>

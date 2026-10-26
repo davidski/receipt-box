@@ -102,6 +102,27 @@ describe('Item price history page', () => {
     vi.restoreAllMocks()
   })
 
+  it('leads with the latest price and its range, with no stat tiles, cards or eyebrows', async () => {
+    entries = [purchase('1', '2026-01-10', '3.50'), purchase('2', '2026-02-10', '2.99', true), purchase('3', '2026-03-10', '4.25')]
+    const wrapper = await mountPage()
+
+    // $4.25 a gallon is $0.11 per 100 mL.
+    expect(wrapper.get('[data-latest-price]').text()).toMatch(/^\$0\.11\s*per 100 ml$/)
+    expect(wrapper.get('[data-latest-price] .text-cents').text()).toBe('.11')
+    expect(wrapper.get('[data-price-range]').text()).toBe('Ranged from $0.08 to $0.11 over 3 charted purchases.')
+    expect(wrapper.text()).toContain('Mar 10, 2026 at Test Mart')
+    expect(wrapper.findAll('[data-slot="root"]').filter(node => node.classes().includes('rounded-lg'))).toHaveLength(0)
+    expect(wrapper.findAll('p').filter(node => node.classes().includes('uppercase'))).toHaveLength(0)
+  })
+
+  it('marks a latest purchase bought on sale and uses the singular for one purchase', async () => {
+    entries = [purchase('1', '2026-01-10', '2.99', true)]
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('section[aria-label="Latest price"]').text()).toContain('Sale')
+    expect(wrapper.get('[data-price-range]').text()).toBe('Ranged from $0.08 to $0.08 over 1 charted purchase.')
+  })
+
   it('shows an empty state instead of a trend line for a single purchase', async () => {
     entries = [purchase('1', '2026-01-10', '3.50')]
     const wrapper = await mountPage()
