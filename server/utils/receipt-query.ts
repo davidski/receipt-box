@@ -88,8 +88,10 @@ export async function moveStoreReceipts(
   currentLocation: string,
   destinationLocation: string
 ) {
-  const receipts = await tx<{ id: string, purchasedOn: string | Date }[]>`
-    SELECT id::text, purchased_on
+  // Read the date as text. A Date is sent back as a timestamp and cast to DATE in the
+  // session time zone, which moved receipts a day earlier in US time zones.
+  const receipts = await tx<{ id: string, purchasedOn: string }[]>`
+    SELECT id::text, purchased_on::text AS purchased_on
     FROM grocery_receipts
     WHERE store_id = (
       SELECT id FROM grocery_stores WHERE lower(name) = lower(${currentLocation})

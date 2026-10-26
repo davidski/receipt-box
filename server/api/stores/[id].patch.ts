@@ -1,3 +1,4 @@
+import { createError, defineEventHandler, getRouterParam, readBody } from 'h3'
 import { db } from '../../utils/db'
 import { normalizeStoreName } from '../../../shared/utils/store-name'
 import { moveStoreReceipts } from '../../utils/receipt-query'
@@ -28,7 +29,7 @@ export default defineEventHandler(async (event) => {
       return { ...target, merged: true }
     }
 
-    await moveStoreReceipts(tx, current.name, name)
+    // Receipts reference the store row by id, so renaming the row moves them too.
     await tx`UPDATE grocery_stores SET name = ${name} WHERE id = ${id}`
     return { id, name, merged: false }
   })
