@@ -678,6 +678,52 @@ describe('receipt item entry interactions', () => {
       expect(wrapper.text()).not.toContain('saved and locked')
       wrapper.unmount()
     })
+
+    // Locking mid-edit is a deliberate choice: the edit stays, the field locks, and autosave still saves it.
+    it(`keeps an unsaved ${field.name} edit when the field is locked, and autosave still saves it`, async () => {
+      matchingReceipt = plainReceipt()
+      const wrapper = await mountForm('Test Store', 'receipt-1')
+      await wrapper.get(lockQuery(field.locked)).trigger('click')
+      await flushPromises()
+      await wrapper.get(field.input).setValue(field.change)
+      await wrapper.get(lockQuery(field.unlocked)).trigger('click')
+      await flushPromises()
+
+      const input = () => wrapper.get(field.input).element as HTMLInputElement
+      expect(input().value).toBe(field.change)
+      expect(input().disabled).toBe(true)
+      expect(wrapper.get(lockQuery(field.locked)).attributes('data-icon')).toBe('i-lucide-lock')
+      expect(entryBodies).toHaveLength(0)
+
+      await vi.waitFor(async () => {
+        await vi.advanceTimersByTimeAsync(700)
+        expect(entryBodies).toHaveLength(1)
+      })
+      await flushPromises()
+
+      expect(field.body(entryBodies.at(-1)?.body)).toBe(field.change)
+      expect(input().value).toBe(field.change)
+      expect(input().disabled).toBe(true)
+      expect(wrapper.get(lockQuery(field.locked)).attributes('data-icon')).toBe('i-lucide-lock')
+      wrapper.unmount()
+    })
+
+    it(`saves nothing when the ${field.name} is locked with no unsaved edit`, async () => {
+      matchingReceipt = plainReceipt()
+      const wrapper = await mountForm('Test Store', 'receipt-1')
+      await wrapper.get(lockQuery(field.locked)).trigger('click')
+      await flushPromises()
+      await wrapper.get(lockQuery(field.unlocked)).trigger('click')
+      await flushPromises()
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await flushPromises()
+
+      expect(entryBodies).toHaveLength(0)
+      expect((wrapper.get(field.input).element as HTMLInputElement).disabled).toBe(true)
+      expect(wrapper.find(lockQuery(field.locked)).exists()).toBe(true)
+      wrapper.unmount()
+    })
   }
 
   it('does not move focus to a lock button when the focus was elsewhere at relock', async () => {
