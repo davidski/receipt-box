@@ -683,7 +683,7 @@ async function exportXlsx() {
       sheet.addRow(values)
     }
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
-    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF295C3B' } }
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F5369' } }
     sheet.autoFilter = { from: 'A1', to: 'L1' }
     sheet.columns = [
       { width: 15 }, { width: 34 }, { width: 22 }, { width: 20 }, { width: 15 }, { width: 15 },
