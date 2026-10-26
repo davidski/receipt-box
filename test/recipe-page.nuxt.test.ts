@@ -105,6 +105,10 @@ describe('Recipe cost page', () => {
     expect(text).toContain('This unit can\'t be converted to the unit it was bought in.')
     expect(text).toContain('The latest purchase has no package size.')
     expect(wrapper.get('[data-recipe-total]').text()).toContain('partial, 3 excluded')
+    expect(wrapper.get('[data-recipe-total] .text-cents').exists()).toBe(true)
+    // The editor is set off by rules, not a card.
+    expect(wrapper.get('[data-recipe-editor]').classes()).toContain('border-y')
+    expect(wrapper.find('[data-slot="root"].rounded-lg').exists()).toBe(false)
   })
 
   it.each(['lb', 'g', 'ea', 'bunch'])('shows the latest purchase unit %s when conversion is impossible', async (purchaseUnit) => {

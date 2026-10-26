@@ -104,6 +104,16 @@ describe('Receipts home', () => {
     expect(wrapper.findAll('a').find(link => link.text() === 'Edit receipt')!.attributes('href')).toBe('/receipts/17')
   })
 
+  it('shows the day as a plain heading and the receipt total with small cents', async () => {
+    includeReceipt = true
+    const wrapper = await mountBrowser('/?date=2026-09-26')
+
+    expect(wrapper.get('#selected-receipt-date').element.previousElementSibling).toBeNull()
+    expect(wrapper.text()).not.toContain('Selected date')
+    expect(wrapper.get('[data-receipt-total]').text()).toBe('$0.00')
+    expect(wrapper.get('[data-receipt-total] .text-cents').text()).toBe('.00')
+  })
+
   it('selects an empty day without snapping back to an existing receipt', async () => {
     includeReceipt = true
     const wrapper = await mountBrowser('/?date=2026-09-26')

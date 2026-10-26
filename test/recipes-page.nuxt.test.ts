@@ -170,6 +170,7 @@ describe('Recipes page', () => {
 
     expect(wrapper.get('[data-recipes-empty]').text()).toContain('No saved recipes yet')
     expect(wrapper.get('[data-recipes-empty] a').attributes('href')).toBe('/recipe')
+    expect(wrapper.get('[data-recipes-empty]').classes()).toContain('border-dashed')
     expect(wrapper.find('input[aria-label="Search recipes"]').exists()).toBe(false)
   })
 

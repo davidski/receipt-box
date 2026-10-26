@@ -448,7 +448,7 @@ async function confirmRemoveEntry() {
 
         <section class="min-w-0" :aria-labelledby="'selected-receipt-date'">
           <header class="m-[0_0_0.875rem] grid gap-3.5">
-            <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-accent uppercase">Selected date</p><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
+            <div><h2 id="selected-receipt-date">{{ dateLabel(selectedDate) }}</h2></div>
             <div class="flex flex-wrap items-center justify-start gap-3.5">
               <span v-if="receiptData" class="flex-[0_0_7rem] text-sm whitespace-nowrap text-muted">{{ receiptData.total }} {{ receiptData.total === 1 ? 'receipt' : 'receipts' }}</span>
               <nav class="flex flex-wrap gap-1.5" aria-label="Receipt day navigation">
@@ -507,7 +507,7 @@ async function confirmRemoveEntry() {
             </UCollapsible>
             <footer class="flex items-baseline justify-between gap-5 pt-4.5 font-display">
               <span class="text-title font-[600]">Total</span>
-              <strong class="text-accent-strong text-heading tabular-nums">{{ formatCurrency(receipt.total) }}</strong>
+              <strong data-receipt-total class="text-accent-strong text-heading"><MoneyAmount :value="receipt.total" /></strong>
             </footer>
           </article>
           </div>
