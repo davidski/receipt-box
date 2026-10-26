@@ -1,3 +1,4 @@
+import { priceLines } from '../../utils/price-lines'
 import { db, publicEntry, type GroceryEntry } from '../../utils/db'
 
 type HistoryEntryRow = GroceryEntry & {
@@ -147,5 +148,12 @@ export default defineEventHandler(async (event) => {
       ? row.previousPurchasedOn.toISOString().slice(0, 10)
       : row.previousPurchasedOn ? String(row.previousPurchasedOn).slice(0, 10) : null
   }))
+  // Opt-in: the history list draws a price line per item over the last 12 months; exports skip the extra query.
+  if (query.priceLines === '1') {
+    const start = new Date()
+    start.setUTCFullYear(start.getUTCFullYear() - 1)
+    const lines = await priceLines(sql, entries.map(entry => entry.item), { start: start.toISOString().slice(0, 10) })
+    return { entries: entries.map(entry => ({ ...entry, priceLine: lines.get(entry.item.toLowerCase()) ?? { values: [], sale: [] } })), total: Number(countRows[0]?.count ?? 0) }
+  }
   return { entries, total: Number(countRows[0]?.count ?? 0) }
 })

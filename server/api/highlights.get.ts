@@ -1,3 +1,4 @@
+import { priceLines } from '../utils/price-lines'
 import { db, publicEntry, type GroceryEntry } from '../utils/db'
 import { priceStability, priceTrend } from '../../shared/utils/core-price'
 import { categoryPriceChanges, priceIndex, shrinkflation, spendChanges, type HighlightObservation } from '../../shared/utils/highlight-reports'
@@ -18,8 +19,6 @@ type CoreItemRow = {
   priceObservations: number
   averageChangePercent: string | null
   netChangePercent: string | null
-  priceSeries: string[] | null
-  saleSeries: boolean[] | null
 }
 
 type ReportRow = {
@@ -162,20 +161,18 @@ export default defineEventHandler(async (event) => {
         WHERE days_between IS NOT NULL AND days_between > 0
         GROUP BY item_key
       ), comparable AS (
-        SELECT lower(item) AS item_key, purchased_on, id, sale_item,
+        SELECT lower(item) AS item_key, purchased_on, id,
           CASE WHEN cost_per_unit > 0 AND unit IS NOT NULL THEN cost_per_unit ELSE price END AS comparable_price,
           CASE
             WHEN cost_per_unit > 0 AND unit IS NOT NULL THEN 'normalized:' || upper(unit)
             ELSE 'package:' || coalesce(size::text, '') || ':' || upper(coalesce(unit, ''))
           END AS comparison_basis
         FROM filtered
-        WHERE price > 0
+        WHERE NOT sale_item AND price > 0
       ), basis_counts AS (
-        -- Sale purchases are drawn on the price line but never pick the basis or feed the metrics.
         SELECT item_key, comparison_basis, count(*) AS observation_count,
           row_number() OVER (PARTITION BY item_key ORDER BY count(*) DESC, max(purchased_on) DESC, comparison_basis) AS basis_rank
         FROM comparable
-        WHERE NOT sale_item
         GROUP BY item_key, comparison_basis
       ), selected_prices AS (
         SELECT comparable.*,
@@ -187,7 +184,7 @@ export default defineEventHandler(async (event) => {
           ) AS last_price
         FROM comparable
         JOIN basis_counts USING (item_key, comparison_basis)
-        WHERE basis_rank = 1 AND NOT sale_item
+        WHERE basis_rank = 1
       ), price_metrics AS (
         SELECT item_key, count(*)::int AS price_observations,
           avg(abs((comparable_price - previous_price) / previous_price) * 100)
@@ -195,23 +192,14 @@ export default defineEventHandler(async (event) => {
           ((max(last_price) - max(first_price)) / nullif(max(first_price), 0) * 100)::text AS net_change_percent
         FROM selected_prices
         GROUP BY item_key
-      ), price_line AS (
-        SELECT item_key,
-          array_agg(comparable_price::text ORDER BY purchased_on, id) AS price_series,
-          array_agg(sale_item ORDER BY purchased_on, id) AS sale_series
-        FROM comparable
-        JOIN basis_counts USING (item_key, comparison_basis)
-        WHERE basis_rank = 1
-        GROUP BY item_key
       )
       SELECT item_stats.name, item_stats.purchases, item_stats.active_months,
         cadence.average_days_between, item_stats.last_purchased_on,
         coalesce(price_metrics.price_observations, 0)::int AS price_observations,
-        price_metrics.average_change_percent, price_metrics.net_change_percent, price_line.price_series, price_line.sale_series
+        price_metrics.average_change_percent, price_metrics.net_change_percent
       FROM item_stats
       LEFT JOIN cadence USING (item_key)
       LEFT JOIN price_metrics USING (item_key)
-      LEFT JOIN price_line USING (item_key)
       ORDER BY item_stats.purchases DESC, item_stats.active_months DESC, item_stats.last_purchased_on DESC, item_stats.name
       LIMIT 12
     `,
@@ -278,6 +266,8 @@ export default defineEventHandler(async (event) => {
   const shrinkStart = startDate
   const shrinkEnd = endDate
 
+  const lines = await priceLines(sql, [...coreItemRows.map(item => item.name), ...moverRows.map(row => row.item)], { start: startDate, end: endDate })
+
   return {
     availableYears: yearRows.map(row => row.year),
     reportingPeriod,
@@ -291,6 +281,7 @@ export default defineEventHandler(async (event) => {
     },
     movers: moverRows.map(row => ({
       ...publicEntry(row),
+      priceLine: lines.get(row.item.toLowerCase()) ?? { values: [], sale: [] },
       previousLocation: row.previousLocation,
       previousPurchasedOn: row.previousPurchasedOn instanceof Date
         ? row.previousPurchasedOn.toISOString().slice(0, 10)
@@ -312,8 +303,7 @@ export default defineEventHandler(async (event) => {
           : String(item.lastPurchasedOn).slice(0, 10),
         averageChangePercent,
         netChangePercent,
-        priceSeries: (item.priceSeries || []).map(Number),
-        saleSeries: item.saleSeries || [],
+        priceLine: lines.get(item.name.toLowerCase()) ?? { values: [], sale: [] },
         stability: priceStability(item.priceObservations, averageChangePercent),
         trend: priceTrend(netChangePercent)
       }
