@@ -2,9 +2,11 @@ import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ItemPage from '../app/pages/items/[item].vue'
+import { itemPath } from '../app/utils/item-path'
 
 const mounted: Array<{ unmount: () => void }> = []
 let entries: Array<Record<string, unknown>>
+let historyFetches: number
 
 const purchase = (id: string, purchasedOn: string, price: string, saleItem = false) => ({
   id, purchasedOn, item: 'Whole Milk', location: 'Test Mart', size: '1', unit: 'gal', price, costPerUnit: null, saleItem
@@ -12,16 +14,22 @@ const purchase = (id: string, purchasedOn: string, price: string, saleItem = fal
 
 beforeEach(() => {
   entries = [purchase('1', '2026-01-10', '3.50'), purchase('2', '2026-02-10', '3.80', true), purchase('3', '2026-03-10', '4.25')]
+  historyFetches = 0
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
-  registerEndpoint('/api/items/history', () => ({ item: 'Whole Milk', entries }))
+  registerEndpoint('/api/items/history', () => {
+    historyFetches += 1
+    return { item: 'Whole Milk', entries }
+  })
 })
 
 afterEach(() => {
   mounted.splice(0).forEach(wrapper => wrapper.unmount())
 })
 
-async function mountPage() {
-  const wrapper = await mountSuspended(ItemPage, { route: '/items/whole-milk', attachTo: document.body })
+// The page redirects a non-canonical slug, and that navigation refetches history. Mount the canonical path (what the app links to)
+// so no redirect runs in the background; the redirect has its own test below.
+async function mountPage(route = itemPath('Whole Milk')) {
+  const wrapper = await mountSuspended(ItemPage, { route, attachTo: document.body })
   mounted.push(wrapper)
   await flushPromises()
   return wrapper
@@ -101,5 +109,13 @@ describe('Item price history page', () => {
     expect(wrapper.text()).toContain('Add another comparable purchase')
     expect(points(wrapper)).toHaveLength(0)
     expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(1)
+  })
+
+  it('redirects a non-canonical item URL to its canonical path and reloads the history', async () => {
+    const wrapper = await mountPage('/items/whole-milk')
+
+    await vi.waitFor(() => expect(wrapper.vm.$router.currentRoute.value.path).toBe(itemPath('Whole Milk')))
+    await vi.waitFor(() => expect(historyFetches).toBe(2))
+    await vi.waitFor(() => expect(points(wrapper)).toHaveLength(3))
   })
 })
