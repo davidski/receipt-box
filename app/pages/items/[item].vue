@@ -28,7 +28,6 @@ const { data, pending, error, refresh } = await useFetch<ItemHistory>(apiUrl('/i
 const selectedBasis = ref('')
 const selectedPoint = ref<PricePoint | null>(null)
 const chartWidth = ref(860)
-const statCardUi = { body: 'grid gap-1.25' }
 const tdBase = 'border-t border-line px-3 py-3.25 max-sm:border-0 max-sm:p-0'
 const tdData = `${tdBase} max-sm:grid max-sm:gap-0.75 max-sm:before:content-[attr(data-label)] max-sm:before:label`
 
@@ -231,11 +230,20 @@ function packageLabel(entry: HistoryEntry) {
         />
       </div>
 
-      <div v-if="summary" class="mb-4.5 grid grid-cols-3 gap-3.5 max-sm:grid-cols-1">
-        <UCard :ui="statCardUi"><span class="text-xs text-muted">Latest normalized</span><strong class="font-display text-heading leading-[1.1]"><MoneyAmount :value="summary.latest.normalizedPrice" /></strong><small class="text-xs text-muted">{{ summary.latest.basisLabel }}</small></UCard>
-        <UCard :ui="statCardUi"><span class="text-xs text-muted">Historical low</span><strong class="font-display text-heading leading-[1.1]"><MoneyAmount :value="summary.low" /></strong><small class="text-xs text-muted">{{ chartPoints.length }} charted purchases</small></UCard>
-        <UCard :ui="statCardUi"><span class="text-xs text-muted">Historical high</span><strong class="font-display text-heading leading-[1.1]"><MoneyAmount :value="summary.high" /></strong><small class="text-xs text-muted">{{ dateLabel(summary.latest.purchasedOn) }} latest</small></UCard>
-      </div>
+      <!-- The latest price leads unboxed, with its range, so the page opens on the number the price line ends at (#26). -->
+      <section v-if="summary" class="mb-6 grid gap-2" aria-label="Latest price">
+        <p data-latest-price class="m-0 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <strong class="font-display text-hero font-extrabold"><MoneyAmount :value="summary.latest.normalizedPrice" /></strong>
+          <span class="text-title text-muted">{{ summary.latest.basisLabel.toLowerCase() }}</span>
+        </p>
+        <p class="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
+          <span>{{ dateLabel(summary.latest.purchasedOn) }} at {{ summary.latest.location }}</span>
+          <SaleMark v-if="summary.latest.saleItem" />
+        </p>
+        <p data-price-range class="m-0 text-title">
+          Ranged from <strong><MoneyAmount :value="summary.low" /></strong> to <strong><MoneyAmount :value="summary.high" /></strong> over {{ chartPoints.length }} charted {{ chartPoints.length === 1 ? 'purchase' : 'purchases' }}.
+        </p>
+      </section>
 
       <UAlert
         v-if="excludedOutliers"
@@ -246,9 +254,9 @@ function packageLabel(entry: HistoryEntry) {
         class="m-[0_0_1.125rem]"
       />
 
-      <UCard v-if="chart" class="mt-[1.125rem] border border-line rounded-card bg-surface shadow-(--shadow)">
+      <section v-if="chart" class="mt-[1.125rem] border-t border-line pt-6">
         <div class="mb-4.5 flex items-end justify-between gap-4.5">
-          <div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-accent uppercase">Price trend</p><h2 class="text-heading">{{ visiblePoints[0]?.basisLabel }}</h2></div>
+          <div><h2 class="text-heading">{{ visiblePoints[0]?.basisLabel }}</h2></div>
           <div class="flex gap-3.5 text-xs text-muted"><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2.5 rounded-full bg-chart-series" />Regular</span><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2 rotate-45 bg-sale-mark" />Sale</span></div>
         </div>
         <div v-if="chartPoints.length < 2" class="grid min-h-[8.125rem] place-items-center text-center text-muted">Add another comparable purchase to draw a trend line.</div>
@@ -293,10 +301,10 @@ function packageLabel(entry: HistoryEntry) {
           <span class="text-muted">{{ selectedPoint.location }}</span>
           <SaleMark v-if="selectedPoint.saleItem" />
         </div>
-      </UCard>
+      </section>
 
-      <UCard class="mt-[1.125rem] border border-line rounded-card bg-surface shadow-(--shadow)">
-        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><p class="mb-1.5 text-xs font-[750] tracking-[.13em] text-accent uppercase">Source purchases</p><h2 class="text-heading">Comparable history</h2></div></div>
+      <section class="mt-10 border-t border-line pt-6">
+        <div class="mb-2 flex items-end justify-between gap-5 pb-5"><div><h2 class="text-heading">Comparable history</h2></div></div>
         <div v-if="!newestFirst.length" class="grid min-h-[8.125rem] place-items-center text-center text-muted">No entries have enough information to calculate a normalized price.</div>
         <div v-else class="max-sm:[overflow:visible]">
           <table class="w-full border-collapse text-base max-sm:grid max-sm:gap-2.5">
@@ -334,7 +342,7 @@ function packageLabel(entry: HistoryEntry) {
             </tbody>
           </table>
         </div>
-      </UCard>
+      </section>
     </template>
   </div>
 </template>

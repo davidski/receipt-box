@@ -77,6 +77,7 @@ describe('Highlights page', () => {
     const wrapper = await mountPage()
 
     expect(wrapper.get('[data-index-hero]').text()).toBe('104.3')
+    expect(wrapper.get('[data-index-month]').text()).toBe('September 2026')
     expect(wrapper.get('#price-index-heading').text()).toBe('Regular purchase price index')
     // No Nuxt UI cards and no uppercase eyebrows remain; sections are separated by rules instead.
     expect(wrapper.findAll('[data-slot="root"]').filter(node => node.classes().includes('rounded-lg'))).toHaveLength(0)
@@ -114,6 +115,7 @@ describe('Highlights page', () => {
     const wrapper = await mountPage()
 
     expect(wrapper.find('[data-index-hero]').exists()).toBe(false)
+    expect(wrapper.find('[data-index-month]').exists()).toBe(false)
     expect(wrapper.text()).toContain('At least three matched regular items')
     expect(wrapper.findAll('p').find(node => node.text().startsWith('You spent'))!.text()).toContain('$0')
   })

@@ -37,4 +37,15 @@ describe('PriceLine', () => {
     expect(plain.find('[data-latest-point]').exists()).toBe(true)
     plain.unmount()
   })
+
+  it('shrinks the diamonds on a dense line so neighboring sales stay distinct', async () => {
+    const values = Array.from({ length: 31 }, (_, index) => 4 + (index % 3))
+    const sale = values.map((_, index) => index % 5 === 0)
+    const wrapper = await mount({ values, sale })
+    // Diamond top vertex sits 2.5 units above its point instead of 4.
+    const d = wrapper.get('[data-sale-point]').attributes('d')!
+    const [top, middle] = d.match(/^M [\d.]+ ([\d.]+) L [\d.]+ ([\d.]+)/)!.slice(1).map(Number) as [number, number]
+    expect(middle - top).toBe(2.5)
+    wrapper.unmount()
+  })
 })
