@@ -87,10 +87,10 @@ onMounted(load)
       <UIcon name="i-lucide-loader-circle" class="animate-spin" aria-hidden="true" />Loading recipes…
     </p>
 
-    <UCard v-else-if="!recipes.length" data-recipes-empty class="text-center">
-      <p class="m-0 mb-3 font-semibold">No saved recipes yet</p>
+    <div v-else-if="!recipes.length" data-recipes-empty class="grid place-items-center gap-3 rounded-card border border-dashed border-line p-9 text-center">
+      <p class="m-0 font-semibold">No saved recipes yet</p>
       <UButton to="/recipe" label="Create your first recipe" icon="i-lucide-chef-hat" />
-    </UCard>
+    </div>
 
     <template v-else-if="recipes.length">
       <div data-recipes-toolbar class="mb-4 flex flex-wrap items-center justify-between gap-3">

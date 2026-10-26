@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
     <UAlert v-if="listError" data-recipe-list-error role="alert" class="mb-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="listError" />
     <UAlert v-if="recipeError" data-recipe-error role="alert" class="mb-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="recipeError" />
 
-    <UCard :ui="{ body: 'p-0 sm:p-0' }" class="overflow-hidden rounded-[1.5rem] shadow-(--shadow) [background:var(--surface)] [border:1px_solid_var(--line)]">
+    <div data-recipe-editor class="border-y border-line">
       <div data-recipe-headers aria-hidden="true" class="grid grid-cols-[minmax(14.375rem,2fr)_7.5rem_8.125rem_minmax(11.25rem,1fr)_2.5rem] items-center gap-2.5 p-[0.75rem_1.5rem_0.625rem_3.375rem] text-xs font-[750] tracking-[.08em] text-(--muted) uppercase [background:var(--surface-muted)] max-[900.01px]:hidden">
         <span>Item</span><span>Quantity</span><span>Unit</span><span class="text-right">Cost</span><span />
       </div>
@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
         <span class="text-xs font-bold uppercase">Total<template v-if="response.excluded"> (partial, {{ response.excluded }} excluded)</template></span>
         <div class="text-right">
           <span class="block text-xs text-(--muted)">{{ response.lines.length }} {{ response.lines.length === 1 ? 'line' : 'lines' }}</span>
-          <strong class="text-heading">{{ currency(response.total) }}</strong>
+          <strong class="text-heading"><MoneyAmount :value="response.total" /></strong>
         </div>
       </div>
 
@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
         </p>
         <UButton v-if="canUpdateSavedPrice" label="Update saved price" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :disabled="saving" @click="saveRecipe(true)" />
       </div>
-    </UCard>
+    </div>
 
     <ConfirmModal
       v-model:open="deleteConfirmOpen"
