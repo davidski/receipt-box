@@ -64,27 +64,34 @@ describe('Highlights page', () => {
     }
   })
 
-  it('renders each panel and tile as its own card with the card radius winning over Nuxt UI', async () => {
-    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
+  it('leads with the latest price index unboxed and drops the stat tiles and eyebrows', async () => {
+    reply = () => ({
+      ...highlights([{ month: '2026-08-01', totalSpent: 400.5 }, { month: '2026-09-01', totalSpent: 800 }]),
+      priceIndex: [
+        { month: '2026-07-01', value: 100, matchedItems: 3 },
+        { month: '2026-08-01', value: 101.5, matchedItems: 3 },
+        { month: '2026-09-01', value: 104.25, matchedItems: 4 }
+      ]
+    })
     const wrapper = await mountPage()
-    // Nuxt UI's card root ships rounded-lg and tailwind-merge cannot replace it with rounded-card, so the token is forced.
-    const cards = wrapper.findAll('[data-slot="root"]').filter(node => node.classes().includes('rounded-lg'))
 
-    expect(cards).toHaveLength(10)
-    for (const card of cards) expect(card.classes()).toContain('rounded-card!')
-    const card = (heading: string) => cards.find(node => node.findAll('h2').some(h2 => h2.text() === heading))
-    expect(card('Category price movement')).toBeDefined()
-    expect(card('Purchases by month')).toBeDefined()
-    expect(card('Category price movement')!.element).not.toBe(card('Purchases by month')!.element)
+    expect(wrapper.get('[data-index-hero]').text()).toBe('104.3')
+    expect(wrapper.get('#price-index-heading').text()).toBe('Regular purchase price index')
+    // No Nuxt UI cards and no uppercase eyebrows remain; sections are separated by rules instead.
+    expect(wrapper.findAll('[data-slot="root"]').filter(node => node.classes().includes('rounded-lg'))).toHaveLength(0)
+    expect(wrapper.findAll('p').filter(node => node.classes().includes('uppercase'))).toHaveLength(0)
+    const spend = wrapper.findAll('p').find(node => node.text().startsWith('You spent'))!
+    expect(spend.text()).toBe('You spent $1,200.50 across 4 receipts and 6 unique items.')
+    expect(spend.find('.text-cents').text()).toBe('.50')
   })
 
-  it('keeps the gap under each panel eyebrow despite the global h2 margin reset', async () => {
-    reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
+  it('omits the hero figure when the index has fewer than two months', async () => {
+    reply = () => ({ ...highlights([]), priceIndex: [{ month: '2026-09-01', value: 100, matchedItems: 3 }] })
     const wrapper = await mountPage()
-    const headings = wrapper.findAll('h2').filter(h2 => ['Regular purchase price index', 'Category price movement', 'Purchases by month'].includes(h2.text()))
 
-    expect(headings).toHaveLength(3)
-    for (const heading of headings) expect(heading.classes()).toContain('mt-1!')
+    expect(wrapper.find('[data-index-hero]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('At least three matched regular items')
+    expect(wrapper.findAll('p').find(node => node.text().startsWith('You spent'))!.text()).toContain('$0')
   })
 
   it('keeps aria-sort on the sortable shrinkflation headers', async () => {

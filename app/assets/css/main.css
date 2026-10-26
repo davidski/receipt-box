@@ -40,6 +40,9 @@
   --text-heading--line-height: 1.2;
   --text-display: clamp(2.125rem, 3.5vw, 2.5rem);
   --text-display--line-height: 1.05;
+  /* Highlights lead figure: the price index, unboxed (#26). */
+  --text-hero: clamp(4rem, 10vw, 7rem);
+  --text-hero--line-height: 0.9;
   /* Relative: the cents in a hero price figure, sized against the figure itself. */
   --text-cents: 0.7em;
 }
