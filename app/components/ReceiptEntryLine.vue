@@ -17,7 +17,7 @@ defineProps<{
   <li class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 border-b border-dotted border-line py-3.5">
     <div class="min-w-0">
       <NuxtLink :to="itemPath(entry.item)" class="item-history-link inline-flex max-w-full items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`View normalized price history for ${entry.item}`">
-        <strong>{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
+        <strong class="wrap-anywhere">{{ entry.item }}</strong><UIcon name="i-lucide-chart-line" aria-hidden="true" />
       </NuxtLink>
       <span class="mt-1 flex flex-wrap items-center gap-[0.3125rem] text-xs text-muted">
         {{ size }}

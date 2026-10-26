@@ -28,10 +28,10 @@ async function logout() {
 </script>
 
 <template>
-  <header class="app-header sticky top-0 z-30 grid min-h-19 grid-cols-[1fr_auto_1fr] items-center p-[0.625rem_max(1.5rem,env(safe-area-inset-left))] backdrop-blur-[18px] [background:color-mix(in_srgb,var(--bg),transparent_7%)] [border-bottom:1px_solid_color-mix(in_srgb,var(--line),transparent_15%)] max-[900.01px]:grid-cols-[minmax(0,_1fr)_auto] max-[900.01px]:min-h-[4.375rem] max-[640.01px]:grid-cols-[1fr_auto] max-[640.01px]:px-[1rem]">
+  <header class="app-header sticky top-0 z-30 grid min-h-19 grid-cols-[1fr_auto_1fr] items-center p-[0.625rem_max(1.5rem,env(safe-area-inset-left))] backdrop-blur-[18px] [background:color-mix(in_srgb,var(--bg),transparent_7%)] [border-bottom:1px_solid_color-mix(in_srgb,var(--line),transparent_15%)] max-[900.01px]:grid-cols-[minmax(0,_1fr)_auto] max-[900.01px]:min-h-[4.375rem] max-[640.01px]:flex max-[640.01px]:flex-wrap max-[640.01px]:gap-x-3 max-[640.01px]:gap-y-2 max-[640.01px]:px-[1rem]">
     <div class="flex w-max flex-col max-[640.01px]:w-auto">
       <NuxtLink to="/" class="brand inline-flex w-max items-center gap-2.5 no-underline max-[640.01px]:w-auto" aria-label="Receipt Box home">
-        <img :src="brandIconURL" class="block size-[2.625rem] max-[640.01px]:w-[2.4375rem] max-[640.01px]:h-[2.4375rem]" alt="" width="42" height="42">
+        <img :src="brandIconURL" class="block size-[2.625rem] max-[640.01px]:size-[min(2.4375rem,44px)]" alt="" width="42" height="42">
         <strong class="[font-family:var(--font-display)] text-title font-[600] leading-[1] tracking-[-.015em]">Receipt Box</strong>
       </NuxtLink>
       <ULink
@@ -50,7 +50,7 @@ async function logout() {
       </NuxtLink>
     </nav>
 
-    <div class="flex gap-2 justify-self-end">
+    <div class="flex gap-2 justify-self-end max-[640.01px]:ml-auto">
       <span
         v-if="authEnabled && loggedIn && displayName"
         class="signed-in-user inline-flex max-w-[9.375rem] items-center gap-[0.3125rem] truncate px-[0.375rem] text-sm font-semibold text-(--muted) max-[640.01px]:max-w-[5.625rem] max-[640.01px]:px-[0.125rem]"
