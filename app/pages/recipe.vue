@@ -1,7 +1,7 @@
 <script setup lang="ts">
 type Suggestion = { value: string, location?: string, size?: string | null, unit?: string | null, price?: string | null }
 type Line = { key: number, item: string, quantity: number | string | undefined, unit: string, options: Suggestion[] }
-type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'INCOMPATIBLE_UNIT'
+type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'NO_UNIT' | 'UNSTANDARDIZED_UNIT' | 'DIMENSION_MISMATCH'
 type CostResult = { item: string, cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null }
 type CostResponse = { lines: CostResult[], total: number, excluded: number }
 type RecipeLine = { item: string, quantity: number, unit: string }
@@ -11,7 +11,9 @@ type Recipe = { id: string, name: string, lines: RecipeLine[], savedTotal: numbe
 const errorText: Record<CostError, string> = {
   NO_PRICE: 'No purchases recorded for this item.',
   NO_PACKAGE_SIZE: 'Couldn\'t find a purchase with a usable package size.',
-  INCOMPATIBLE_UNIT: 'This unit can\'t be converted to the unit it was bought in.'
+  NO_UNIT: 'Choose a unit for this line.',
+  UNSTANDARDIZED_UNIT: 'This unit isn\'t a standard measure, so it can\'t be priced.',
+  DIMENSION_MISMATCH: 'This unit can\'t be converted to the unit it was bought in.'
 }
 
 const route = useRoute()
@@ -171,7 +173,7 @@ async function deleteRecipe() {
 }
 
 function costErrorText(result: CostResult) {
-  if (result.error === 'INCOMPATIBLE_UNIT' && result.purchaseUnit) {
+  if ((result.error === 'DIMENSION_MISMATCH' || result.error === 'UNSTANDARDIZED_UNIT') && result.purchaseUnit) {
     return `This unit can't be converted to ${result.purchaseUnit}, the unit of the latest usable purchase.`
   }
   return result.error ? errorText[result.error] : ''

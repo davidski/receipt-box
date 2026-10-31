@@ -552,6 +552,10 @@ Uncosted ingredients with reasons
 
 Avoid arbitrary numeric confidence scores.
 
+`NO_UNIT` is an unlinked Mealie unit (an object with no `id`); a line with no unit at all counts as `ea`. A linked unit missing from the cache is `UNSTANDARDIZED_UNIT`. A native line with a blank unit is also `NO_UNIT`.
+
+`GET /api/mealie/recipes` returns `{ recipes: [{ slug, name, servings }] }`, empty when Mealie is unset. `GET /api/mealie/recipes/:slug/cost` returns `{ slug, name, servings, ingredients, summary }`, and answers 409 when Mealie is unset, 404 for an unknown recipe and 502 when Mealie is unreachable or misbehaves. `summary` is `{ cost, costPerServing, costedIngredients, totalIngredients, coverage, uncosted }`; `coverage` is a whole percent rounded down, so 100 always means every ingredient is costed.
+
 ---
 
 ## Receipt Box API

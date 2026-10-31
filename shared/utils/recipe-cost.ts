@@ -1,6 +1,6 @@
-import { normalizeUnit, toBaseUnit } from './units.ts'
+import { normalizeUnit, toBaseUnit, type BaseQuantity } from './units.ts'
 
-export type RecipeCostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'INCOMPATIBLE_UNIT'
+export type RecipeCostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'NO_QUANTITY' | 'NO_UNIT' | 'UNSTANDARDIZED_UNIT' | 'DIMENSION_MISMATCH'
 
 export type RecipeLine = { item: string, quantity: number, unit: string }
 
@@ -28,20 +28,23 @@ export function selectPurchase(candidates: PurchaseCandidate[]): PurchaseObserva
   return { id, item, price, size, unit, saleItem, purchasedOn, usedSalePrice: saleItem }
 }
 
-export function costLine(line: RecipeLine, purchase: RecipePurchase | null): RecipeLineCost {
+/** `need` overrides the line's quantity in base units, for callers that normalize it another way; null means it could not be normalized. */
+export function costLine(line: RecipeLine, purchase: RecipePurchase | null, need: BaseQuantity | null = toBaseUnit(line.quantity, line.unit)): RecipeLineCost {
   const fail = (error: RecipeCostError, sale = false): RecipeLineCost => ({ ...line, cost: null, sale, error })
   if (!purchase) return fail('NO_PRICE')
   const sale = purchase.saleItem
   const size = Number(purchase.size)
   if (purchase.size === null || !(size > 0) || !normalizeUnit(purchase.unit)) return fail('NO_PACKAGE_SIZE', sale)
-  const need = toBaseUnit(line.quantity, line.unit)
+  if (!(line.quantity > 0)) return fail('NO_QUANTITY', sale)
+  if (!need && !normalizeUnit(line.unit)) return fail('NO_UNIT', sale)
   const pack = toBaseUnit(size, purchase.unit)
-  if (!need || !pack || need.base !== pack.base) return fail('INCOMPATIBLE_UNIT', sale)
+  if (!need || !pack) return fail('UNSTANDARDIZED_UNIT', sale)
+  if (need.base !== pack.base) return fail('DIMENSION_MISMATCH', sale)
   const cost = Math.round(need.amount * (Number(purchase.price) / pack.amount) * 100) / 100
   return { ...line, cost, sale, error: null }
 }
 
-export function summarizeRecipeCost(lines: RecipeLineCost[]) {
+export function summarizeRecipeCost(lines: { cost: number | null, error: string | null }[]) {
   const cents = lines.reduce((sum, line) => sum + (line.cost === null ? 0 : Math.round(line.cost * 100)), 0)
   return { total: cents / 100, excluded: lines.filter(line => line.error).length }
 }
