@@ -12,25 +12,25 @@ function fakeTransaction(responses) {
 }
 
 test('renames every selected item variant and reports affected entries', async () => {
-  const { tx, queries } = fakeTransaction([[], [], [], [], [], [{ id: '1' }, { id: '2' }], [{ id: '3' }]])
+  const { tx, queries } = fakeTransaction([[], [], [], [], [], [], [{ id: '1' }, { id: '2' }], [{ id: '3' }]])
   assert.equal(await renameItemVariants(tx, 'Green Apples', ['green apples', 'Green Apple']), 3)
-  assert.equal(queries.length, 8)
+  assert.equal(queries.length, 9)
   assert.match(queries[0].sql, /pg_advisory_xact_lock/)
-  assert.match(queries[5].sql, /UPDATE grocery_entries SET item = \?/)
-  assert.deepEqual(queries[5].values, ['Green Apples', 'green apples'])
-  assert.deepEqual(queries[6].values, ['Green Apples', 'Green Apple'])
+  assert.match(queries[6].sql, /UPDATE grocery_entries SET item = \?/)
+  assert.deepEqual(queries[6].values, ['Green Apples', 'green apples'])
+  assert.deepEqual(queries[7].values, ['Green Apples', 'Green Apple'])
 })
 
 test('rewrites saved recipe lines in the same transaction, collapsing duplicates', async () => {
   const recipeLines = [{ item: 'green apples', quantity: 2, unit: 'ea' }, { item: 'GREEN APPLES', quantity: 1, unit: 'ea' }]
-  const { tx, queries } = fakeTransaction([[], [], [], [], [], [{ id: '1' }], [{ id: '5', lines: recipeLines }]])
+  const { tx, queries } = fakeTransaction([[], [], [], [], [], [], [{ id: '1' }], [{ id: '5', lines: recipeLines }]])
   tx.json = value => ({ json: value })
   await renameItemVariants(tx, 'Green Apples', ['green apples'])
 
-  assert.match(queries[6].sql, /FROM grocery_recipes/)
-  assert.deepEqual(queries[6].values, [['green apples']])
-  assert.match(queries[7].sql, /UPDATE grocery_recipes/)
-  assert.deepEqual(queries[7].values, [{ json: [{ item: 'Green Apples', quantity: 2, unit: 'ea' }] }, '5'])
+  assert.match(queries[7].sql, /FROM grocery_recipes/)
+  assert.deepEqual(queries[7].values, [['green apples']])
+  assert.match(queries[8].sql, /UPDATE grocery_recipes/)
+  assert.deepEqual(queries[8].values, [{ json: [{ item: 'Green Apples', quantity: 2, unit: 'ea' }] }, '5'])
 })
 
 test('does nothing when no source names are selected', async () => {

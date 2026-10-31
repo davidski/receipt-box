@@ -91,14 +91,15 @@ describe('item category persistence', () => {
 
   test('carries a sole category to the renamed item within the transaction', async () => {
     const { tx, queries } = fakeTransaction([
-      [], [{ item: 'Old Milk', category: 'Dairy' }], [], [], [], [{ id: '8' }], [], [{ id: '8' }]
+      [], [{ item: 'Old Milk', category: 'Dairy' }], [], [], [], [], [{ id: '8' }], [], [{ id: '8' }]
     ])
     assert.equal(await renameItemVariants(tx, 'Milk', ['Old Milk']), 1)
     assert.match(queries[0].sql, /pg_advisory_xact_lock/)
     assert.match(queries[1].sql, /FOR UPDATE OF mappings/)
-    assert.match(queries[2].sql, /DELETE FROM grocery_item_categories/)
-    assert.match(queries[6].sql, /ON CONFLICT \(item\) DO UPDATE/)
-    assert.deepEqual(queries[6].values, ['Milk', '8'])
+    assert.match(queries[2].sql, /FROM grocery_item_food_mapping/)
+    assert.match(queries[3].sql, /DELETE FROM grocery_item_categories/)
+    assert.match(queries[7].sql, /ON CONFLICT \(item\) DO UPDATE/)
+    assert.deepEqual(queries[7].values, ['Milk', '8'])
   })
 
   test('rejects category conflicts with choices, and explicit null resolves by clearing', async () => {
@@ -108,14 +109,14 @@ describe('item category persistence', () => {
       assert.deepEqual(error.data.categories, ['Dairy', 'Drinks'])
       return true
     })
-    assert.equal(conflicts.queries.length, 2)
+    assert.equal(conflicts.queries.length, 3)
 
     const resolved = fakeTransaction([
-      [], [{ item: 'Old Milk', category: 'Dairy' }, { item: 'Milk', category: 'Drinks' }], [], [], [], [{ id: '3' }]
+      [], [{ item: 'Old Milk', category: 'Dairy' }, { item: 'Milk', category: 'Drinks' }], [], [], [], [], [{ id: '3' }]
     ])
     await renameItemVariants(resolved.tx, 'Milk', ['Old Milk'], null)
-    assert.match(resolved.queries[4].sql, /DELETE FROM grocery_item_categories WHERE item = \?/)
-    assert.deepEqual(resolved.queries[4].values, ['Milk'])
+    assert.match(resolved.queries[5].sql, /DELETE FROM grocery_item_categories WHERE item = \?/)
+    assert.deepEqual(resolved.queries[5].values, ['Milk'])
   })
 })
 

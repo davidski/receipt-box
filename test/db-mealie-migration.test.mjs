@@ -9,3 +9,7 @@ test('Mealie catalog migration declares the design tables with IF NOT EXISTS gua
   assert.match(db, /CREATE TABLE IF NOT EXISTS mealie_food_aliases \(\s+food_id UUID REFERENCES mealie_foods\(id\) ON DELETE CASCADE,\s+alias TEXT NOT NULL,\s+PRIMARY KEY \(food_id, alias\)/)
   assert.match(db, /CREATE TABLE IF NOT EXISTS mealie_units \(\s+id UUID PRIMARY KEY,[\s\S]+?standard_quantity NUMERIC,\s+standard_unit TEXT,[\s\S]+?synced_at TIMESTAMPTZ NOT NULL/)
 })
+
+test('food mapping migration keys on item text and has no foreign key to the food cache', () => {
+  assert.match(db, /CREATE TABLE IF NOT EXISTS grocery_item_food_mapping \(\s+item TEXT PRIMARY KEY,\s+mealie_food_id UUID NOT NULL,\s+mapping_source TEXT NOT NULL,\s+mapped_at TIMESTAMPTZ NOT NULL\s+\)/)
+})

@@ -3,9 +3,10 @@ import { normalizeUnit } from '../../../shared/utils/units'
 import { renameItemVariants, updateItemDimensions, type ItemDimensionUpdate } from '../../utils/item-query'
 import { normalizeCategory } from '../../../shared/utils/category'
 import { lockItemWrites } from '../../utils/category-query'
+import { parseFoodResolution } from '../../utils/food-mapping'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ source?: unknown, target?: unknown, dimensions?: Record<string, unknown>, category?: unknown }>(event)
+  const body = await readBody<{ source?: unknown, target?: unknown, dimensions?: Record<string, unknown>, category?: unknown, foodResolution?: unknown }>(event)
   const source = typeof body.source === 'string' ? body.source.trim() : ''
   const target = typeof body.target === 'string' ? body.target.trim() : ''
   if (!source) throw createError({ statusCode: 400, statusMessage: 'Choose an item to rename' })
@@ -17,6 +18,8 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     throw createError({ statusCode: 400, statusMessage: error instanceof Error ? error.message : 'Invalid category' })
   }
+  const foodResolution = parseFoodResolution(body.foodResolution)
+  if (source === target && foodResolution !== undefined) throw createError({ statusCode: 400, statusMessage: 'A food resolution needs a new item name' })
 
   let dimensions: ItemDimensionUpdate | null = null
   if (body.dimensions) {
@@ -44,7 +47,7 @@ export default defineEventHandler(async (event) => {
     if (!existing.length) throw createError({ statusCode: 404, statusMessage: 'That item name no longer exists' })
     const updatedEntries = dimensions ? await updateItemDimensions(tx, source, dimensions) : 0
     if (dimensions && !updatedEntries) throw createError({ statusCode: 409, statusMessage: 'No entries still match that package selection' })
-    const renamedEntries = source === target && category === undefined ? 0 : await renameItemVariants(tx, target, source === target ? [] : [source], category)
+    const renamedEntries = source === target && category === undefined ? 0 : await renameItemVariants(tx, target, source === target ? [] : [source], category, foodResolution)
     return { source, target, renamedEntries, updatedEntries }
   })
 })

@@ -39,7 +39,7 @@ browser.
 
 - Node.js 26 or Docker
 - pnpm 11.18
-- PostgreSQL 17
+- PostgreSQL 18
 
 The database role needs permission to connect and create tables and indexes,
 which are created automatically on first start.
@@ -182,6 +182,24 @@ and allow the app origin in that API's CORS policy.
 
 `purchase_date`, `item`, `category`, `store`, `package_size`, `package_unit`, `price`, `normalized_price`, `normalized_basis`, `on_sale`, `non_grocery`, and `notes`.
 
+Exports do not include Mealie food mappings. Back up the database to keep them; restoring only from an export means mapping items again.
+
+## Upgrading the Compose database from PostgreSQL 17
+
+PostgreSQL 18 uses a new volume, `receipt-box-postgres-18`, and does not read the old data. Without these steps the app starts with an empty database. Dump before pulling the new `compose.yaml`:
+
+```sh
+docker compose stop receiptbox
+docker compose exec -T postgres pg_dump -U receiptbox -d receiptbox --clean --if-exists > receiptbox.sql
+docker compose stop postgres
+# update compose.yaml, then:
+docker compose up -d postgres
+docker compose exec -T postgres psql -U receiptbox -d receiptbox -v ON_ERROR_STOP=1 < receiptbox.sql
+docker compose up -d
+```
+
+The old `receipt-box-postgres` volume stays untouched. Remove it yourself once the upgrade checks out.
+
 ## Development commands
 
 ```sh
@@ -190,4 +208,10 @@ pnpm typecheck  # Vue and TypeScript checks
 pnpm build      # production build
 pnpm generate   # static client-only route output
 pnpm start      # run the production build
+```
+
+The Postgres tests are skipped, with a warning, unless `TEST_DATABASE_URL` is set. CI requires it. It needs a role that may create databases: each run creates and drops its own database and never writes to the one named in the URL.
+
+```sh
+TEST_DATABASE_URL=postgres://receiptbox:local-receipt-box-only@127.0.0.1:5432/receiptbox pnpm test
 ```

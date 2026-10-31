@@ -10,7 +10,7 @@ export type MealieSyncResult =
 // At the 706-food home catalog this allows 70 removed foods: well above routine merges, far below a narrowed listing.
 export const maxDeactivatedFoodShare = 0.1
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // shortcut: kept in memory because the design defines no state table, and each boot's sync sets it again; persist it if several app instances ever run.
 let lastError: string | null = null

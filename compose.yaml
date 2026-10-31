@@ -2,7 +2,7 @@ name: receipt-box
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: receiptbox
@@ -11,7 +11,7 @@ services:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - receipt-box-postgres:/var/lib/postgresql/data
+      - receipt-box-postgres-18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U receiptbox -d receiptbox"]
       interval: 5s
@@ -49,5 +49,5 @@ services:
       start_period: 20s
 
 volumes:
-  receipt-box-postgres:
-    name: receipt-box-postgres
+  receipt-box-postgres-18:
+    name: receipt-box-postgres-18
