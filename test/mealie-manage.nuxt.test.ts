@@ -24,7 +24,7 @@ const Select = defineComponent({
     h('input', { 'data-search': '', value: props.searchTerm, onInput: (event: Event) => emit('update:searchTerm', (event.target as HTMLInputElement).value) }),
     h('select', { 'aria-label': attrs['aria-label'], onChange: (event: Event) => emit('update:modelValue', (event.target as HTMLSelectElement).value) }, [
       h('option', { value: '' }, 'Choose'),
-      ...props.items.map((item: { label: string, value: string }) => h('option', { value: item.value }, item.label))
+      ...props.items.map((item: { label: string, value: string, description?: string }) => h('option', { value: item.value }, [item.label, item.description].filter(Boolean).join(' — ')))
     ])
   ])
 })
@@ -53,6 +53,9 @@ let deletes: unknown[]
 let putFailure: Error | null
 let deleteFailure: Error | null
 let listFailure: boolean
+let suggestionsByItem: Record<string, unknown[]>
+let suggestionQueries: unknown[]
+let suggestionFailure: boolean
 
 enableAutoUnmount(afterEach)
 
@@ -69,6 +72,15 @@ beforeEach(() => {
   putFailure = null
   deleteFailure = null
   listFailure = false
+  suggestionsByItem = {}
+  suggestionQueries = []
+  suggestionFailure = false
+  registerEndpoint('/api/food-mappings/suggestions', (event) => {
+    const { item } = getQuery(event)
+    suggestionQueries.push(item)
+    if (suggestionFailure) throw createError({ statusCode: 500 })
+    return { item, suggestions: suggestionsByItem[String(item)] ?? [] }
+  })
   registerEndpoint('/api/_auth/session', () => ({ user: { sub: 'user-1' } }))
   registerEndpoint('/api/auth/config', () => ({ enabled: false }))
   registerEndpoint('/api/stores', () => [{ id: 's1', name: 'Corner Shop', uses: 0 }])
@@ -357,6 +369,154 @@ describe('food mappings', () => {
     listFailure = false
     await buttonText(wrapper, 'Try again').trigger('click')
     await vi.waitFor(() => expect(wrapper.find('[data-testid="food-mapping-list"]').exists()).toBe(true))
+  })
+})
+
+describe('suggestions', () => {
+  const lentils = { mealieFoodId: 'food-9', foodName: 'Lentils', matchType: 'exact_alias', matchedText: 'Red dal', similarity: null }
+  const chickpeas = { mealieFoodId: 'food-1', foodName: 'Chickpeas', matchType: 'fuzzy', matchedText: 'Chick peas', similarity: 0.456 }
+
+  it('asks only for visible rows that need a food, encoding the name', async () => {
+    unmapped = [{ item: 'Flour & Co', entries: 1 }]
+    await mountMealie()
+    await vi.waitFor(() => expect([...suggestionQueries].sort()).toEqual(['Flour & Co', 'Old Sauce']))
+  })
+
+  it('asks for rows revealed by Show 30 more, once each', async () => {
+    mappings = []
+    unmapped = Array.from({ length: 31 }, (_, index) => ({ item: `Item ${index}`, entries: 1 }))
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(suggestionQueries).toHaveLength(30))
+    await buttonText(wrapper, 'Show 30 more').trigger('click')
+    await vi.waitFor(() => expect(suggestionQueries).toHaveLength(31))
+    await wrapper.get('[data-tab="broken"]').trigger('click')
+    await wrapper.get('[data-tab="all"]').trigger('click')
+    await flushPromises()
+    expect(suggestionQueries).toHaveLength(31)
+  })
+
+  it.each([
+    ['exact_name', 'Flour', null, 'Matched Mealie food name “Flour”'],
+    ['plural_name', 'Flours', null, 'Matched Mealie plural name “Flours”'],
+    ['exact_alias', 'Plain flour', null, 'Matched Mealie alias “Plain flour”'],
+    ['normalized_name', 'Flour!', null, 'Matched “Flour!”, ignoring punctuation and plurals'],
+    ['fuzzy', 'Flor', 0.456, 'Similar to “Flor” (46%)']
+  ])('explains a %s match', async (matchType, matchedText, similarity, reason) => {
+    suggestionsByItem.Flour = [{ mealieFoodId: 'food-9', foodName: 'Wheat flour', matchType, matchedText, similarity }]
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.get('[data-testid="food-suggestion"]').text()).toContain(reason))
+    expect(wrapper.get('[data-testid="food-suggestion"]').text()).toContain('Suggested food: Wheat flour')
+  })
+
+  it('writes nothing until Accept, then maps the suggested food', async () => {
+    suggestionsByItem.Flour = [lentils]
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Accept Lentils for Flour"]').exists()).toBe(true))
+    expect(puts).toEqual([])
+    await button(wrapper, 'Accept Lentils for Flour').trigger('click')
+    await vi.waitFor(() => expect(puts).toEqual([{ item: 'Flour', mealieFoodId: 'food-9' }]))
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Change food for Flour"]').exists()).toBe(true))
+    expect(wrapper.find('button[aria-label="Accept Lentils for Flour"]').exists()).toBe(false)
+  })
+
+  it('offers a replacement for a broken mapping, but not when the item has no entries', async () => {
+    suggestionsByItem['Old Sauce'] = [lentils]
+    suggestionsByItem['Gone Item'] = [lentils]
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Suggested replacement: Lentils'))
+    expect(wrapper.find('button[aria-label="Accept Lentils for Old Sauce"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Accept Lentils for Gone Item"]').exists()).toBe(false)
+    expect(suggestionQueries).not.toContain('Gone Item')
+  })
+
+  it('Choose another lists the suggestions with reasons, then the catalog without repeats', async () => {
+    suggestionsByItem.Flour = [lentils, chickpeas]
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Choose another for Flour"]').exists()).toBe(true))
+    await button(wrapper, 'Choose another for Flour').trigger('click')
+    await vi.waitFor(() => expect(foodQueries).toEqual(['']))
+    await flushPromises()
+    const options = () => wrapper.get('select').findAll('option').map(option => option.text()).slice(1)
+    await vi.waitFor(() => expect(options()).toEqual(['Lentils — Matched Mealie alias “Red dal”', 'Chickpeas — Similar to “Chick peas” (46%)']))
+
+    await wrapper.get('input[data-search]').setValue('lent')
+    await vi.waitFor(() => expect(options()).toEqual(['Lentils']))
+    await wrapper.get('select').setValue('food-9')
+    await vi.waitFor(() => expect(puts).toEqual([{ item: 'Flour', mealieFoodId: 'food-9' }]))
+  })
+
+  it('loads suggestions into the picker for a healthy mapping without showing them on the row', async () => {
+    suggestionsByItem['Beans & Rice'] = [lentils]
+    const wrapper = await mountMealie()
+    expect(suggestionQueries).not.toContain('Beans & Rice')
+    expect(wrapper.find('button[aria-label="Accept Lentils for Beans & Rice"]').exists()).toBe(false)
+    await button(wrapper, 'Change food for Beans & Rice').trigger('click')
+    await vi.waitFor(() => expect(wrapper.get('select').text()).toContain('Matched Mealie alias'))
+  })
+
+  it('keeps Choose food when there is no suggestion', async () => {
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(suggestionQueries).toContain('Flour'))
+    await flushPromises()
+    expect(wrapper.find('button[aria-label="Choose food for Flour"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="food-suggestion"]').exists()).toBe(false)
+  })
+
+  it('shows a failed load and retries it', async () => {
+    unmapped = [{ item: 'Flour', entries: 1 }]
+    mappings = []
+    suggestionFailure = true
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Could not load suggestions.'))
+    expect(wrapper.find('button[aria-label="Choose food for Flour"]').exists()).toBe(true)
+    suggestionFailure = false
+    suggestionsByItem.Flour = [lentils]
+    await button(wrapper, 'Try the suggestions for Flour again').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Accept Lentils for Flour"]').exists()).toBe(true))
+  })
+
+  it('shows why Accept failed and replaces the stale suggestion', async () => {
+    suggestionsByItem.Flour = [lentils]
+    putFailure = createError({ statusCode: 409, statusMessage: 'That food is no longer active in Mealie' })
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Accept Lentils for Flour"]').exists()).toBe(true))
+    suggestionsByItem.Flour = [chickpeas]
+    await button(wrapper, 'Accept Lentils for Flour').trigger('click')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('no longer active in Mealie'))
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Accept Chickpeas for Flour"]').exists()).toBe(true))
+    expect(puts).toEqual([])
+  })
+
+  it('leaves another open picker alone when a suggestion is accepted', async () => {
+    suggestionsByItem.Flour = [lentils]
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Accept Lentils for Flour"]').exists()).toBe(true))
+    await button(wrapper, 'Choose food for Sugar').trigger('click')
+    await button(wrapper, 'Accept Lentils for Flour').trigger('click')
+    await vi.waitFor(() => expect(puts).toHaveLength(1))
+    await flushPromises()
+    expect(wrapper.find('select[aria-label="Mealie food for Sugar"]').exists()).toBe(true)
+  })
+
+  it('reloads after a sync and drops an answer that started before it', async () => {
+    const pending: Array<() => void> = []
+    suggestionsByItem.Flour = [lentils]
+    registerEndpoint('/api/food-mappings/suggestions', async (event) => {
+      const { item } = getQuery(event)
+      const answer = suggestionsByItem[String(item)] ?? []
+      if (item === 'Flour' && answer[0] === lentils) await new Promise<void>(resolve => pending.push(resolve))
+      return { item, suggestions: answer }
+    })
+    const wrapper = await mountMealie()
+    await vi.waitFor(() => expect(pending).toHaveLength(1))
+    suggestionsByItem.Flour = [chickpeas]
+    await buttonText(wrapper, 'Sync now').trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('button[aria-label="Accept Chickpeas for Flour"]').exists()).toBe(true))
+    pending[0]!()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await flushPromises()
+    expect(wrapper.find('button[aria-label="Accept Chickpeas for Flour"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Accept Lentils for Flour"]').exists()).toBe(false)
   })
 })
 
