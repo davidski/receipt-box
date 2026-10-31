@@ -11,7 +11,22 @@ export type RecipePurchase = {
   saleItem: boolean
 }
 
+export type PurchaseCandidate = RecipePurchase & { id: string, item: string, purchasedOn: string }
+
+export type PurchaseObservation = PurchaseCandidate & { usedSalePrice: boolean }
+
 export type RecipeLineCost = RecipeLine & { cost: number | null, sale: boolean, error: RecipeCostError | null }
+
+/** The latest purchase with a package size and unit, sale or not, across every candidate's item name. */
+export function selectPurchase(candidates: PurchaseCandidate[]): PurchaseObservation | null {
+  const eligible = candidates.filter(candidate => Number(candidate.size) > 0 && candidate.unit !== null)
+  if (!eligible.length) return null
+  const { id, item, price, size, unit, saleItem, purchasedOn } = eligible.reduce((latest, candidate) => {
+    if (candidate.purchasedOn !== latest.purchasedOn) return candidate.purchasedOn > latest.purchasedOn ? candidate : latest
+    return BigInt(candidate.id) > BigInt(latest.id) ? candidate : latest
+  })
+  return { id, item, price, size, unit, saleItem, purchasedOn, usedSalePrice: saleItem }
+}
 
 export function costLine(line: RecipeLine, purchase: RecipePurchase | null): RecipeLineCost {
   const fail = (error: RecipeCostError, sale = false): RecipeLineCost => ({ ...line, cost: null, sale, error })

@@ -10,7 +10,7 @@ type Recipe = { id: string, name: string, lines: RecipeLine[], savedTotal: numbe
 
 const errorText: Record<CostError, string> = {
   NO_PRICE: 'No purchases recorded for this item.',
-  NO_PACKAGE_SIZE: 'The latest purchase has no package size.',
+  NO_PACKAGE_SIZE: 'Couldn\'t find a purchase with a usable package size.',
   INCOMPATIBLE_UNIT: 'This unit can\'t be converted to the unit it was bought in.'
 }
 
@@ -172,7 +172,7 @@ async function deleteRecipe() {
 
 function costErrorText(result: CostResult) {
   if (result.error === 'INCOMPATIBLE_UNIT' && result.purchaseUnit) {
-    return `This unit can't be converted to ${result.purchaseUnit}, the unit of the latest purchase.`
+    return `This unit can't be converted to ${result.purchaseUnit}, the unit of the latest usable purchase.`
   }
   return result.error ? errorText[result.error] : ''
 }

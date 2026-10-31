@@ -103,7 +103,7 @@ describe('Recipe cost page', () => {
     expect(wrapper.findAll('[data-recipe-cost]')[0]!.html()).toContain('bg-sale-mark')
     expect(text).toContain('No purchases recorded for this item.')
     expect(text).toContain('This unit can\'t be converted to the unit it was bought in.')
-    expect(text).toContain('The latest purchase has no package size.')
+    expect(text).toContain('Couldn\'t find a purchase with a usable package size.')
     expect(wrapper.get('[data-recipe-total]').text()).toContain('partial, 3 excluded')
     expect(wrapper.get('[data-recipe-total] .text-cents').exists()).toBe(true)
     // The editor is set off by rules, not a card.
@@ -117,7 +117,7 @@ describe('Recipe cost page', () => {
       total: 0, excluded: 1
     })
     const wrapper = await mountAt('?l=Flour|1|cup')
-    expect(wrapper.get('[data-recipe-cost] p').text()).toBe(`This unit can't be converted to ${purchaseUnit}, the unit of the latest purchase.`)
+    expect(wrapper.get('[data-recipe-cost] p').text()).toBe(`This unit can't be converted to ${purchaseUnit}, the unit of the latest usable purchase.`)
     expect(wrapper.get('[data-recipe-cost]').find('strong').exists()).toBe(false)
     expect(bodies).toHaveLength(1)
   })
