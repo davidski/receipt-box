@@ -5,7 +5,7 @@ import { uuidPattern } from './mealie/sync.ts'
 type Transaction = postgres.TransactionSql
 type Database = postgres.Sql | Transaction
 
-// Every way a mapping can be created. Suggestions (#7) add their value here; there is no database constraint to migrate.
+// Every way a mapping can be created. A confirmed suggestion is still manual, because a person chose it. A new source adds its value here; there is no database constraint to migrate.
 export type FoodMappingSource = 'manual'
 
 export type FoodMapping = {
@@ -19,6 +19,20 @@ export type FoodMapping = {
 }
 
 export type MappedFood = { item: string, mealieFoodId: string, foodName: string | null, active: boolean }
+
+export type FoodSuggestionMatch = 'exact_name' | 'plural_name' | 'exact_alias' | 'normalized_name' | 'fuzzy'
+
+export type FoodSuggestion = {
+  mealieFoodId: string
+  foodName: string
+  matchType: FoodSuggestionMatch
+  matchedText: string
+  similarity: number | null
+}
+
+// Tuned on made-up receipt names against a real 706-food catalog: below this wrong top picks appear, above it real foods are lost. Fuzzy results still need a person to confirm them.
+export const fuzzyCutoff = 0.3
+const maxSuggestions = 5
 
 export function requireItemName(value: unknown) {
   const item = typeof value === 'string' ? value.trim() : ''
@@ -135,4 +149,56 @@ export async function carryFoodMapping(tx: Transaction, target: string, rows: Ma
   const stale = rows.filter(row => row !== kept).map(row => row.item)
   if (stale.length) await tx`DELETE FROM grocery_item_food_mapping WHERE item = ANY(${stale}::text[])`
   if (kept && kept.item !== target) await tx`UPDATE grocery_item_food_mapping SET item = ${target} WHERE item = ${kept.item}`
+}
+
+// Read-only: a suggestion only becomes a mapping when a person sends it to PUT /api/items/food.
+export async function foodSuggestions(sql: Database, item: string) {
+  return sql<FoodSuggestion[]>`
+    WITH terms AS (
+      SELECT foods.id, foods.name AS food_name, 'name' AS kind, foods.name AS term FROM mealie_foods foods WHERE foods.active
+      UNION ALL
+      SELECT foods.id, foods.name, 'plural', foods.plural_name FROM mealie_foods foods WHERE foods.active AND foods.plural_name IS NOT NULL
+      UNION ALL
+      SELECT foods.id, foods.name, 'alias', aliases.alias
+      FROM mealie_foods foods
+      INNER JOIN mealie_food_aliases aliases ON aliases.food_id = foods.id
+      WHERE foods.active
+    ),
+    keyed AS (
+      SELECT source.*, keys.exact_key, btrim(regexp_replace(regexp_replace(translate(keys.exact_key, '''’', ''), '[^[:alnum:]]+', ' ', 'g'), 's( |$)', '\\1', 'g')) AS normalized_key
+      FROM (
+        SELECT id, food_name, kind, term FROM terms
+        UNION ALL
+        SELECT NULL, NULL, 'item', ${item}::text
+      ) source
+      CROSS JOIN LATERAL (
+        SELECT lower(regexp_replace(btrim(normalize(source.term, NFKC)), '[[:space:]]+', ' ', 'g')) AS exact_key
+      ) keys
+    ),
+    scored AS (
+      SELECT food.id, food.food_name, food.term, similarity(food.exact_key, query.exact_key) AS score,
+        CASE
+          WHEN food.exact_key = query.exact_key AND food.kind = 'name' THEN 1
+          WHEN food.exact_key = query.exact_key AND food.kind = 'plural' THEN 2
+          WHEN food.exact_key = query.exact_key THEN 3
+          WHEN food.kind <> 'alias' AND food.normalized_key = query.normalized_key AND query.normalized_key <> '' THEN 4
+          ELSE 5
+        END AS rank
+      FROM keyed food
+      CROSS JOIN (SELECT exact_key, normalized_key FROM keyed WHERE kind = 'item') query
+      WHERE food.kind <> 'item'
+    ),
+    best AS (
+      SELECT DISTINCT ON (id) *
+      FROM scored
+      WHERE rank < 5 OR score >= ${fuzzyCutoff}
+      ORDER BY id, rank, score DESC, term
+    )
+    SELECT id::text AS mealie_food_id, food_name, term AS matched_text,
+      (ARRAY['exact_name', 'plural_name', 'exact_alias', 'normalized_name', 'fuzzy'])[rank] AS match_type,
+      CASE WHEN rank = 5 THEN score END AS similarity
+    FROM best
+    ORDER BY rank, score DESC, lower(food_name), id
+    LIMIT ${maxSuggestions}
+  `
 }

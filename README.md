@@ -39,10 +39,13 @@ browser.
 
 - Node.js 26 or Docker
 - pnpm 11.18
-- PostgreSQL 18
+- PostgreSQL 18 with the `pg_trgm` extension, used for food suggestions
 
 The database role needs permission to connect and create tables and indexes,
-which are created automatically on first start.
+which are created automatically on first start. It must also be able to enable
+`pg_trgm`, or that extension must already be enabled in the database: on an
+external server, run `CREATE EXTENSION pg_trgm` as a permitted role first. The
+app does not start without it.
 
 ## Installation
 

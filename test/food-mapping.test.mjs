@@ -4,7 +4,7 @@ import { test } from 'node:test'
 globalThis.createError = ({ statusCode, statusMessage, data }) => Object.assign(new Error(statusMessage), { statusCode, statusMessage, data })
 
 const {
-  carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, getFoodMapping, hasFoodConflict,
+  carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, foodSuggestions, fuzzyCutoff, getFoodMapping, hasFoodConflict,
   parseFoodResolution, requireFoodId, requireItemName, setFoodMapping
 } = await import('../server/utils/food-mapping.ts')
 const { renameItemVariants } = await import('../server/utils/item-query.ts')
@@ -143,4 +143,13 @@ test('a category change with no sources does not read food mappings', async () =
   const { tx, queries } = fakeTransaction([])
   await renameItemVariants(tx, 'a', [], null)
   assert.ok(!queries.some(query => /food_mapping/.test(query.sql)))
+})
+
+test('suggestions run one read-only query with the item and the cutoff as parameters', async () => {
+  const rows = [{ mealieFoodId: foodA, matchType: 'fuzzy' }]
+  const { tx, queries } = fakeTransaction([rows])
+  assert.equal(await foodSuggestions(tx, "x'; DROP TABLE y"), rows)
+  assert.equal(queries.length, 1)
+  assert.doesNotMatch(queries[0].sql, /INSERT|UPDATE|DELETE/)
+  assert.deepEqual(queries[0].values, ["x'; DROP TABLE y", fuzzyCutoff, 5])
 })

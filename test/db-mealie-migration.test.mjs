@@ -13,3 +13,7 @@ test('Mealie catalog migration declares the design tables with IF NOT EXISTS gua
 test('food mapping migration keys on item text and has no foreign key to the food cache', () => {
   assert.match(db, /CREATE TABLE IF NOT EXISTS grocery_item_food_mapping \(\s+item TEXT PRIMARY KEY,\s+mealie_food_id UUID NOT NULL,\s+mapping_source TEXT NOT NULL,\s+mapped_at TIMESTAMPTZ NOT NULL\s+\)/)
 })
+
+test('the migration enables pg_trgm for fuzzy food suggestions', () => {
+  assert.match(db, /CREATE EXTENSION IF NOT EXISTS pg_trgm/)
+})

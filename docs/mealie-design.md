@@ -223,7 +223,7 @@ many grocery items → one Mealie food
 one grocery item   → one Mealie food
 ```
 
-`mapping_source` records how a mapping was made. The only value today is `manual` (a person chose the food through `PUT /api/items/food`). It is plain text with no database constraint: a later source, such as confirmed suggestions in #7, adds its value to the `FoodMappingSource` type in `server/utils/food-mapping.ts`.
+`mapping_source` records how a mapping was made. The only value today is `manual` (a person chose the food through `PUT /api/items/food`). It is plain text with no database constraint: a confirmed suggestion stays `manual` because a person chose it, and any later source adds its value to the `FoodMappingSource` type in `server/utils/food-mapping.ts`.
 
 `mealie_food_id` has no foreign key on purpose. A mapping to a food that is inactive or missing from the cache stays in place and is flagged broken.
 
@@ -268,10 +268,17 @@ Suggestion priority:
 
 ```text
 exact name
+plural name
 exact alias
 normalized name
 fuzzy name/alias
 ```
+
+`GET /api/food-mappings/suggestions?item=<name>` returns `{ item, suggestions }`, best first and at most 5, one per food. Each suggestion is `{ mealieFoodId, foodName, matchType, matchedText, similarity }`, where `matchType` is `exact_name`, `plural_name`, `exact_alias`, `normalized_name` or `fuzzy`, `matchedText` is the name or alias that matched, and `similarity` is set only for `fuzzy`. Inactive foods are never suggested, and the list is empty when Mealie is unset. The endpoint never writes: accepting a suggestion is a normal `PUT /api/items/food`.
+
+The fuzzy cutoff is `similarity() >= 0.3`, chosen by testing receipt-style names against a real catalog. `word_similarity()` was rejected: it scores any single shared word near 1, so `beans` ties with `garbanzo beans`.
+
+Exact matches ignore case and repeated spaces. Normalized matches also ignore punctuation and a word-final `s`, against food names and plural names.
 
 Fuzzy matching uses the Postgres `pg_trgm` extension (`similarity()`), enabled by `CREATE EXTENSION IF NOT EXISTS pg_trgm` in the migration. The extension is required: it ships with the `postgres:18-alpine` image used in `compose.yaml`; an external Postgres must have it enabled by a role permitted to create it.
 
@@ -562,6 +569,7 @@ DELETE /api/items/food
 
 GET /api/food-mappings/unmapped
 GET /api/food-mappings/problems
+GET /api/food-mappings/suggestions?item=<name>
 
 GET /api/mealie/recipes
 GET /api/mealie/recipes/:slug/cost
