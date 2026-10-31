@@ -30,11 +30,12 @@ const route = useRoute()
 const file = ref<File | null>(null)
 const importing = ref(false)
 const exporting = ref<'csv' | 'xlsx' | null>(null)
-type ManageSection = 'stores' | 'categories' | 'items' | 'transfer' | 'preferences' | 'maintenance'
+type ManageSection = 'stores' | 'categories' | 'items' | 'mealie' | 'transfer' | 'preferences' | 'maintenance'
 const activeSection = computed<ManageSection>(() => {
   switch (String(route.params.section || 'stores')) {
     case 'items': return 'items'
     case 'categories': return 'categories'
+    case 'mealie': return 'mealie'
     case 'import-export':
     case 'transfer': return 'transfer'
     case 'preferences': return 'preferences'
@@ -45,6 +46,9 @@ const activeSection = computed<ManageSection>(() => {
 const result = ref<{ imported: number, skipped: number, errors: string[] } | null>(null)
 const errorMessage = ref('')
 const { data: stores, refresh: refreshStores } = await useFetch<Store[]>(apiUrl('/stores'))
+const { data: mealieStatus } = await useFetch<{ configured: boolean }>(apiUrl('/mealie/status'))
+// Without Mealie the section does not exist, so its address redirects like any other unknown section.
+if (activeSection.value === 'mealie' && mealieStatus.value?.configured === false) await navigateTo({ path: '/data/stores', query: route.query }, { replace: true })
 const {
   data: categories,
   status: categoriesStatus,
@@ -106,23 +110,42 @@ const resetComplete = ref(false)
 const { enabled: backfillPromptsEnabled, loaded: backfillPromptsLoaded, error: backfillPromptsError, load: loadBackfillPrompts, save: saveBackfillPrompts } = useBackfillPromptPreference()
 const pendingConfirmation = ref<{ title: string, description: string, confirmLabel: string, confirmColor: 'primary' | 'error' | 'warning', action: () => Promise<void> } | null>(null)
 const confirmationBusy = ref(false)
-const categoryConflict = ref<{ target: string, categories: string[], retry: (category: string) => Promise<void> } | null>(null)
+type ConflictFood = { id: string, name: string | null, active: boolean }
+type ConflictChoices = { category?: string, foodResolution?: string | null }
+const clearFoodChoice = 'clear'
+const itemConflict = ref<{ target: string, categories: string[], foods: ConflictFood[], choices: ConflictChoices, retry: (choices: ConflictChoices) => Promise<void> } | null>(null)
 const conflictCategory = ref<string>()
+const conflictFood = ref<string>()
+const conflictFoodOptions = computed(() => [
+  ...(itemConflict.value?.foods || []).map(food => ({ label: `${food.name ?? 'Food missing from the catalog'}${food.active ? '' : ' (inactive)'}`, value: food.id })),
+  { label: 'Clear the food mapping', value: clearFoodChoice }
+])
+const itemConflictTitle = computed(() => {
+  if (!itemConflict.value?.foods.length) return 'Choose a category'
+  return itemConflict.value.categories.length ? 'Choose a category and food' : 'Choose a food'
+})
+const itemConflictUnresolved = computed(() => Boolean((itemConflict.value?.categories.length && !conflictCategory.value) || (itemConflict.value?.foods.length && !conflictFood.value)))
 
-function offerCategoryResolution(error: any, target: string, retry: (category: string) => Promise<void>) {
-  const categories = error?.data?.data?.categories
-  if (!Array.isArray(categories) || !categories.length || !categories.every(value => typeof value === 'string')) return false
+function offerConflictResolution(error: any, target: string, choices: ConflictChoices, retry: (choices: ConflictChoices) => Promise<void>) {
+  const categories = error?.data?.data?.categories ?? []
+  const foods = error?.data?.data?.foods ?? []
+  if (!Array.isArray(categories) || !Array.isArray(foods) || !(categories.length || foods.length) || !categories.every(value => typeof value === 'string')) return false
   conflictCategory.value = undefined
-  categoryConflict.value = { target, categories, retry }
+  conflictFood.value = undefined
+  itemConflict.value = { target, categories, foods, choices, retry }
   return true
 }
 
-async function resolveCategoryConflict() {
-  if (!categoryConflict.value || !conflictCategory.value) return
-  const { retry } = categoryConflict.value
-  const category = conflictCategory.value
-  categoryConflict.value = null
-  await retry(category)
+async function resolveItemConflict() {
+  if (!itemConflict.value || itemConflictUnresolved.value) return
+  const { retry, choices } = itemConflict.value
+  const resolved = {
+    ...choices,
+    ...(conflictCategory.value ? { category: conflictCategory.value } : {}),
+    ...(conflictFood.value ? { foodResolution: conflictFood.value === clearFoodChoice ? null : conflictFood.value } : {})
+  }
+  itemConflict.value = null
+  await retry(resolved)
 }
 const visibleDuplicateItemGroups = computed(() => (duplicateItems.value?.groups || []).slice(0, visibleItemGroupCount.value))
 const displayedHiddenItemGroups = computed(() => showHiddenItemGroups.value ? (duplicateItems.value?.hiddenGroups || []) : [])
@@ -415,7 +438,7 @@ async function mergeItemGroup(group: ItemDuplicateGroup) {
   })
 }
 
-async function mergeItemGroupConfirmed(group: ItemDuplicateGroup, target: string, sources: string[], category?: string) {
+async function mergeItemGroupConfirmed(group: ItemDuplicateGroup, target: string, sources: string[], choices: ConflictChoices = {}) {
 
   itemMergeBusy.value = group.id
   itemMergeError.value = ''
@@ -423,12 +446,12 @@ async function mergeItemGroupConfirmed(group: ItemDuplicateGroup, target: string
   try {
     const result = await $fetch<{ target: string, mergedNames: number, mergedEntries: number }>(apiUrl('/items/merge'), {
       method: 'POST',
-      body: { target, sources, ...(category === undefined ? {} : { category }) }
+      body: { target, sources, ...choices }
     })
     itemMergeNotice.value = `${result.mergedNames} ${result.mergedNames === 1 ? 'variant was' : 'variants were'} merged into ${result.target}, updating ${result.mergedEntries} historical ${result.mergedEntries === 1 ? 'entry' : 'entries'}.`
     await refreshDuplicateItems()
   } catch (error: any) {
-    if (offerCategoryResolution(error, target, choice => mergeItemGroupConfirmed(group, target, sources, choice))) return
+    if (offerConflictResolution(error, target, choices, resolved => mergeItemGroupConfirmed(group, target, sources, resolved))) return
     itemMergeError.value = storeErrorMessage(error, 'Could not merge the item variants')
   } finally {
     itemMergeBusy.value = null
@@ -497,7 +520,7 @@ async function renameItem() {
   })
 }
 
-async function renameItemConfirmed(source: string, target: string, category?: string) {
+async function renameItemConfirmed(source: string, target: string, choices: ConflictChoices = {}) {
   itemRenameBusy.value = true
   itemMergeError.value = ''
   itemMergeNotice.value = ''
@@ -510,9 +533,9 @@ async function renameItemConfirmed(source: string, target: string, category?: st
       size: replacementSize.value,
       unit: replacementUnit.value
     } : undefined
-    const categoryChange = category === undefined ? (categoryWillChange.value ? renameItemCategory.value : undefined) : category
+    const categoryChange = choices.category === undefined ? (categoryWillChange.value ? renameItemCategory.value : undefined) : choices.category
     const result = await $fetch<{ target: string, renamedEntries: number, updatedEntries: number }>(apiUrl('/items/rename'), {
-      method: 'PATCH', body: { source, target, dimensions, ...(categoryChange === undefined ? {} : { category: categoryChange }) }
+      method: 'PATCH', body: { source, target, dimensions, ...(categoryChange === undefined ? {} : { category: categoryChange }), ...(choices.foodResolution === undefined ? {} : { foodResolution: choices.foodResolution }) }
     })
     itemMergeNotice.value = [
       result.renamedEntries ? `${result.renamedEntries} ${result.renamedEntries === 1 ? 'entry was' : 'entries were'} renamed to ${result.target}` : '',
@@ -524,7 +547,7 @@ async function renameItemConfirmed(source: string, target: string, category?: st
     await refreshDuplicateItems()
     if (categoryChange !== undefined) await refreshCategories()
   } catch (error: any) {
-    if (offerCategoryResolution(error, target, choice => renameItemConfirmed(source, target, choice))) return
+    if (offerConflictResolution(error, target, choices, resolved => renameItemConfirmed(source, target, resolved))) return
     itemMergeError.value = storeErrorMessage(error, 'Could not rename the item')
   } finally {
     itemRenameBusy.value = false
@@ -734,6 +757,16 @@ async function exportXlsx() {
         :variant="activeSection === 'items' ? 'soft' : 'ghost'"
         :color="activeSection === 'items' ? 'primary' : 'neutral'"
         :aria-current="activeSection === 'items' ? 'page' : undefined"
+      />
+      <UButton
+        v-if="mealieStatus?.configured"
+        to="/data/mealie"
+        label="Mealie"
+        icon="i-lucide-chef-hat"
+        size="lg"
+        :variant="activeSection === 'mealie' ? 'soft' : 'ghost'"
+        :color="activeSection === 'mealie' ? 'primary' : 'neutral'"
+        :aria-current="activeSection === 'mealie' ? 'page' : undefined"
       />
       <UButton
         to="/data/import-export"
@@ -1007,6 +1040,8 @@ async function exportXlsx() {
     </UCard>
     </template>
 
+    <MealieManage v-else-if="activeSection === 'mealie'" />
+
     <section v-else-if="activeSection === 'transfer'" class="mt-0" aria-label="Import and export tools">
       <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
         <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true">↑</div>
@@ -1085,20 +1120,25 @@ async function exportXlsx() {
     </section>
 
     <UModal
-      :open="Boolean(categoryConflict)"
-      title="Choose a category"
-      :description="`These items have different categories. Choose the category for all purchases of ${categoryConflict?.target || 'the merged item'}.`"
-      @update:open="!$event && (categoryConflict = null)"
+      :open="Boolean(itemConflict)"
+      :title="itemConflictTitle"
+      :description="`These items have different ${itemConflict?.foods.length ? (itemConflict?.categories.length ? 'categories and Mealie foods' : 'Mealie foods') : 'categories'}. Choose what to keep for all purchases of ${itemConflict?.target || 'the merged item'}.`"
+      @update:open="!$event && (itemConflict = null)"
     >
       <template #body>
-        <UFormField label="Category" :ui="fieldSpacing">
-          <USelectMenu v-model="conflictCategory" :items="categoryConflict?.categories || []" placeholder="Choose a category…" class="w-full" />
-        </UFormField>
+        <div class="grid gap-4">
+          <UFormField v-if="itemConflict?.categories.length" label="Category" :ui="fieldSpacing">
+            <USelectMenu v-model="conflictCategory" :items="itemConflict.categories" placeholder="Choose a category…" class="w-full" />
+          </UFormField>
+          <UFormField v-if="itemConflict?.foods.length" label="Mealie food" :ui="fieldSpacing">
+            <USelectMenu v-model="conflictFood" :items="conflictFoodOptions" value-key="value" label-key="label" placeholder="Choose a food…" class="w-full" />
+          </UFormField>
+        </div>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
-          <UButton label="Cancel" color="neutral" variant="ghost" @click="categoryConflict = null" />
-          <UButton label="Apply changes" :disabled="!conflictCategory" @click="resolveCategoryConflict" />
+          <UButton label="Cancel" color="neutral" variant="ghost" @click="itemConflict = null" />
+          <UButton label="Apply changes" :disabled="itemConflictUnresolved" @click="resolveItemConflict" />
         </div>
       </template>
     </UModal>

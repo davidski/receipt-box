@@ -5,7 +5,7 @@ globalThis.createError = ({ statusCode, statusMessage, data }) => Object.assign(
 
 const {
   carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, foodSuggestions, fuzzyCutoff, getFoodMapping, hasFoodConflict,
-  parseFoodResolution, requireFoodId, requireItemName, setFoodMapping
+  listFoodMappings, parseFoodResolution, requireFoodId, requireItemName, searchActiveFoods, setFoodMapping
 } = await import('../server/utils/food-mapping.ts')
 const { renameItemVariants } = await import('../server/utils/item-query.ts')
 
@@ -152,4 +152,19 @@ test('suggestions run one read-only query with the item and the cutoff as parame
   assert.equal(queries.length, 1)
   assert.doesNotMatch(queries[0].sql, /INSERT|UPDATE|DELETE/)
   assert.deepEqual(queries[0].values, ["x'; DROP TABLE y", fuzzyCutoff, 5])
+})
+
+test('lists every mapping without an item filter', async () => {
+  const mapping = { item: 'Flour', broken: false }
+  const { tx, queries } = fakeTransaction([[mapping]])
+  assert.deepEqual(await listFoodMappings(tx), [mapping])
+  assert.equal(queries[0].values[0], null)
+})
+
+test('food search reads only active foods and caps its results', async () => {
+  const { tx, queries } = fakeTransaction([[{ id: foodA, name: 'Flour' }]])
+  assert.deepEqual(await searchActiveFoods(tx, '100%'), [{ id: foodA, name: 'Flour' }])
+  assert.match(queries[0].sql, /WHERE foods\.active AND/)
+  assert.match(queries[0].sql, /LIMIT 50/)
+  assert.deepEqual(queries[0].values, ['100%', '100%'])
 })

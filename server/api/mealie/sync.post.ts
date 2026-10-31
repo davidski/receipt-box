@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   try {
     result = await syncMealieCatalog(db, { force: body?.force === true })
   } catch (error) {
-    if (error instanceof MealieGuardError) throw createError({ statusCode: 409, statusMessage: error.message })
+    if (error instanceof MealieGuardError) throw createError({ statusCode: 409, statusMessage: error.message, data: { forceable: true } })
     if (error instanceof MealieError) throw createError({ statusCode: 502, statusMessage: error.message })
     throw error
   }

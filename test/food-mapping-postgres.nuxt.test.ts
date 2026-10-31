@@ -74,6 +74,8 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       get: (await import('../server/api/items/food.get')).default,
       put: (await import('../server/api/items/food.put')).default,
       remove: (await import('../server/api/items/food.delete')).default,
+      foods: (await import('../server/api/mealie/foods.get')).default,
+      list: (await import('../server/api/food-mappings/index.get')).default,
       unmapped: (await import('../server/api/food-mappings/unmapped.get')).default,
       problems: (await import('../server/api/food-mappings/problems.get')).default,
       suggestions: (await import('../server/api/food-mappings/suggestions.get')).default,
@@ -101,6 +103,36 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
   })
 
   describe('API', () => {
+    it('searches active foods by name or alias, treating the search as literal text', async () => {
+      await sql`INSERT INTO mealie_food_aliases (food_id, alias) VALUES (${foodA}, 'Garbanzo beans'), (${foodInactive}, 'Garbanzo stale')`
+      const names = async (search?: unknown) => (await call('foods', { query: { search } })).foods.map((food: { name: string }) => food.name)
+      expect(await names()).toEqual(['Chickpeas', 'Lentils'])
+      expect(await names(' chick ')).toEqual(['Chickpeas'])
+      expect(await names('GARBANZO')).toEqual(['Chickpeas'])
+      expect(await names('Merged')).toEqual([])
+      expect(await names('%')).toEqual([])
+      expect(await names(['Lentils'])).toEqual(['Chickpeas', 'Lentils'])
+      expect((await call('foods', { query: { search: 'Lentils' } })).foods).toEqual([{ id: foodB, name: 'Lentils' }])
+    })
+
+    it('caps food results at 50', async () => {
+      await sql`INSERT INTO mealie_foods (id, name, active, last_seen_at, synced_at) SELECT gen_random_uuid(), 'Bulk ' || n, TRUE, now(), now() FROM generate_series(1, 60) n`
+      expect((await call('foods', { query: { search: 'Bulk' } })).foods).toHaveLength(50)
+    })
+
+    it('lists mappings, including broken ones, and is empty without Mealie', async () => {
+      await addEntry('Beans')
+      await addMapping('Beans', foodA)
+      await addMapping('Gone', foodUncached)
+      expect((await call('list')).mappings).toMatchObject([
+        { item: 'Beans', foodName: 'Chickpeas', broken: false, hasEntries: true },
+        { item: 'Gone', foodName: null, broken: true, hasEntries: false }
+      ])
+      delete process.env.MEALIE_URL
+      expect(await call('list')).toEqual({ mappings: [] })
+      expect(await call('foods', { query: { search: 'Chick' } })).toEqual({ foods: [] })
+    })
+
     it('saves, replaces, reads and deletes a mapping', async () => {
       await addEntry('Goya Chick Peas')
       const saved = await call('put', { body: { item: ' Goya Chick Peas ', mealieFoodId: foodA.toUpperCase() } })
