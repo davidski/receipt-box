@@ -124,6 +124,41 @@ export async function migrate() {
       )
     `
     await tx`CREATE UNIQUE INDEX IF NOT EXISTS grocery_recipes_name_idx ON grocery_recipes (lower(name))`
+    await tx`
+      CREATE TABLE IF NOT EXISTS mealie_foods (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        plural_name TEXT,
+        description TEXT,
+        extras JSONB NOT NULL DEFAULT '{}',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        mealie_created_at TIMESTAMPTZ,
+        mealie_updated_at TIMESTAMPTZ,
+        last_seen_at TIMESTAMPTZ NOT NULL,
+        synced_at TIMESTAMPTZ NOT NULL
+      )
+    `
+    await tx`
+      CREATE TABLE IF NOT EXISTS mealie_food_aliases (
+        food_id UUID REFERENCES mealie_foods(id) ON DELETE CASCADE,
+        alias TEXT NOT NULL,
+        PRIMARY KEY (food_id, alias)
+      )
+    `
+    await tx`
+      CREATE TABLE IF NOT EXISTS mealie_units (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        plural_name TEXT,
+        abbreviation TEXT,
+        plural_abbreviation TEXT,
+        standard_quantity NUMERIC,
+        standard_unit TEXT,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        last_seen_at TIMESTAMPTZ NOT NULL,
+        synced_at TIMESTAMPTZ NOT NULL
+      )
+    `
     await seedInitialCategories(tx)
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
     const existingUnits = await tx<{ unit: string }[]>`
