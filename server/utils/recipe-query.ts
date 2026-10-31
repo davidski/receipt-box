@@ -1,5 +1,5 @@
 import type postgres from 'postgres'
-import { costLine, renameRecipeLineItems, summarizeRecipeCost, type RecipeLine, type RecipePurchase } from '../../shared/utils/recipe-cost.ts'
+import { costLine, renameRecipeLineItems, selectPurchase, summarizeRecipeCost, type PurchaseCandidate, type RecipeLine } from '../../shared/utils/recipe-cost.ts'
 
 type Sql = postgres.Sql | postgres.TransactionSql
 
@@ -41,20 +41,25 @@ export function parseRecipeId(value: string | undefined) {
 }
 
 export async function priceRecipe(sql: Sql, lines: RecipeLine[]) {
+  // shortcut: SQL can't apply normalizeUnit, so a latest purchase with a blank or unrecognized unit hides an older usable one (NO_PACKAGE_SIZE or INCOMPATIBLE_UNIT), upgrade if that shows up in real data by storing normalized units.
   const purchases = lines.length
-    ? await sql<(RecipePurchase & { item: string })[]>`
-      SELECT DISTINCT ON (entries.item) entries.item, entries.price, entries.size, entries.unit, entries.sale_item
+    ? await sql<PurchaseCandidate[]>`
+      SELECT DISTINCT ON (entries.item, eligible)
+        entries.id::text, entries.item, entries.price, entries.size, entries.unit, entries.sale_item,
+        receipts.purchased_on::text AS purchased_on,
+        (entries.size > 0 AND entries.unit IS NOT NULL) IS TRUE AS eligible
       FROM grocery_entries entries
       JOIN grocery_receipts receipts ON receipts.id = entries.receipt_id
       WHERE entries.item = ANY(${lines.map(line => line.item)}::text[]) AND NOT entries.non_grocery
-      ORDER BY entries.item, receipts.purchased_on DESC, entries.id DESC
+      ORDER BY entries.item, eligible, receipts.purchased_on DESC, entries.id DESC
     `
     : []
-  const latest = new Map(purchases.map(row => [row.item, row]))
-  const costed = lines.map(line => ({
-    ...costLine(line, latest.get(line.item) ?? null),
-    purchaseUnit: latest.get(line.item)?.unit ?? null
-  }))
+  const costed = lines.map((line) => {
+    const candidates = purchases.filter(row => row.item === line.item)
+    // With nothing eligible, the remaining row makes costLine report NO_PACKAGE_SIZE rather than NO_PRICE.
+    const purchase = selectPurchase(candidates) ?? candidates[0] ?? null
+    return { ...costLine(line, purchase), purchaseUnit: purchase?.unit ?? null }
+  })
   return { lines: costed, ...summarizeRecipeCost(costed) }
 }
 

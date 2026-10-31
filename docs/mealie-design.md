@@ -73,6 +73,7 @@ Mealie may be unavailable temporarily without breaking Receipt Box price/history
 - **Mapping is per item name.** Every size variant under one name inherits the same food. A name that genuinely spans two foods must be split; variant-level mapping is a non-goal.
 - **Costing is prorated.** Ingredient cost is the quantity used times the price per base unit, not the price of the whole package.
 - **Mealie is optional.** If `MEALIE_URL` or `MEALIE_API_TOKEN` is unset, all Mealie features are hidden (Manage → Mealie section, recipe cost UI), startup sync is skipped, and `GET /api/mealie/status` returns `configured: false`. Existing installs see no change.
+- **Native and Mealie recipes coexist.** Native recipes (`/recipe`, `grocery_recipes`) remain the calculator that works without Mealie, and Mealie recipes are a second source sharing the same costing code. An unset Mealie configuration does not hide `/recipe`.
 - **Costing needs Mealie online.** Recipes are not cached. If Mealie is unreachable, a cost request fails with a clear error.
 - **Auth.** New endpoints use the existing auth middleware with no special cases. Mappings are household-wide.
 
@@ -370,10 +371,9 @@ Existing `cost_per_unit` is a display convenience (note it is per 100 for `g`/`m
 
 ## Price Selection
 
-Several grocery items may map to one Mealie food. The price used is the **latest** eligible purchase across all mapped items, preferring non-sale:
+Several grocery items may map to one Mealie food. The price used is the **latest** eligible purchase across all mapped items, sale or not, with no age limit. A purchase is eligible when it is not `non_grocery`, its `size` is above 0 and its `unit` is set; a $0 price is eligible. Ties on purchase date go to the highest entry id. `usedSalePrice` is true when the selected purchase was a sale.
 
-1. latest eligible non-sale purchase (`sale_item = false`)
-2. otherwise the latest eligible purchase, with `usedSalePrice: true` in the provenance
+An item with purchases but none eligible reports `NO_PACKAGE_SIZE`; an item with no purchases reports `NO_PRICE`.
 
 This is a constant, not a setting. A per-food preferred item and other price policies (median, average) are later work.
 
@@ -798,7 +798,7 @@ Browser-verify every flow end to end before closing.
 
 ### G — Price selection
 
-- latest eligible non-sale purchase across mapped items, falling back to latest with `usedSalePrice`
+- latest eligible purchase across mapped items, sale or not, with `usedSalePrice` true when it was a sale
 - returns the exact observation used
 
 ### H — Recipe cost engine + endpoint
@@ -806,7 +806,7 @@ Browser-verify every flow end to end before closing.
 - recipe retrieval, same-dimension costing, `ea` rule, provenance, summary and coverage
 - servings from `recipeServings` only
 
-Tests: cup flour vs lb flour without density → `DIMENSION_MISMATCH`; "bunch" parsley → `UNSTANDARDIZED_UNIT`; ingredient without Mealie food → `NO_FOOD`; null/zero quantity → `NO_QUANTITY`; sub-recipe → `SUBRECIPE_UNSUPPORTED`; sale fallback sets `usedSalePrice`; Mealie unreachable → clear error.
+Tests: cup flour vs lb flour without density → `DIMENSION_MISMATCH`; "bunch" parsley → `UNSTANDARDIZED_UNIT`; ingredient without Mealie food → `NO_FOOD`; null/zero quantity → `NO_QUANTITY`; sub-recipe → `SUBRECIPE_UNSUPPORTED`; selected sale purchase sets `usedSalePrice`; Mealie unreachable → clear error.
 
 ### I — Recipe cost UI
 

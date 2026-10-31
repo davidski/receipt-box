@@ -1,10 +1,59 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { costLine, summarizeRecipeCost } from '../shared/utils/recipe-cost.ts'
+import { costLine, selectPurchase, summarizeRecipeCost } from '../shared/utils/recipe-cost.ts'
 import { toBaseUnit } from '../shared/utils/units.ts'
 
 const purchase = (overrides = {}) => ({ price: '4.00', size: '500.000', unit: 'g', saleItem: false, ...overrides })
 const line = (overrides = {}) => ({ item: 'Flour', quantity: 100, unit: 'g', ...overrides })
+
+const candidate = (id, purchasedOn, overrides = {}) => ({ ...purchase(), id, item: 'Flour', purchasedOn, ...overrides })
+
+describe('selectPurchase', () => {
+  test('a newer sale beats an older non-sale and sets usedSalePrice', () => {
+    const selected = selectPurchase([candidate('1', '2026-01-01'), candidate('2', '2026-02-01', { saleItem: true })])
+    assert.equal(selected.id, '2')
+    assert.equal(selected.usedSalePrice, true)
+  })
+
+  test('a newer non-sale beats an older sale', () => {
+    const selected = selectPurchase([candidate('2', '2026-02-01'), candidate('1', '2026-01-01', { saleItem: true })])
+    assert.equal(selected.id, '2')
+    assert.equal(selected.usedSalePrice, false)
+  })
+
+  test('skips newer purchases with no size, a zero size or no unit', () => {
+    for (const bad of [{ size: null, unit: null }, { size: null }, { size: '0.000' }, { unit: null }]) {
+      assert.equal(selectPurchase([candidate('2', '2026-02-01', bad), candidate('1', '2026-01-01')]).id, '1')
+    }
+  })
+
+  test('returns null when nothing is eligible or there are no candidates', () => {
+    assert.equal(selectPurchase([candidate('1', '2026-01-01', { size: null })]), null)
+    assert.equal(selectPurchase([]), null)
+  })
+
+  test('breaks a same-date tie on the highest id, numerically and in any order', () => {
+    const [low, high] = [candidate('9', '2026-01-01'), candidate('10', '2026-01-01')]
+    assert.equal(selectPurchase([low, high]).id, '10')
+    assert.equal(selectPurchase([high, low]).id, '10')
+  })
+
+  test('treats a $0 price as eligible', () => {
+    assert.equal(selectPurchase([candidate('1', '2026-01-01', { price: '0.00' })]).price, '0.00')
+  })
+
+  test('selects across item names and returns the exact observation', () => {
+    const selected = selectPurchase([
+      candidate('1', '2026-01-01'),
+      { ...candidate('2', '2026-03-01', { item: 'Bread Flour', saleItem: true }), eligible: true },
+      candidate('3', '2026-02-01', { item: 'Cake Flour' })
+    ])
+    assert.deepEqual(selected, {
+      id: '2', item: 'Bread Flour', price: '4.00', size: '500.000', unit: 'g',
+      saleItem: true, purchasedOn: '2026-03-01', usedSalePrice: true
+    })
+  })
+})
 
 describe('toBaseUnit', () => {
   test('converts mass, volume and each to base units', () => {

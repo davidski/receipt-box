@@ -55,7 +55,7 @@ describe('POST /api/recipe-cost', () => {
     expect(mockDatabase.queries).toHaveLength(1)
     expect(mockDatabase.queries[0].sql).toContain('NOT entries.non_grocery')
     expect(mockDatabase.queries[0].sql).toContain('JOIN grocery_receipts receipts ON receipts.id = entries.receipt_id')
-    expect(mockDatabase.queries[0].sql).toContain('ORDER BY entries.item, receipts.purchased_on DESC, entries.id DESC')
+    expect(mockDatabase.queries[0].sql).toContain('ORDER BY entries.item, eligible, receipts.purchased_on DESC, entries.id DESC')
     expect(mockDatabase.queries[0].values).toEqual([['Flour', 'Salt', 'Saffron']])
   })
 

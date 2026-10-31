@@ -92,6 +92,55 @@ describe('priceRecipe', () => {
     assert.deepEqual(queries[0].values, [['Flour', 'Saffron']])
   })
 
+  const row = (item, id, purchasedOn, overrides = {}) => (
+    { id, item, purchasedOn, price: '4.00', size: '500.000', unit: 'g', saleItem: false, ...overrides }
+  )
+
+  test('uses an older usable purchase when the latest has no size', async () => {
+    const { sql } = fakeSql([[
+      row('Flour', '2', '2026-02-01', { price: '9.00', size: null, unit: null }),
+      row('Flour', '1', '2026-01-01', { saleItem: true })
+    ]])
+    const { lines, total, excluded } = await priceRecipe(sql, [line('Flour', 250)])
+
+    assert.deepEqual([total, excluded], [2, 0])
+    assert.equal(lines[0].sale, true)
+    assert.equal(lines[0].purchaseUnit, 'g')
+  })
+
+  test('reports NO_PACKAGE_SIZE when purchases exist but none is eligible', async () => {
+    const { sql } = fakeSql([[row('Flour', '1', '2026-01-01', { size: null })]])
+    const { lines, excluded } = await priceRecipe(sql, [line('Flour', 250)])
+
+    assert.equal(lines[0].error, 'NO_PACKAGE_SIZE')
+    assert.equal(excluded, 1)
+  })
+
+  test('prices a $0 purchase instead of excluding it', async () => {
+    const { sql } = fakeSql([[row('Flour', '1', '2026-01-01', { price: '0.00' })]])
+    const { lines, excluded } = await priceRecipe(sql, [line('Flour', 250)])
+
+    assert.equal(lines[0].cost, 0)
+    assert.equal(excluded, 0)
+  })
+
+  test('a blank or unrecognized unit still hides older purchases', async () => {
+    for (const [unit, error] of [['', 'NO_PACKAGE_SIZE'], ['bunch', 'INCOMPATIBLE_UNIT']]) {
+      const { sql } = fakeSql([[row('Flour', '2', '2026-02-01', { unit }), row('Flour', '1', '2026-01-01')]])
+      assert.equal((await priceRecipe(sql, [line('Flour', 250)])).lines[0].error, error)
+    }
+  })
+
+  test('asks for at most one eligible and one ineligible grocery row per item', async () => {
+    const { sql, queries } = fakeSql([[]])
+    await priceRecipe(sql, [line('Flour')])
+
+    assert.match(queries[0].sql, /DISTINCT ON \(entries\.item, eligible\)/)
+    assert.match(queries[0].sql, /\(entries\.size > 0 AND entries\.unit IS NOT NULL\) IS TRUE AS eligible/)
+    assert.match(queries[0].sql, /AND NOT entries\.non_grocery/)
+    assert.match(queries[0].sql, /ORDER BY entries\.item, eligible, receipts\.purchased_on DESC, entries\.id DESC/)
+  })
+
   test('skips the query when there are no lines', async () => {
     const { sql, queries } = fakeSql([])
     assert.deepEqual(await priceRecipe(sql, []), { lines: [], total: 0, excluded: 0 })
