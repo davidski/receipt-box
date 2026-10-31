@@ -4,7 +4,7 @@ import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createError, readBody } from 'h3'
 import ManagePage from '../app/components/ManagePage.vue'
-import { clearNuxtState, useState } from '#imports'
+import { clearNuxtData, clearNuxtState, useState } from '#imports'
 
 const Slot = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
 // Renders the field's label next to its control, so tests can find a control by the label a person sees.
@@ -402,4 +402,116 @@ it('sets the item-change review sentences in ink, not muted, on the accent-soft 
     expect(sentence.classes()).not.toContain('text-muted')
   }
   wrapper.unmount()
+})
+
+const foods = [
+  { id: 'food-a', name: 'Chickpeas', active: true },
+  { id: 'food-b', name: null, active: false }
+]
+
+function registerFoodConflict(categories: string[]) {
+  registerEndpoint('/api/items/rename', { method: 'PATCH', handler: async (event) => {
+    const body = await readBody(event)
+    requests.push(body)
+    if (!Object.hasOwn(body, 'foodResolution')) throw createError({ statusCode: 409, statusMessage: 'Conflict', data: { categories, foods } })
+    return { target: body.target, renamedEntries: 2, updatedEntries: 0 }
+  } })
+}
+
+const mountedConflict = async () => {
+  const wrapper = await openConflict()
+  return { wrapper, dialog: wrapper.find('section[data-dialog]') }
+}
+
+it('resolves a food-only conflict with the chosen food', async () => {
+  registerFoodConflict([])
+  const { wrapper, dialog } = await mountedConflict()
+  expect(dialog.attributes('data-dialog')).toBe('Choose a food')
+  expect(dialog.text()).toContain('Food missing from the catalog (inactive)')
+  expect(dialog.get('button:last-child').attributes('disabled')).toBeDefined()
+  await dialog.get('select').setValue('food-a')
+  await dialog.get('button:last-child').trigger('click')
+  await flushPromises()
+  expect(requests[1]).toMatchObject({ source: 'Soy milk', target: 'Milk', foodResolution: 'food-a' })
+  expect(requests[1]).not.toHaveProperty('category')
+  await vi.waitFor(() => expect(wrapper.text()).toContain('2 entries were renamed to Milk'))
+})
+
+it('sends null to clear the mapping', async () => {
+  registerFoodConflict([])
+  const { dialog } = await mountedConflict()
+  await dialog.get('select').setValue('clear')
+  await dialog.get('button:last-child').trigger('click')
+  await flushPromises()
+  expect(requests[1]!.foodResolution).toBeNull()
+})
+
+it('resolves a category and food conflict in one retry, needing both choices', async () => {
+  registerFoodConflict(['Dairy', 'Beverages'])
+  const { dialog } = await mountedConflict()
+  expect(dialog.attributes('data-dialog')).toBe('Choose a category and food')
+  const [category, food] = dialog.findAll('select')
+  await category!.setValue('Dairy')
+  expect(dialog.get('button:last-child').attributes('disabled')).toBeDefined()
+  await food!.setValue('food-a')
+  await dialog.get('button:last-child').trigger('click')
+  await flushPromises()
+  expect(requests).toHaveLength(2)
+  expect(requests[1]).toMatchObject({ category: 'Dairy', foodResolution: 'food-a' })
+})
+
+it('keeps earlier choices when a retry finds another conflict', async () => {
+  registerEndpoint('/api/items/rename', { method: 'PATCH', handler: async (event) => {
+    const body = await readBody(event)
+    requests.push(body)
+    if (!Object.hasOwn(body, 'category')) throw createError({ statusCode: 409, data: { categories: ['Dairy', 'Beverages'], foods: [] } })
+    if (!Object.hasOwn(body, 'foodResolution')) throw createError({ statusCode: 409, data: { categories: [], foods } })
+    return { target: body.target, renamedEntries: 2, updatedEntries: 0 }
+  } })
+  const { wrapper, dialog } = await mountedConflict()
+  await dialog.get('select').setValue('Dairy')
+  await dialog.get('button:last-child').trigger('click')
+  await flushPromises()
+  const second = wrapper.get('[data-dialog="Choose a food"]')
+  await second.get('select').setValue('food-a')
+  await second.get('button:last-child').trigger('click')
+  await flushPromises()
+  expect(requests[2]).toMatchObject({ category: 'Dairy', foodResolution: 'food-a' })
+})
+
+it('shows a non-conflict 409 as an error, not a dialog', async () => {
+  registerEndpoint('/api/items/rename', { method: 'PATCH', handler: () => { throw createError({ statusCode: 409, statusMessage: 'No entries still match' }) } })
+  const { wrapper, dialog } = await mountedConflict()
+  expect(dialog.exists()).toBe(false)
+  expect(wrapper.text()).toContain('No entries still match')
+})
+
+it('sends the food resolution when merging a duplicate group', async () => {
+  const mergeRequests: Record<string, unknown>[] = []
+  clearNuxtData()
+  registerEndpoint('/api/items/duplicates', () => ({
+    items: [],
+    groups: [{ id: 'g1', preferredTarget: 'Milk', reasons: ['similar'], variants: [{ name: 'Milk', uses: 1, lastUsed: '2026-01-01' }, { name: 'Soy milk', uses: 1, lastUsed: '2026-01-01' }] }],
+    hiddenGroups: []
+  }))
+  registerEndpoint('/api/items/merge', { method: 'POST', handler: async (event) => {
+    const body = await readBody(event)
+    mergeRequests.push(body)
+    if (!Object.hasOwn(body, 'foodResolution')) throw createError({ statusCode: 409, data: { categories: [], foods } })
+    return { target: body.target, mergedNames: 1, mergedEntries: 1 }
+  } })
+  const wrapper = await mountSuspended(ManagePage, {
+    route: '/data/items',
+    global: { stubs: { UCard: Slot, UFormField: Field, UButton: Button, USelectMenu: Select, UInput: Input, UModal: Modal, UIcon: true, UCheckbox: true, CategoryInput, UBadge: true } }
+  })
+  await flushPromises()
+  await wrapper.findAll('button').find(button => button.text() === 'Merge variants')!.trigger('click')
+  await wrapper.get('[data-dialog="Merge item variants?"] button:last-child').trigger('click')
+  await flushPromises()
+  const dialog = wrapper.get('[data-dialog="Choose a food"]')
+  await dialog.get('select').setValue('clear')
+  await dialog.get('button:last-child').trigger('click')
+  await flushPromises()
+  expect(mergeRequests[1]).toEqual({ target: 'Milk', sources: ['Soy milk'], foodResolution: null })
+  await vi.waitFor(() => expect(wrapper.text()).toContain('merged into Milk'))
 })

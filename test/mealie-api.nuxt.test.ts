@@ -67,6 +67,15 @@ describe('Mealie API', () => {
     await expect(run(sync)).rejects.toMatchObject({ statusCode, statusMessage })
   })
 
+  it('marks only the deactivation guard as forceable', async () => {
+    mock.sync.mockRejectedValue(new MealieGuardError('refused'))
+    await expect(run(sync)).rejects.toMatchObject({ data: { forceable: true } })
+    mock.sync.mockResolvedValue({ status: 'disabled' })
+    const disabled = await run(sync).catch(error => error)
+    expect(disabled.statusCode).toBe(409)
+    expect(disabled.data).toBeUndefined()
+  })
+
   it('does not relabel unexpected failures', async () => {
     const failure = new Error('database down')
     mock.sync.mockRejectedValue(failure)

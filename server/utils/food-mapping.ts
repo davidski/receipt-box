@@ -68,6 +68,10 @@ export async function getFoodMapping(sql: Database, item: string) {
   return mapping ?? null
 }
 
+export function listFoodMappings(sql: Database) {
+  return foodMappings(sql, null)
+}
+
 export async function setFoodMapping(tx: Transaction, item: string, foodId: string) {
   await lockItemWrites(tx)
   const [entry] = await tx`SELECT 1 FROM grocery_entries WHERE item = ${item} LIMIT 1`
@@ -104,8 +108,22 @@ export async function unmappedItems(sql: Database) {
   `
 }
 
+// Only active foods can be mapped, so inactive ones never reach the picker. strpos treats the search as literal text, unlike LIKE.
+export function searchActiveFoods(sql: Database, search: string) {
+  return sql<{ id: string, name: string }[]>`
+    SELECT foods.id::text, foods.name
+    FROM mealie_foods foods
+    WHERE foods.active AND (
+      strpos(lower(foods.name), lower(${search})) > 0
+      OR EXISTS (SELECT 1 FROM mealie_food_aliases aliases WHERE aliases.food_id = foods.id AND strpos(lower(aliases.alias), lower(${search})) > 0)
+    )
+    ORDER BY lower(foods.name), foods.id
+    LIMIT 50
+  `
+}
+
 export async function foodMappingProblems(sql: Database) {
-  const mappings = await foodMappings(sql, null)
+  const mappings = await listFoodMappings(sql)
   const itemsWithoutPackageSize = await sql<{ item: string, entries: number }[]>`
     SELECT item, count(*)::int AS entries
     FROM grocery_entries

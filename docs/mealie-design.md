@@ -567,6 +567,7 @@ GET    /api/items/food?item=<name>
 PUT    /api/items/food
 DELETE /api/items/food
 
+GET /api/food-mappings
 GET /api/food-mappings/unmapped
 GET /api/food-mappings/problems
 GET /api/food-mappings/suggestions?item=<name>
