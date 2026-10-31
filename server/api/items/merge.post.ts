@@ -2,9 +2,10 @@ import { db } from '../../utils/db'
 import { renameItemVariants } from '../../utils/item-query'
 import { normalizeCategory } from '../../../shared/utils/category'
 import { lockItemWrites } from '../../utils/category-query'
+import { parseFoodResolution } from '../../utils/food-mapping'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ target?: unknown, sources?: unknown, category?: unknown }>(event)
+  const body = await readBody<{ target?: unknown, sources?: unknown, category?: unknown, foodResolution?: unknown }>(event)
   const target = typeof body.target === 'string' ? body.target.trim() : ''
   const sources = Array.isArray(body.sources)
     ? [...new Set(body.sources.filter((source): source is string => typeof source === 'string').map(source => source.trim()).filter(Boolean))]
@@ -15,6 +16,8 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     throw createError({ statusCode: 400, statusMessage: error instanceof Error ? error.message : 'Invalid category' })
   }
+
+  const foodResolution = parseFoodResolution(body.foodResolution)
 
   if (!target) throw createError({ statusCode: 400, statusMessage: 'A unified item name is required' })
   if (target.length > 200) throw createError({ statusCode: 400, statusMessage: 'The unified item name is too long' })
@@ -35,7 +38,7 @@ export default defineEventHandler(async (event) => {
     const missing = sources.filter(source => !existingNames.has(source))
     if (missing.length) throw createError({ statusCode: 409, statusMessage: 'One or more item variants changed. Refresh and try again.' })
 
-    const mergedEntries = await renameItemVariants(tx, target, sources, category)
+    const mergedEntries = await renameItemVariants(tx, target, sources, category, foodResolution)
     return { target, mergedNames: sources.length, mergedEntries }
   })
 })

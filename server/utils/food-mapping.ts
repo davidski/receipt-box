@@ -1,0 +1,138 @@
+import type postgres from 'postgres'
+import { lockItemWrites } from './category-query.ts'
+import { uuidPattern } from './mealie/sync.ts'
+
+type Transaction = postgres.TransactionSql
+type Database = postgres.Sql | Transaction
+
+// Every way a mapping can be created. Suggestions (#7) add their value here; there is no database constraint to migrate.
+export type FoodMappingSource = 'manual'
+
+export type FoodMapping = {
+  item: string
+  mealieFoodId: string
+  foodName: string | null
+  mappingSource: FoodMappingSource
+  mappedAt: Date
+  broken: boolean
+  hasEntries: boolean
+}
+
+export type MappedFood = { item: string, mealieFoodId: string, foodName: string | null, active: boolean }
+
+export function requireItemName(value: unknown) {
+  const item = typeof value === 'string' ? value.trim() : ''
+  if (!item) throw createError({ statusCode: 400, statusMessage: 'An item name is required' })
+  return item
+}
+
+export function requireFoodId(value: unknown) {
+  if (typeof value !== 'string' || !uuidPattern.test(value)) throw createError({ statusCode: 400, statusMessage: 'Invalid Mealie food id' })
+  return value.toLowerCase()
+}
+
+// undefined means no choice was made and null means clear, matching the category resolution.
+export function parseFoodResolution(value: unknown) {
+  return value === undefined || value === null ? value : requireFoodId(value)
+}
+
+// No foreign key: a food missing from the cache must flag the mapping as broken, never remove it.
+async function foodMappings(sql: Database, item: string | null) {
+  return sql<FoodMapping[]>`
+    SELECT mappings.item, mappings.mealie_food_id::text, foods.name AS food_name, mappings.mapping_source, mappings.mapped_at,
+      COALESCE(NOT foods.active, TRUE) AS broken,
+      EXISTS (SELECT 1 FROM grocery_entries entries WHERE entries.item = mappings.item) AS has_entries
+    FROM grocery_item_food_mapping mappings
+    LEFT JOIN mealie_foods foods ON foods.id = mappings.mealie_food_id
+    WHERE ${item}::text IS NULL OR mappings.item = ${item}
+    ORDER BY lower(mappings.item), mappings.item
+  `
+}
+
+export async function getFoodMapping(sql: Database, item: string) {
+  const [mapping] = await foodMappings(sql, item)
+  return mapping ?? null
+}
+
+export async function setFoodMapping(tx: Transaction, item: string, foodId: string) {
+  await lockItemWrites(tx)
+  const [entry] = await tx`SELECT 1 FROM grocery_entries WHERE item = ${item} LIMIT 1`
+  if (!entry) throw createError({ statusCode: 404, statusMessage: 'That item name no longer exists' })
+  const [food] = await tx<{ active: boolean }[]>`SELECT active FROM mealie_foods WHERE id = ${foodId}`
+  if (!food) throw createError({ statusCode: 400, statusMessage: 'That food is not in the Mealie catalog. Sync Mealie and try again.' })
+  if (!food.active) throw createError({ statusCode: 409, statusMessage: 'That food is no longer active in Mealie' })
+  const source: FoodMappingSource = 'manual'
+  await tx`
+    INSERT INTO grocery_item_food_mapping (item, mealie_food_id, mapping_source, mapped_at)
+    VALUES (${item}, ${foodId}, ${source}, now())
+    ON CONFLICT (item) DO UPDATE SET
+      mealie_food_id = excluded.mealie_food_id,
+      mapping_source = excluded.mapping_source,
+      mapped_at = excluded.mapped_at
+  `
+  return (await getFoodMapping(tx, item))!
+}
+
+export async function deleteFoodMapping(tx: Transaction, item: string) {
+  await lockItemWrites(tx)
+  const deleted = await tx`DELETE FROM grocery_item_food_mapping WHERE item = ${item} RETURNING item`
+  return deleted.length > 0
+}
+
+export async function unmappedItems(sql: Database) {
+  return sql<{ item: string, entries: number }[]>`
+    SELECT entries.item, count(*)::int AS entries
+    FROM grocery_entries entries
+    WHERE NOT entries.non_grocery
+      AND NOT EXISTS (SELECT 1 FROM grocery_item_food_mapping mappings WHERE mappings.item = entries.item)
+    GROUP BY entries.item
+    ORDER BY lower(entries.item), entries.item
+  `
+}
+
+export async function foodMappingProblems(sql: Database) {
+  const mappings = await foodMappings(sql, null)
+  const itemsWithoutPackageSize = await sql<{ item: string, entries: number }[]>`
+    SELECT item, count(*)::int AS entries
+    FROM grocery_entries
+    WHERE NOT non_grocery
+    GROUP BY item
+    HAVING count(*) FILTER (WHERE size > 0 AND unit IS NOT NULL) = 0
+    ORDER BY lower(item), item
+  `
+  return {
+    brokenMappings: mappings.filter(mapping => mapping.broken),
+    orphanedMappings: mappings.filter(mapping => !mapping.hasEntries),
+    unmappedItems: await unmappedItems(sql),
+    itemsWithoutPackageSize
+  }
+}
+
+export async function lockMappedFoods(tx: Transaction, names: string[]) {
+  return tx<MappedFood[]>`
+    SELECT mappings.item, mappings.mealie_food_id::text, foods.name AS food_name, COALESCE(foods.active, FALSE) AS active
+    FROM grocery_item_food_mapping mappings
+    LEFT JOIN mealie_foods foods ON foods.id = mappings.mealie_food_id
+    WHERE mappings.item = ANY(${names}::text[])
+    ORDER BY mappings.item
+    FOR UPDATE OF mappings
+  `
+}
+
+export function distinctFoods(rows: MappedFood[]) {
+  return [...new Map(rows.map(({ mealieFoodId, foodName, active }) => [mealieFoodId, { id: mealieFoodId, name: foodName, active }])).values()]
+}
+
+// A chosen food must already be mapped on one of the names, so a resolution cannot introduce an uncached or stale food.
+export function hasFoodConflict(rows: MappedFood[], resolution: string | null | undefined) {
+  const foods = distinctFoods(rows)
+  return resolution === undefined ? foods.length > 1 : resolution !== null && !foods.some(food => food.id === resolution)
+}
+
+// Moves the kept row so its source and mapped_at survive; the target's own row wins when it already has that food.
+export async function carryFoodMapping(tx: Transaction, target: string, rows: MappedFood[], foodId: string | null) {
+  const kept = rows.find(row => row.item === target && row.mealieFoodId === foodId) ?? rows.find(row => row.mealieFoodId === foodId)
+  const stale = rows.filter(row => row !== kept).map(row => row.item)
+  if (stale.length) await tx`DELETE FROM grocery_item_food_mapping WHERE item = ANY(${stale}::text[])`
+  if (kept && kept.item !== target) await tx`UPDATE grocery_item_food_mapping SET item = ${target} WHERE item = ${kept.item}`
+}

@@ -2,6 +2,7 @@ import type postgres from 'postgres'
 import { categoryKey } from '../../shared/utils/category.ts'
 import { renameRecipeItems } from './recipe-query.ts'
 import { lockItemWrites, setItemCategory } from './category-query.ts'
+import { carryFoodMapping, distinctFoods, hasFoodConflict, lockMappedFoods } from './food-mapping.ts'
 
 type Transaction = postgres.TransactionSql
 
@@ -59,7 +60,7 @@ export async function updateItemDimensions(tx: Transaction, item: string, update
   return updated.length
 }
 
-export async function renameItemVariants(tx: Transaction, target: string, sources: string[], resolution?: string | null) {
+export async function renameItemVariants(tx: Transaction, target: string, sources: string[], resolution?: string | null, foodResolution?: string | null) {
   if (sources.length || resolution !== undefined) {
     const names = [...new Set([target, ...sources])]
     await lockItemWrites(tx)
@@ -71,16 +72,24 @@ export async function renameItemVariants(tx: Transaction, target: string, source
       FOR UPDATE OF mappings
     `
     const choices = [...new Map(categories.map(row => [categoryKey(row.category), row.category])).values()]
-    if (resolution === undefined && choices.length > 1) {
+    const mappedFoods = sources.length ? await lockMappedFoods(tx, names) : []
+    const categoryConflict = resolution === undefined && choices.length > 1
+    const foodConflict = hasFoodConflict(mappedFoods, foodResolution)
+    if (categoryConflict || foodConflict) {
       throw createError({
         statusCode: 409,
-        statusMessage: 'These item names have conflicting categories. Choose one to keep or clear the category.',
-        data: { categories: choices }
+        statusMessage: !foodConflict
+          ? 'These item names have conflicting categories. Choose one to keep or clear the category.'
+          : categoryConflict
+            ? 'These item names have conflicting categories and foods. Choose what to keep or clear for each.'
+            : 'These item names have conflicting foods. Choose one to keep or clear the food mapping.',
+        data: { categories: categoryConflict ? choices : [], foods: foodConflict ? distinctFoods(mappedFoods) : [] }
       })
     }
     const category = resolution === undefined ? choices[0] ?? null : resolution
     if (sources.length) await tx`DELETE FROM grocery_item_categories WHERE item = ANY(${sources}::text[])`
     await setItemCategory(tx, target, category)
+    if (sources.length) await carryFoodMapping(tx, target, mappedFoods, foodResolution === undefined ? mappedFoods[0]?.mealieFoodId ?? null : foodResolution)
   }
 
   let mergedEntries = 0

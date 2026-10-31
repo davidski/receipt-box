@@ -182,6 +182,8 @@ and allow the app origin in that API's CORS policy.
 
 `purchase_date`, `item`, `category`, `store`, `package_size`, `package_unit`, `price`, `normalized_price`, `normalized_basis`, `on_sale`, `non_grocery`, and `notes`.
 
+Exports do not include Mealie food mappings. Back up the database to keep them; restoring only from an export means mapping items again.
+
 ## Development commands
 
 ```sh
@@ -190,4 +192,10 @@ pnpm typecheck  # Vue and TypeScript checks
 pnpm build      # production build
 pnpm generate   # static client-only route output
 pnpm start      # run the production build
+```
+
+The Postgres tests are skipped, with a warning, unless `TEST_DATABASE_URL` is set. CI requires it. It needs a role that may create databases: each run creates and drops its own database and never writes to the one named in the URL.
+
+```sh
+TEST_DATABASE_URL=postgres://receiptbox:local-receipt-box-only@127.0.0.1:5432/receiptbox pnpm test
 ```

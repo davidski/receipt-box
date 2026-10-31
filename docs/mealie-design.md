@@ -223,6 +223,12 @@ many grocery items → one Mealie food
 one grocery item   → one Mealie food
 ```
 
+`mapping_source` records how a mapping was made. The only value today is `manual` (a person chose the food through `PUT /api/items/food`). It is plain text with no database constraint: a later source, such as confirmed suggestions in #7, adds its value to the `FoodMappingSource` type in `server/utils/food-mapping.ts`.
+
+`mealie_food_id` has no foreign key on purpose. A mapping to a food that is inactive or missing from the cache stays in place and is flagged broken.
+
+Import and export do not include mappings. They stay flat purchase tables, so restoring only from an export means mapping items again; a database backup keeps them.
+
 Examples:
 
 ```text
@@ -243,6 +249,10 @@ Because the key is the item name, `renameItemVariants` must carry the mapping, f
 
 - Rename: move the mapping to the new name.
 - Merge: if source and target map to the same food, or only one is mapped, keep it. If they map to different foods, respond 409 with the conflicting foods and accept a resolution (choose one, or clear), exactly as categories do today. Do not write a second conflict mechanism.
+
+The rename and merge endpoints take an optional `foodResolution` beside `category`: a food id already mapped on one of the names, or `null` to clear. A conflict is one 409 whose `data` holds both `categories` and `foods` (`{ id, name, active }`); an array is empty when that field has no conflict. Both conflicts therefore resolve in one retry.
+
+With Mealie unset, the mapping read endpoints return empty results and `PUT` returns 409. `DELETE`, rename and merge keep working on existing mappings.
 
 ---
 
@@ -830,3 +840,4 @@ Tests: cup flour vs lb flour without density → `DIMENSION_MISMATCH`; "bunch" p
 - shopping-list cost
 - recipe price trends
 - cost-per-serving analytics
+- pricing native recipe lines across several grocery items, after #10; needs Mealie or a Receipt Box-owned grouping

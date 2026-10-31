@@ -159,6 +159,14 @@ export async function migrate() {
         synced_at TIMESTAMPTZ NOT NULL
       )
     `
+    await tx`
+      CREATE TABLE IF NOT EXISTS grocery_item_food_mapping (
+        item TEXT PRIMARY KEY,
+        mealie_food_id UUID NOT NULL,
+        mapping_source TEXT NOT NULL,
+        mapped_at TIMESTAMPTZ NOT NULL
+      )
+    `
     await seedInitialCategories(tx)
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
     const existingUnits = await tx<{ unit: string }[]>`
