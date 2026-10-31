@@ -167,6 +167,7 @@ export async function migrate() {
         mapped_at TIMESTAMPTZ NOT NULL
       )
     `
+    await tx`CREATE EXTENSION IF NOT EXISTS pg_trgm`
     await seedInitialCategories(tx)
     await tx`ALTER TABLE grocery_entries DROP COLUMN IF EXISTS unit_price`
     const existingUnits = await tx<{ unit: string }[]>`

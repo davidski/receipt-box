@@ -76,6 +76,7 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       remove: (await import('../server/api/items/food.delete')).default,
       unmapped: (await import('../server/api/food-mappings/unmapped.get')).default,
       problems: (await import('../server/api/food-mappings/problems.get')).default,
+      suggestions: (await import('../server/api/food-mappings/suggestions.get')).default,
       merge: (await import('../server/api/items/merge.post')).default,
       rename: (await import('../server/api/items/rename.patch')).default
     }
@@ -188,6 +189,95 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       await addMapping('Flour', foodA)
       await resetDatabase(sql)
       expect(await mappings()).toEqual([])
+    })
+  })
+
+  describe('suggestions', () => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', '0', '9'].map(letter => `${letter.repeat(8)}-0000-4000-8000-000000000000`)
+    const addFood = async (id: string, name: string, { plural = null as string | null, aliases = [] as string[], active = true } = {}) => {
+      await sql`INSERT INTO mealie_foods (id, name, plural_name, active, last_seen_at, synced_at) VALUES (${id}, ${name}, ${plural}, ${active}, now(), now())`
+      for (const alias of aliases) await sql`INSERT INTO mealie_food_aliases VALUES (${id}, ${alias})`
+    }
+    const suggest = async (item: string) => (await call('suggestions', { query: { item } })).suggestions as any[]
+
+    it('has pg_trgm installed by the migration', async () => {
+      expect(await sql`SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'`).toHaveLength(1)
+    })
+
+    it('matches an exact name, ignoring case and spacing, with its reason', async () => {
+      await addFood(ids[0]!, 'Garbanzo Beans')
+      expect(await suggest('  garbanzo   BEANS ')).toEqual([
+        { mealieFoodId: ids[0], foodName: 'Garbanzo Beans', matchType: 'exact_name', matchedText: 'Garbanzo Beans', similarity: null }
+      ])
+    })
+
+    it('matches a plural name and an exact alias', async () => {
+      await addFood(ids[0]!, 'Tomato', { plural: 'Tomatoes' })
+      await addFood(ids[1]!, 'Chickpeas', { aliases: ['Ceci'] })
+      expect(await suggest('tomatoes')).toMatchObject([{ mealieFoodId: ids[0], matchType: 'plural_name', matchedText: 'Tomatoes' }])
+      expect(await suggest('CECI')).toMatchObject([{ mealieFoodId: ids[1], foodName: 'Chickpeas', matchType: 'exact_alias', matchedText: 'Ceci', similarity: null }])
+    })
+
+    it('matches a normalized name across punctuation and a final s', async () => {
+      await addFood(ids[0]!, "Baker's Yeast")
+      await addFood(ids[1]!, 'Black Bean')
+      expect((await suggest('bakers yeast'))[0]).toMatchObject({ mealieFoodId: ids[0], matchType: 'normalized_name' })
+      expect((await suggest('Black-Beans'))[0]).toMatchObject({ mealieFoodId: ids[1], matchType: 'normalized_name' })
+    })
+
+    it('does not match punctuation alone as normalized', async () => {
+      await addFood(ids[0]!, '!!!')
+      await addFood(ids[1]!, 'Salt')
+      expect(await suggest('???')).toEqual([])
+    })
+
+    it('marks a fuzzy name or alias as fuzzy with a score, and writes no mapping', async () => {
+      await addFood(ids[0]!, 'Garbanzo Beans')
+      await addFood(ids[1]!, 'Chickpeas', { aliases: ['Chick Pea Mix'] })
+      await addEntry('Garbanzo Bean Can')
+      const [name] = await suggest('Garbanzo Bean Can')
+      expect(name).toMatchObject({ mealieFoodId: ids[0], matchType: 'fuzzy', matchedText: 'Garbanzo Beans' })
+      expect(name.similarity).toBeGreaterThan(0.3)
+      expect((await suggest('Chick Pea Mixes'))[0]).toMatchObject({ mealieFoodId: ids[1], matchType: 'fuzzy', matchedText: 'Chick Pea Mix' })
+      expect(await mappings()).toEqual([])
+    })
+
+    it('never returns an unrelated food', async () => {
+      await addFood(ids[0]!, 'Garbanzo Beans')
+      expect(await suggest('Paper Towels')).toEqual([])
+    })
+
+    it('orders by match strength, one row per food at its best match', async () => {
+      await addFood(ids[0]!, 'Peas Fresh')
+      await addFood(ids[1]!, 'Other', { aliases: ['Peas'] })
+      await addFood(ids[2]!, 'Peas', { plural: 'Peas', aliases: ['Peas'] })
+      const rows = await suggest('peas')
+      expect(rows.map(row => [row.mealieFoodId, row.matchType])).toEqual([[ids[2], 'exact_name'], [ids[1], 'exact_alias'], [ids[0], 'fuzzy']])
+    })
+
+    it('returns at most five', async () => {
+      for (const [index, id] of ids.entries()) await addFood(id, `Olive Oil ${index}`)
+      expect(await suggest('Olive Oil')).toHaveLength(5)
+    })
+
+    it('never suggests an inactive food, by name or alias', async () => {
+      await addFood(ids[0]!, 'Saffron', { active: false, aliases: ['Azafran'] })
+      expect(await suggest('Saffron')).toEqual([])
+      expect(await suggest('Azafran')).toEqual([])
+    })
+
+    it('treats item text as data, and rejects a missing or oversized name', async () => {
+      await addFood(ids[0]!, 'Salt')
+      expect(await suggest("'; DROP TABLE mealie_foods; --")).toEqual([])
+      expect(await sql`SELECT 1 FROM mealie_foods`).not.toHaveLength(0)
+      await expect(call('suggestions')).rejects.toMatchObject({ statusCode: 400 })
+      await expect(suggest('x'.repeat(201))).rejects.toMatchObject({ statusCode: 400 })
+    })
+
+    it('returns nothing with Mealie unset', async () => {
+      await addFood(ids[0]!, 'Salt')
+      process.env.MEALIE_URL = ''
+      await expect(call('suggestions', { query: { item: 'Salt' } })).resolves.toEqual({ item: 'Salt', suggestions: [] })
     })
   })
 
