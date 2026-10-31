@@ -273,7 +273,7 @@ normalized name
 fuzzy name/alias
 ```
 
-Fuzzy matching uses the Postgres `pg_trgm` extension (`similarity()`), enabled by `CREATE EXTENSION IF NOT EXISTS pg_trgm` in the migration. The extension is required: it ships with the `postgres:17-alpine` image used in `compose.yaml`; an external Postgres must have it enabled by a role permitted to create it.
+Fuzzy matching uses the Postgres `pg_trgm` extension (`similarity()`), enabled by `CREATE EXTENSION IF NOT EXISTS pg_trgm` in the migration. The extension is required: it ships with the `postgres:18-alpine` image used in `compose.yaml`; an external Postgres must have it enabled by a role permitted to create it.
 
 Initially require human confirmation for every mapping. Fuzzy matches must remain suggestions. Only exact matches may eventually support automatic assignment.
 
