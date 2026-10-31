@@ -137,6 +137,8 @@ The application uses these settings:
 | `NUXT_OAUTH_OIDC_CLIENT_SECRET` | At container start | OIDC relying-party client secret |
 | `NUXT_OAUTH_OIDC_OPENID_CONFIG` | At container start | Full URL of the provider's OpenID configuration document |
 | `NUXT_OAUTH_OIDC_REDIRECT_URL` | At container start | Optional explicit public callback URL; recommended behind a reverse proxy |
+| `MEALIE_URL` | At container start | Optional base URL of a Mealie instance; Mealie is disabled unless this and `MEALIE_API_TOKEN` are set |
+| `MEALIE_API_TOKEN` | At container start | Optional Mealie API token used only by the server |
 | `APP_PORT` | At container start | Host loopback port used to reach the app server |
 | `NUXT_APP_BASE_URL` | At image build | Public path where the app is mounted; must start and end with `/` |
 | `NUXT_PUBLIC_API_BASE` | At image build | URL used by the browser for API requests; may be a path or full URL |
