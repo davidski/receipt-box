@@ -11,6 +11,7 @@ type Problems = { brokenMappings: Mapping[], orphanedMappings: Mapping[], unmapp
 type SyncResult = { status: 'skipped' } | { status: 'synced', foods: number, aliases: number, units: number, deactivatedFoods: number, deactivatedUnits: number }
 type Filter = 'all' | 'mapped' | 'unmapped' | 'broken'
 type Row = { item: string, entries?: number, mapping?: Mapping }
+type Suggestion = { mealieFoodId: string, foodName: string, matchType: 'exact_name' | 'plural_name' | 'exact_alias' | 'normalized_name' | 'fuzzy', matchedText: string, similarity: number | null }
 
 const { apiUrl } = useApi()
 const { data: status, error: statusError, refresh: refreshStatus } = await useFetch<MealieStatus>(apiUrl('/mealie/status'))
@@ -34,6 +35,8 @@ const mappingBusy = ref<string | null>(null)
 const mappingError = ref('')
 const clearing = ref<Mapping | null>(null)
 const clearBusy = ref(false)
+// By item name: null while loading, 'failed' after an error. A Map because item names are free text.
+const suggestions = reactive(new Map<string, Suggestion[] | null | 'failed'>())
 
 const counts = computed(() => status.value?.counts)
 const allMappings = computed(() => mappings.value?.mappings ?? [])
@@ -48,7 +51,17 @@ const filterTabs = computed(() => [
   { label: `Broken (${brokenRows.value.length})`, value: 'broken' }
 ])
 const filteredRows = computed(() => ({ all: allRows.value, mapped: mappedRows.value, unmapped: unmappedRows.value, broken: brokenRows.value })[filter.value])
-const foodOptions = computed(() => foodResults.value.map(food => ({ label: food.name, value: food.id })))
+const visibleList = computed(() => filteredRows.value.slice(0, visibleRows.value))
+const unloadedSuggestions = computed(() => visibleList.value.filter(row => needsFood(row) && !suggestions.has(row.item)).map(row => row.item))
+// An empty search lists the suggestions, with their reasons, ahead of the catalog.
+const foodOptions = computed(() => {
+  const loaded = foodSearch.value.trim() ? null : suggestions.get(editingItem.value ?? '')
+  const suggested = Array.isArray(loaded) ? loaded : []
+  return [
+    ...suggested.map(suggestion => ({ label: suggestion.foodName, value: suggestion.mealieFoodId, description: matchReason(suggestion) })),
+    ...foodResults.value.filter(food => !suggested.some(suggestion => suggestion.mealieFoodId === food.id)).map(food => ({ label: food.name, value: food.id }))
+  ]
+})
 const mappingsLoading = computed(() => [mappingsStatus.value, unmappedStatus.value].includes('pending') && !mappings.value)
 const problemGroups = computed(() => [
   { title: 'Mapped to an inactive or missing food', rows: (problems.value?.brokenMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food missing from the catalog' })) },
@@ -67,6 +80,43 @@ function entryLabel(entries: number) {
 
 function errorMessage(error: any, fallback: string) {
   return error?.data?.statusMessage || error?.statusMessage || fallback
+}
+
+// A mapping without entries can only be cleared, and a healthy one needs no replacement.
+function needsFood(row: Row) {
+  return !row.mapping || (row.mapping.broken && row.mapping.hasEntries)
+}
+
+function topSuggestion(row: Row) {
+  const loaded = needsFood(row) ? suggestions.get(row.item) : null
+  return Array.isArray(loaded) ? loaded[0] : undefined
+}
+
+function chooseLabel(row: Row) {
+  return topSuggestion(row) ? 'Choose another' : row.mapping ? 'Change food' : 'Choose food'
+}
+
+function matchReason({ matchType, matchedText, similarity }: Suggestion) {
+  switch (matchType) {
+    case 'exact_name': return `Matched Mealie food name “${matchedText}”`
+    case 'plural_name': return `Matched Mealie plural name “${matchedText}”`
+    case 'exact_alias': return `Matched Mealie alias “${matchedText}”`
+    case 'normalized_name': return `Matched “${matchedText}”, ignoring punctuation and plurals`
+    case 'fuzzy': return `Similar to “${matchedText}” (${Math.round((similarity ?? 0) * 100)}%)`
+  }
+}
+
+// A sync replaces the catalog, so an answer that started before it must not fill the emptied cache.
+let suggestionRun = 0
+async function loadSuggestions(item: string) {
+  const run = suggestionRun
+  suggestions.set(item, null)
+  try {
+    const { suggestions: loaded } = await $fetch<{ suggestions: Suggestion[] }>(apiUrl('/food-mappings/suggestions'), { query: { item } })
+    if (run === suggestionRun) suggestions.set(item, loaded)
+  } catch {
+    if (run === suggestionRun) suggestions.set(item, 'failed')
+  }
 }
 
 function refreshLists() {
@@ -90,6 +140,8 @@ async function sync(force = false) {
   } finally {
     syncing.value = false
   }
+  suggestionRun++
+  suggestions.clear()
   await Promise.all([refreshStatus(), refreshLists()])
 }
 
@@ -98,6 +150,7 @@ function chooseFood(item: string) {
   pickedFood.value = undefined
   foodSearch.value = ''
   mappingError.value = ''
+  if (!suggestions.has(item)) void loadSuggestions(item)
   void searchFoods()
 }
 
@@ -123,6 +176,8 @@ watch(foodSearch, () => {
   searchTimer = setTimeout(searchFoods, 200)
 })
 watch(filter, () => { visibleRows.value = 30 })
+watch(unloadedSuggestions, items => items.forEach(item => loadSuggestions(item)))
+onMounted(() => unloadedSuggestions.value.forEach(item => loadSuggestions(item)))
 onBeforeUnmount(() => clearTimeout(searchTimer))
 
 async function saveFood(item: string, mealieFoodId: string) {
@@ -130,9 +185,10 @@ async function saveFood(item: string, mealieFoodId: string) {
   mappingError.value = ''
   try {
     await $fetch(apiUrl('/items/food'), { method: 'PUT', body: { item, mealieFoodId } })
-    editingItem.value = null
+    if (editingItem.value === item) editingItem.value = null
   } catch (error: any) {
     mappingError.value = errorMessage(error, `Could not map ${item}`)
+    void loadSuggestions(item)
     // The catalog may have changed, so offer fresh results and let the same food be picked again.
     pickedFood.value = undefined
     void searchFoods()
@@ -198,7 +254,7 @@ async function confirmClear() {
         <p v-if="mappingsLoading" class="mt-4 text-muted">Loading food mappings…</p>
         <p v-else-if="!mappingsError && !unmappedError && !filteredRows.length" class="mt-4 text-sm text-muted">Nothing here.</p>
         <ul v-else-if="!mappingsError && !unmappedError" data-testid="food-mapping-list" class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
-          <li v-for="row in filteredRows.slice(0, visibleRows)" :key="row.item" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:flex-col max-sm:items-stretch">
+          <li v-for="row in visibleList" :key="row.item" class="flex items-center justify-between gap-[0.875rem] min-h-[3.875rem] p-[0.625rem_0.75rem_0.625rem_1rem] border-t border-line first:border-t-0 max-sm:flex-col max-sm:items-stretch">
             <div class="min-w-0 break-words">
               <strong class="block">{{ row.item }}</strong>
               <span class="mt-[0.1875rem] flex flex-wrap items-center gap-1.5 text-muted text-xs">
@@ -209,6 +265,17 @@ async function confirmClear() {
                 </template>
                 <span v-else>Unmapped · {{ entryLabel(row.entries ?? 0) }}</span>
               </span>
+              <template v-if="needsFood(row)">
+                <p v-if="suggestions.get(row.item) === null" class="mt-1.5 text-xs text-muted">Looking for a suggestion…</p>
+                <p v-else-if="suggestions.get(row.item) === 'failed'" role="alert" class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-danger">
+                  Could not load suggestions.
+                  <UButton type="button" label="Try again" :aria-label="`Try the suggestions for ${row.item} again`" color="neutral" variant="link" size="xs" @click="loadSuggestions(row.item)" />
+                </p>
+                <p v-else-if="topSuggestion(row)" data-testid="food-suggestion" class="mt-1.5 text-sm">
+                  {{ row.mapping ? 'Suggested replacement' : 'Suggested food' }}: <strong class="font-bold">{{ topSuggestion(row)!.foodName }}</strong>
+                  <span class="block text-xs text-muted">{{ matchReason(topSuggestion(row)!) }}</span>
+                </p>
+              </template>
             </div>
             <div v-if="editingItem === row.item" class="flex flex-wrap items-center gap-1 sm:justify-end">
               <USelectMenu
@@ -224,14 +291,16 @@ async function confirmClear() {
                 placeholder="Search foods…"
                 :search-input="{ placeholder: 'Search foods…' }"
                 class="w-60 max-sm:w-full"
+                :ui="{ itemDescription: 'whitespace-normal' }"
                 @update:model-value="(food: string) => saveFood(row.item, food)"
               />
               <UButton class="touch-target" type="button" label="Cancel" color="neutral" variant="ghost" @click="editingItem = null" />
               <p v-if="foodsError" role="alert" class="w-full text-xs text-danger">{{ foodsError }}</p>
             </div>
             <div v-else class="flex flex-wrap gap-1">
+              <UButton v-if="topSuggestion(row)" class="touch-target" type="button" label="Accept" :aria-label="`Accept ${topSuggestion(row)!.foodName} for ${row.item}`" icon="i-lucide-check" :loading="mappingBusy === row.item" :disabled="Boolean(mappingBusy)" @click="saveFood(row.item, topSuggestion(row)!.mealieFoodId)" />
               <!-- A mapping can only be set on an item with entries, so one without can only be cleared. -->
-              <UButton v-if="!row.mapping || row.mapping.hasEntries" class="touch-target" type="button" :label="row.mapping ? 'Change food' : 'Choose food'" :aria-label="`${row.mapping ? 'Change food' : 'Choose food'} for ${row.item}`" icon="i-lucide-search" color="neutral" variant="ghost" @click="chooseFood(row.item)" />
+              <UButton v-if="!row.mapping || row.mapping.hasEntries" class="touch-target" type="button" :label="chooseLabel(row)" :aria-label="`${chooseLabel(row)} for ${row.item}`" icon="i-lucide-search" color="neutral" variant="ghost" @click="chooseFood(row.item)" />
               <UButton v-if="row.mapping" class="touch-target" type="button" label="Clear" :aria-label="`Clear mapping for ${row.item}`" icon="i-lucide-unlink" color="error" variant="ghost" @click="clearing = row.mapping" />
             </div>
           </li>
