@@ -62,7 +62,7 @@ describe('POST /api/recipe-cost', () => {
   it('includes the purchase unit for incompatible recipe units using the same query', async () => {
     mockDatabase.responses = [[{ item: 'Flour', price: '4.00', size: '1', unit: 'lb', saleItem: false }]]
     const result = await run([{ item: 'Flour', quantity: 1, unit: 'cup' }])
-    expect(result.lines[0]).toMatchObject({ cost: null, error: 'INCOMPATIBLE_UNIT', purchaseUnit: 'lb' })
+    expect(result.lines[0]).toMatchObject({ cost: null, error: 'DIMENSION_MISMATCH', purchaseUnit: 'lb' })
     expect(mockDatabase.queries).toHaveLength(1)
   })
 
@@ -88,9 +88,9 @@ describe('POST /api/recipe-cost', () => {
     expect(mockDatabase.queries).toHaveLength(0)
   })
 
-  it('treats a missing unit as an unconvertible blank unit', async () => {
+  it('reports a missing unit as NO_UNIT', async () => {
     mockDatabase.responses = [[{ item: 'Flour', price: '4.00', size: '500', unit: 'g', saleItem: false }]]
     const result = await run([{ item: 'Flour', quantity: 1 }])
-    expect(result.lines[0]).toMatchObject({ unit: '', error: 'INCOMPATIBLE_UNIT', purchaseUnit: 'g' })
+    expect(result.lines[0]).toMatchObject({ unit: '', error: 'NO_UNIT', purchaseUnit: 'g' })
   })
 })

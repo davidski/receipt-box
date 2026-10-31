@@ -125,7 +125,7 @@ describe('priceRecipe', () => {
   })
 
   test('a blank or unrecognized unit still hides older purchases', async () => {
-    for (const [unit, error] of [['', 'NO_PACKAGE_SIZE'], ['bunch', 'INCOMPATIBLE_UNIT']]) {
+    for (const [unit, error] of [['', 'NO_PACKAGE_SIZE'], ['bunch', 'UNSTANDARDIZED_UNIT']]) {
       const { sql } = fakeSql([[row('Flour', '2', '2026-02-01', { unit }), row('Flour', '1', '2026-01-01')]])
       assert.equal((await priceRecipe(sql, [line('Flour', 250)])).lines[0].error, error)
     }

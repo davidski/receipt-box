@@ -40,9 +40,10 @@ export function parseRecipeId(value: string | undefined) {
   return value
 }
 
-export async function priceRecipe(sql: Sql, lines: RecipeLine[]) {
-  // shortcut: SQL can't apply normalizeUnit, so a latest purchase with a blank or unrecognized unit hides an older usable one (NO_PACKAGE_SIZE or INCOMPATIBLE_UNIT), upgrade if that shows up in real data by storing normalized units.
-  const purchases = lines.length
+/** At most one eligible and one ineligible grocery purchase per item: the latest of each. */
+export async function latestPurchases(sql: Sql, items: string[]) {
+  // shortcut: SQL can't apply normalizeUnit, so a latest purchase with a blank or unrecognized unit hides an older usable one (NO_PACKAGE_SIZE or UNSTANDARDIZED_UNIT), upgrade if that shows up in real data by storing normalized units.
+  return items.length
     ? await sql<PurchaseCandidate[]>`
       SELECT DISTINCT ON (entries.item, eligible)
         entries.id::text, entries.item, entries.price, entries.size, entries.unit, entries.sale_item,
@@ -50,10 +51,14 @@ export async function priceRecipe(sql: Sql, lines: RecipeLine[]) {
         (entries.size > 0 AND entries.unit IS NOT NULL) IS TRUE AS eligible
       FROM grocery_entries entries
       JOIN grocery_receipts receipts ON receipts.id = entries.receipt_id
-      WHERE entries.item = ANY(${lines.map(line => line.item)}::text[]) AND NOT entries.non_grocery
+      WHERE entries.item = ANY(${items}::text[]) AND NOT entries.non_grocery
       ORDER BY entries.item, eligible, receipts.purchased_on DESC, entries.id DESC
     `
     : []
+}
+
+export async function priceRecipe(sql: Sql, lines: RecipeLine[]) {
+  const purchases = await latestPurchases(sql, lines.map(line => line.item))
   const costed = lines.map((line) => {
     const candidates = purchases.filter(row => row.item === line.item)
     // With nothing eligible, the remaining row makes costLine report NO_PACKAGE_SIZE rather than NO_PRICE.

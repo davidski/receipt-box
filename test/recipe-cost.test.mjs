@@ -95,7 +95,7 @@ describe('costLine', () => {
   test('prices eaches only against eaches', () => {
     const eggs = line({ item: 'Eggs', quantity: 3, unit: 'ea' })
     assert.equal(costLine(eggs, purchase({ price: '6.00', size: '12', unit: 'ct' })).cost, 1.5)
-    assert.equal(costLine({ ...eggs, unit: 'g' }, purchase({ price: '6.00', size: '12', unit: 'ea' })).error, 'INCOMPATIBLE_UNIT')
+    assert.equal(costLine({ ...eggs, unit: 'g' }, purchase({ price: '6.00', size: '12', unit: 'ea' })).error, 'DIMENSION_MISMATCH')
   })
 
   test('reports NO_PRICE without a purchase', () => {
@@ -108,10 +108,28 @@ describe('costLine', () => {
     }
   })
 
-  test('reports INCOMPATIBLE_UNIT across dimensions and for unknown units', () => {
-    assert.equal(costLine(line({ unit: 'cup' }), purchase()).error, 'INCOMPATIBLE_UNIT')
-    assert.equal(costLine(line({ unit: 'bunch' }), purchase()).error, 'INCOMPATIBLE_UNIT')
-    assert.equal(costLine(line(), purchase({ unit: 'bunch' })).error, 'INCOMPATIBLE_UNIT')
+  test('reports DIMENSION_MISMATCH across dimensions', () => {
+    assert.equal(costLine(line({ unit: 'cup' }), purchase()).error, 'DIMENSION_MISMATCH')
+  })
+
+  test('reports UNSTANDARDIZED_UNIT for an unknown recipe or purchase unit', () => {
+    assert.equal(costLine(line({ unit: 'bunch' }), purchase()).error, 'UNSTANDARDIZED_UNIT')
+    assert.equal(costLine(line(), purchase({ unit: 'bunch' })).error, 'UNSTANDARDIZED_UNIT')
+  })
+
+  test('reports NO_UNIT for a blank recipe unit', () => {
+    assert.equal(costLine(line({ unit: '' }), purchase()).error, 'NO_UNIT')
+  })
+
+  test('reports NO_QUANTITY for a non-positive quantity, after the purchase checks', () => {
+    assert.equal(costLine(line({ quantity: 0 }), purchase()).error, 'NO_QUANTITY')
+    assert.equal(costLine(line({ quantity: 0 }), null).error, 'NO_PRICE')
+  })
+
+  test('uses a supplied base quantity instead of the line unit', () => {
+    const cost = costLine(line({ quantity: 2, unit: 'id' }), purchase({ price: 4, size: 12, unit: 'ea' }), { base: 'ea', amount: 2 })
+    assert.equal(cost.cost, 0.67)
+    assert.equal(costLine(line({ unit: 'id' }), purchase(), null).error, 'UNSTANDARDIZED_UNIT')
   })
 })
 

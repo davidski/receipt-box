@@ -82,7 +82,7 @@ describe('Recipe cost page', () => {
       lines: [
         { item: 'Flour', quantity: 500, unit: 'g', cost: 1.25, sale: true, error: null },
         { item: 'Saffron', quantity: 1, unit: 'g', cost: null, sale: false, error: 'NO_PRICE' },
-        { item: 'Milk', quantity: 2, unit: 'cup', cost: null, sale: false, error: 'INCOMPATIBLE_UNIT' },
+        { item: 'Milk', quantity: 2, unit: 'cup', cost: null, sale: false, error: 'DIMENSION_MISMATCH' },
         { item: 'Rice', quantity: 1, unit: 'cup', cost: null, sale: false, error: 'NO_PACKAGE_SIZE' }
       ],
       total: 1.25,
@@ -111,9 +111,23 @@ describe('Recipe cost page', () => {
     expect(wrapper.find('[data-slot="root"].rounded-lg').exists()).toBe(false)
   })
 
-  it.each(['lb', 'g', 'ea', 'bunch'])('shows the latest purchase unit %s when conversion is impossible', async (purchaseUnit) => {
+  it.each([
+    ['UNSTANDARDIZED_UNIT', 'This unit isn\'t a standard measure, so it can\'t be priced.'],
+    ['NO_UNIT', 'Choose a unit for this line.']
+  ])('explains %s', async (error, message) => {
+    reply = () => ({ lines: [{ item: 'Parsley', cost: null, sale: false, error }], total: 0, excluded: 1 })
+    const wrapper = await mountAt('?l=Parsley|1|bunch')
+    expect(wrapper.get('[data-recipe-cost] p').text()).toBe(message)
+  })
+
+  it.each([
+    ['lb', 'DIMENSION_MISMATCH'],
+    ['g', 'DIMENSION_MISMATCH'],
+    ['ea', 'DIMENSION_MISMATCH'],
+    ['bunch', 'UNSTANDARDIZED_UNIT']
+  ])('shows the latest purchase unit %s when conversion is impossible', async (purchaseUnit, error) => {
     reply = () => ({
-      lines: [{ item: 'Flour', cost: null, sale: false, error: 'INCOMPATIBLE_UNIT', purchaseUnit }],
+      lines: [{ item: 'Flour', cost: null, sale: false, error, purchaseUnit }],
       total: 0, excluded: 1
     })
     const wrapper = await mountAt('?l=Flour|1|cup')
