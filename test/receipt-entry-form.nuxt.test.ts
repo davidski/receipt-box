@@ -1439,6 +1439,22 @@ describe('previous-entry backfill prompt', () => {
     expect(wrapper.text()).not.toContain('Update previous entries?')
   })
 
+  it('does not check for earlier entries when the form unmounts during a save', async () => {
+    const wrapper = await mountForm()
+    await wrapper.get('[data-line-item]').setValue('Coffee')
+    await wrapper.get('[data-line-price]').setValue('4.99')
+    await wrapper.get('[data-line-size]').setValue('12')
+    await vi.advanceTimersByTimeAsync(600)
+    wrapper.unmount()
+    mountedForms.splice(0)
+
+    await vi.waitFor(() => expect(entryAttempts).toBeGreaterThan(0))
+    for (let tick = 0; tick < 20; tick++) await vi.advanceTimersByTimeAsync(10)
+    await flushPromises()
+
+    expect(backfillChecks).toBe(0)
+  })
+
   it('keeps the prompt open and shows the error when the update fails', async () => {
     backfillCounts = { size: 1, unit: 0, either: 1 }
     const wrapper = await saveDimensions('12', '')
