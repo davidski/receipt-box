@@ -826,7 +826,9 @@ onMounted(() => {
   window.addEventListener('keydown', handleCancelRemoveShortcut, { capture: true })
 })
 
+let unmounting = false
 onBeforeUnmount(() => {
+  unmounting = true
   clearTimeout(autosaveTimer)
   clearTimeout(orderTimer)
   window.removeEventListener('beforeunload', handleBeforeUnload)
@@ -1044,6 +1046,8 @@ function retryAutosave() {
 
 async function offerItemBackfill(line: ReceiptLine) {
   await loadBackfillPrompts()
+  // A save can outlive the form; nobody is left to answer the prompt.
+  if (unmounting) return false
   const size = String(line.size ?? '').trim()
   const unit = normalizeUnit(line.unit)
   if (!backfillPromptsEnabled.value || !line.id || line.backfillPrompted || (!size && !unit)) return false
