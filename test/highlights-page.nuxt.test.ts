@@ -50,6 +50,9 @@ async function mountPage() {
   return wrapper
 }
 
+// Spelled by the same formatter as the page: ICU decides the separator, such as Jul ’26 on Node 26.
+const monthLabel = (year: number, month: number) => new Date(year, month).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+
 describe('Highlights page', () => {
   it('gives every table a caption and column-scoped headers', async () => {
     reply = () => highlights([{ month: '2026-09-01', totalSpent: 100 }])
@@ -251,11 +254,11 @@ describe('Highlights page', () => {
       }))
       reply = () => ({ ...highlights(months), priceIndex: twelve })
       const wrapper = await mountPage()
-      const labels = wrapper.get('svg[aria-label^="Same-item"]').findAll('text').filter(text => /^[A-Z][a-z]{2} \d{2}$/.test(text.text()))
+      const labels = wrapper.get('svg[aria-label^="Same-item"]').findAll('text').filter(text => /^[A-Z][a-z]{2} ’?\d{2}$/.test(text.text()))
       const xs = labels.map(text => Number(text.attributes('x')))
 
-      expect(labels[0]!.text()).toBe('Nov 25')
-      expect(labels.at(-1)!.text()).toBe('Oct 26')
+      expect(labels[0]!.text()).toBe(monthLabel(2025, 10))
+      expect(labels.at(-1)!.text()).toBe(monthLabel(2026, 9))
       for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeGreaterThanOrEqual(64)
     })
 
@@ -345,9 +348,9 @@ describe('Highlights page', () => {
       expect(spendBars(wrapper)).toHaveLength(2)
       expect(spendBars(wrapper).map(bar => bar.attributes('aria-label'))).toEqual(['August 2026: $410', 'September 2026: $1,230'])
       expect(svg.findAll('[tabindex]')).toHaveLength(2)
-      expect(svg.text()).toContain('Jul 26')
+      expect(svg.text()).toContain(monthLabel(2026, 6))
 
-      await svg.findAll('g').find(group => group.text() === 'Jul 26')!.trigger('pointerenter')
+      await svg.findAll('g').find(group => group.text() === monthLabel(2026, 6))!.trigger('pointerenter')
       expect(spendMonth(wrapper)).toBe('September 2026')
     })
 
