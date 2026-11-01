@@ -515,3 +515,12 @@ it('sends the food resolution when merging a duplicate group', async () => {
   expect(mergeRequests[1]).toEqual({ target: 'Milk', sources: ['Soy milk'], foodResolution: null })
   await vi.waitFor(() => expect(wrapper.text()).toContain('merged into Milk'))
 })
+
+it('says the export covers purchases and is not a full backup', async () => {
+  const wrapper = await mountSuspended(ManagePage, { route: '/data/transfer', global: { stubs: { UCard: Slot, UButton: Button, UAlert: true, UIcon: true } } })
+  const text = wrapper.text()
+  expect(text).toContain('Export purchase history')
+  expect(text).not.toContain('Export all data')
+  expect(text).toContain("This isn't a full backup: saved recipes, food mappings and preferences aren't included.")
+  wrapper.unmount()
+})

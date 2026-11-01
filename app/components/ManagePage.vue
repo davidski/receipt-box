@@ -1064,8 +1064,8 @@ async function exportXlsx() {
       <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
         <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true">↓</div>
         <div>
-          <h2 class="text-heading">Export all data</h2>
-          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Both formats include one row per purchase in a clean, flat table with consistent field names and self-describing normalized prices.</p>
+          <h2 class="text-heading">Export purchase history</h2>
+          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Download every purchase as a CSV or XLSX file, one row per purchase. This isn't a full backup: saved recipes, food mappings and preferences aren't included. To keep those, back up the database.</p>
           <div class="flex flex-wrap gap-3 mt-[1.125rem]">
             <UButton class="touch-target" type="button" label="Download CSV" icon="i-lucide-file-text" color="neutral" variant="outline" :loading="exporting === 'csv'" @click="exportCsv" />
             <UButton class="touch-target" type="button" label="Download XLSX" icon="i-lucide-file-spreadsheet" :loading="exporting === 'xlsx'" @click="exportXlsx" />
