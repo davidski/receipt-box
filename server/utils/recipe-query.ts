@@ -1,5 +1,6 @@
 import type postgres from 'postgres'
 import { costLine, renameRecipeLineItems, selectPurchase, summarizeRecipeCost, type PurchaseCandidate, type RecipeLine } from '../../shared/utils/recipe-cost.ts'
+import { normalizePackageQuantity, normalizeUnit, toBaseUnit } from '../../shared/utils/units.ts'
 
 type Sql = postgres.Sql | postgres.TransactionSql
 
@@ -62,8 +63,18 @@ export async function priceRecipe(sql: Sql, lines: RecipeLine[]) {
   const costed = lines.map((line) => {
     const candidates = purchases.filter(row => row.item === line.item)
     // With nothing eligible, the remaining row makes costLine report NO_PACKAGE_SIZE rather than NO_PRICE.
-    const purchase = selectPurchase(candidates) ?? candidates[0] ?? null
-    return { ...costLine(line, purchase), purchaseUnit: purchase?.unit ?? null }
+    const selected = selectPurchase(candidates)
+    const purchase = selected ?? candidates[0] ?? null
+    const costed = costLine(line, purchase)
+    return {
+      ...costed,
+      purchaseUnit: purchase?.unit ?? null,
+      // The calculation behind the cost, in the shape of the Mealie cost endpoint's ingredient lines.
+      purchase: selected,
+      normalizedQuantity: selected ? toBaseUnit(line.quantity, line.unit) : null,
+      normalizedPackageQuantity: selected && normalizePackageQuantity(selected),
+      status: costed.error ? 'uncosted' as const : normalizeUnit(line.unit) === normalizeUnit(selected!.unit) ? 'exact' as const : 'unit_converted' as const
+    }
   })
   return { lines: costed, ...summarizeRecipeCost(costed) }
 }

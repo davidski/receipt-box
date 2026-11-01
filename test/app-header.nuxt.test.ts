@@ -22,7 +22,7 @@ describe('App header recipe navigation', () => {
     expect(nav.findAll('a').find(a => a.text() === 'Recipes')!.attributes('href')).toBe('/recipes')
   })
 
-  it.each(['/recipes', '/recipe'])('marks Recipes active on %s', async (route) => {
+  it.each(['/recipes', '/recipe', '/mealie-recipes', '/mealie-recipes/curry'])('marks Recipes active on %s', async (route) => {
     const nav = await navAt(route)
     expect(nav.findAll('a').find(a => a.text() === 'Recipes')!.attributes('aria-current')).toBe('page')
   })

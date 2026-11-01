@@ -131,6 +131,48 @@ describe('priceRecipe', () => {
     }
   })
 
+  test('returns the purchase and base quantities behind each cost', async () => {
+    const { sql } = fakeSql([[
+      row('Flour', '1', '2026-01-01', { price: '4.79', size: '5.000', unit: 'lb', saleItem: true }),
+      row('Sugar', '2', '2026-02-01', { price: '3.00', size: '500.000', unit: 'g' })
+    ]])
+    const { lines } = await priceRecipe(sql, [line('Flour', 100, 'g'), line('Sugar', 250, 'g')])
+
+    assert.deepEqual(lines[0].purchase, { id: '1', item: 'Flour', price: '4.79', size: '5.000', unit: 'lb', saleItem: true, purchasedOn: '2026-01-01', usedSalePrice: true })
+    assert.deepEqual([lines[0].normalizedQuantity, lines[0].normalizedPackageQuantity, lines[0].status], [{ base: 'g', amount: 100 }, { base: 'g', amount: 5 * 453.59237 }, 'unit_converted'])
+    assert.deepEqual([lines[1].normalizedQuantity, lines[1].normalizedPackageQuantity, lines[1].status], [{ base: 'g', amount: 250 }, { base: 'g', amount: 500 }, 'exact'])
+  })
+
+  test('treats unit aliases as the same unit, not a conversion', async () => {
+    const { sql } = fakeSql([[row('Flour', '1', '2026-01-01', { size: '2.000', unit: 'lb' })]])
+    assert.equal((await priceRecipe(sql, [line('Flour', 1, 'lbs')])).lines[0].status, 'exact')
+  })
+
+  test('keeps the details of a $0 purchase', async () => {
+    const { sql } = fakeSql([[row('Flour', '1', '2026-01-01', { price: '0.00' })]])
+    const [flour] = (await priceRecipe(sql, [line('Flour', 250)])).lines
+
+    assert.equal(flour.cost, 0)
+    assert.equal(flour.status, 'exact')
+    assert.equal(flour.purchase.price, '0.00')
+  })
+
+  test('has no details without a purchase, and no formula when the unit cannot convert', async () => {
+    const { sql } = fakeSql([[row('Flour', '1', '2026-01-01'), row('Milk', '2', '2026-01-01', { size: null })]])
+    const { lines } = await priceRecipe(sql, [line('Saffron'), line('Flour', 1, 'cup'), line('Milk', 1, 'g')])
+
+    for (const [index, error] of [[0, 'NO_PRICE'], [1, 'DIMENSION_MISMATCH'], [2, 'NO_PACKAGE_SIZE']]) {
+      assert.equal(lines[index].error, error)
+      assert.equal(lines[index].status, 'uncosted')
+    }
+    assert.deepEqual([lines[0].purchase, lines[0].normalizedQuantity, lines[0].normalizedPackageQuantity], [null, null, null])
+    // A usable purchase is still reported when the unit can't be converted, so the page can say what was bought.
+    assert.equal(lines[1].purchase.item, 'Flour')
+    assert.deepEqual(lines[1].normalizedQuantity, { base: 'mL', amount: 236.5882365 })
+    // Only an ineligible purchase exists: it is not reported as what was bought.
+    assert.deepEqual([lines[2].purchase, lines[2].normalizedQuantity, lines[2].normalizedPackageQuantity], [null, null, null])
+  })
+
   test('asks for at most one eligible and one ineligible grocery row per item', async () => {
     const { sql, queries } = fakeSql([[]])
     await priceRecipe(sql, [line('Flour')])

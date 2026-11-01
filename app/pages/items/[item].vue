@@ -77,6 +77,12 @@ watch(series, (available) => {
 
 watch(selectedBasis, () => { selectedPoint.value = null })
 
+// Entries with no size, unit or stored cost have no normalized price, so the table skips them; they still need a way to edit.
+const unpriced = computed(() => {
+  const priced = new Set(pricePoints.value.map(point => point.id))
+  return (data.value?.entries || []).filter(entry => !priced.has(entry.id)).reverse()
+})
+
 const visiblePoints = computed(() => pricePoints.value.filter(point => point.basis === selectedBasis.value))
 const newestFirst = computed(() => [...visiblePoints.value].reverse())
 
@@ -342,6 +348,26 @@ function packageLabel(entry: HistoryEntry) {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section v-if="unpriced.length" class="mt-10 border-t border-line pt-6" aria-labelledby="unpriced-heading">
+        <h2 id="unpriced-heading" class="text-heading">Missing a package size</h2>
+        <p class="mb-2 text-muted">These purchases have no usable size and unit, so they are left out of the comparison. Edit one to add them.</p>
+        <ul class="m-0 list-none p-0">
+          <li v-for="entry in unpriced" :key="entry.id" class="flex flex-wrap items-center justify-between gap-x-3 border-t border-line py-2">
+            <span>{{ dateLabel(entry.purchasedOn) }} · {{ entry.location }} · <span class="tabular-nums">{{ formatCurrency(entry.price) }}</span> · {{ packageLabel(entry) }}</span>
+            <UButton
+              :to="{ path: '/history/entries', query: { edit: entry.id } }"
+              label="Edit"
+              icon="i-lucide-pencil"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="touch-target"
+              :aria-label="`Edit ${dateLabel(entry.purchasedOn)} purchase at ${entry.location}`"
+            />
+          </li>
+        </ul>
       </section>
     </template>
   </div>

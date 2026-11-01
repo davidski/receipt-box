@@ -117,7 +117,7 @@ const itemConflict = ref<{ target: string, categories: string[], foods: Conflict
 const conflictCategory = ref<string>()
 const conflictFood = ref<string>()
 const conflictFoodOptions = computed(() => [
-  ...(itemConflict.value?.foods || []).map(food => ({ label: `${food.name ?? 'Food missing from the catalog'}${food.active ? '' : ' (inactive)'}`, value: food.id })),
+  ...(itemConflict.value?.foods || []).map(food => ({ label: `${food.name ?? 'Food no longer in Mealie'}${food.active ? '' : ' (inactive)'}`, value: food.id })),
   { label: 'Clear the food mapping', value: clearFoodChoice }
 ])
 const itemConflictTitle = computed(() => {
@@ -762,7 +762,7 @@ async function exportXlsx() {
         v-if="mealieStatus?.configured"
         to="/data/mealie"
         label="Mealie"
-        icon="i-lucide-chef-hat"
+        icon="i-brand-mealie"
         size="lg"
         :variant="activeSection === 'mealie' ? 'soft' : 'ghost'"
         :color="activeSection === 'mealie' ? 'primary' : 'neutral'"

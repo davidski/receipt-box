@@ -2,7 +2,12 @@
 type Suggestion = { value: string, location?: string, size?: string | null, unit?: string | null, price?: string | null }
 type Line = { key: number, item: string, quantity: number | string | undefined, unit: string, options: Suggestion[] }
 type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'NO_UNIT' | 'UNSTANDARDIZED_UNIT' | 'DIMENSION_MISMATCH'
-type CostResult = { item: string, cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null }
+type Base = { base: string, amount: number }
+type Purchase = { item: string, price: string | number, size: string | number | null, unit: string | null, purchasedOn: string, usedSalePrice: boolean }
+type CostResult = {
+  item: string, cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null
+  purchase?: Purchase | null, normalizedQuantity?: Base | null, normalizedPackageQuantity?: Base | null, status?: 'exact' | 'unit_converted' | 'uncosted'
+}
 type CostResponse = { lines: CostResult[], total: number, excluded: number }
 type RecipeLine = { item: string, quantity: number, unit: string }
 type RecipeSummary = { id: string, name: string, lineCount: number }
@@ -55,6 +60,11 @@ const sendable = computed(() => lines.value
 const results = computed(() => new Map((response.value?.lines ?? []).map(result => [itemKey(result.item), result])))
 
 const resultFor = (line: Line, index: number) => isDuplicate(line, index) ? undefined : results.value.get(itemKey(line.item))
+// One calculation per priced line, in editor order; a removed line drops out at once, an edited one updates with the next response.
+const priced = computed(() => lines.value.flatMap((line, index) => {
+  const result = resultFor(line, index)
+  return result?.purchase ? [{ name: line.item, purchase: result.purchase, normalizedQuantity: result.normalizedQuantity ?? null, normalizedPackageQuantity: result.normalizedPackageQuantity ?? null, cost: result.cost, status: result.status ?? 'uncosted' }] : []
+}))
 
 const recipes = ref<RecipeSummary[]>([])
 const loaded = ref<Recipe | null>(null)
@@ -342,6 +352,8 @@ onBeforeUnmount(() => {
         <UButton v-if="canUpdateSavedPrice" label="Update saved price" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :disabled="saving" @click="saveRecipe(true)" />
       </div>
     </div>
+
+    <RecipeCostDetails :lines="priced" />
 
     <ConfirmModal
       v-model:open="deleteConfirmOpen"

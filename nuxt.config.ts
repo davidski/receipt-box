@@ -20,6 +20,9 @@ export default defineNuxtConfig({
   fonts: {
     provider: 'local'
   },
+  icon: {
+    customCollections: [{ prefix: 'brand', dir: './app/assets/icons' }]
+  },
   css: ['~/assets/css/main.css'],
   app: {
     // Static client asset and router URLs are fixed when the app is built.

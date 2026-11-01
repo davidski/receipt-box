@@ -122,15 +122,23 @@ export function searchActiveFoods(sql: Database, search: string) {
   `
 }
 
+export async function cachedFood(sql: Database, id: string) {
+  const [food] = await sql<{ id: string, name: string, active: boolean }[]>`SELECT id::text, name, active FROM mealie_foods WHERE id = ${id}`
+  return food ?? null
+}
+
 export async function foodMappingProblems(sql: Database) {
   const mappings = await listFoodMappings(sql)
+  // Only items mapped to an active food: an unmapped item cannot price a recipe whatever its size, and an inactive food fails costing first (see the broken group). The size test mirrors selectPurchase.
   const itemsWithoutPackageSize = await sql<{ item: string, entries: number }[]>`
-    SELECT item, count(*)::int AS entries
-    FROM grocery_entries
-    WHERE NOT non_grocery
-    GROUP BY item
-    HAVING count(*) FILTER (WHERE size > 0 AND unit IS NOT NULL) = 0
-    ORDER BY lower(item), item
+    SELECT entries.item, count(*)::int AS entries
+    FROM grocery_entries entries
+    JOIN grocery_item_food_mapping mappings ON mappings.item = entries.item
+    JOIN mealie_foods foods ON foods.id = mappings.mealie_food_id AND foods.active
+    WHERE NOT entries.non_grocery
+    GROUP BY entries.item
+    HAVING count(*) FILTER (WHERE entries.size > 0 AND entries.unit IS NOT NULL) = 0
+    ORDER BY lower(entries.item), entries.item
   `
   return {
     brokenMappings: mappings.filter(mapping => mapping.broken),

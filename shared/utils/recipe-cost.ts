@@ -49,6 +49,11 @@ export function summarizeRecipeCost(lines: { cost: number | null, error: string 
   return { total: cents / 100, excluded: lines.filter(line => line.error).length }
 }
 
+/** Dollars per serving rounded down to a cent, so a displayed "≥" bound never exceeds the true figure. Works in integer cents; the epsilon absorbs float error such as 33 / 1.1. */
+export function costPerServingLowerBound(total: number, servings: number): number {
+  return Math.floor(Math.round(total * 100) / servings + 1e-9) / 100
+}
+
 /** Points every line named like `target` or a source at `target`, keeping the first of any duplicates. */
 export function renameRecipeLineItems(lines: RecipeLine[], target: string, sources: string[]): RecipeLine[] {
   const matches = new Set([target, ...sources].map(name => name.trim().toLowerCase()))

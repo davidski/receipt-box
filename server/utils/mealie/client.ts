@@ -103,3 +103,14 @@ export const fetchMealieFoods = () => mealieGetAll('/api/foods')
 export const fetchMealieUnits = () => mealieGetAll('/api/units')
 export const fetchMealieRecipes = () => mealieGetAll('/api/recipes')
 export const fetchMealieRecipe = (slug: string) => mealieGet(`/api/recipes/${encodeURIComponent(slug)}`)
+
+/** The recipe's page in Mealie, whose path needs the token user's group; null if that lookup fails, since the link is optional. */
+export async function mealieRecipeUrl(slug: string): Promise<string | null> {
+  try {
+    const { groupSlug } = await mealieGet('/api/users/self')
+    if (typeof groupSlug !== 'string' || !groupSlug) return null
+    return `${getMealieConfig()!.url}/g/${encodeURIComponent(groupSlug)}/r/${encodeURIComponent(slug)}`
+  } catch {
+    return null
+  }
+}

@@ -520,3 +520,103 @@ describe('Recipe cost page', () => {
     await expectQuery(wrapper, ['Rice|3|g', 'Flour|1|g', 'Salt|2|g'])
   })
 })
+
+describe('Calculation details', () => {
+  const purchase = { id: '1', item: 'Flour', price: '4.79', size: '5.000', unit: 'lb', saleItem: false, purchasedOn: '2026-01-02', usedSalePrice: false }
+  const priced = (item: string, cost: number, overrides: Record<string, unknown> = {}) => ({
+    item, quantity: 100, unit: 'g', cost, sale: false, error: null, purchase: { ...purchase, item }, status: 'unit_converted',
+    normalizedQuantity: { base: 'g', amount: 100 }, normalizedPackageQuantity: { base: 'g', amount: 2267.96 }, ...overrides
+  })
+  const uncosted = (item: string, error = 'NO_PRICE') => ({ item, cost: null, sale: false, error, purchase: null, normalizedQuantity: null, normalizedPackageQuantity: null, status: 'uncosted' })
+  const details = (wrapper: Awaited<ReturnType<typeof mountAt>>) => wrapper.findAll('[data-cost-detail]')
+
+  it('shows what was bought and the formula for each priced line, with the explanation', async () => {
+    reply = () => ({ lines: [priced('Flour', 0.21), priced('Sugar', 0.5, { status: 'exact', purchase: { ...purchase, item: 'Sugar', size: '2.000', unit: 'kg' } })], total: 0.71, excluded: 0 })
+    const wrapper = await mountAt('?l=Flour|100|g&l=Sugar|100|g')
+    const section = wrapper.get('[data-cost-details]')
+
+    expect(section.get('h2').text()).toBe('Calculation details')
+    expect(section.text()).toContain('prorated by the amount the recipe needs')
+    expect(details(wrapper).map(item => item.text())).toEqual([
+      'FlourBought Flour, 5 lb for $4.79 on Jan 2, 2026100 g × $4.79 ÷ 2,267.96 g = $0.21 (units converted)',
+      'SugarBought Sugar, 2 kg for $4.79 on Jan 2, 2026100 g × $4.79 ÷ 2,267.96 g = $0.50'
+    ])
+  })
+
+  it('marks a sale purchase', async () => {
+    reply = () => ({ lines: [priced('Flour', 0.21, { sale: true, purchase: { ...purchase, saleItem: true, usedSalePrice: true } })], total: 0.21, excluded: 0 })
+    const wrapper = await mountAt('?l=Flour|100|g')
+    expect(details(wrapper)[0]!.text()).toContain('Sale')
+    expect(details(wrapper)[0]!.html()).toContain('bg-sale-mark')
+  })
+
+  it('shows a $0 purchase as a calculation, not as missing', async () => {
+    reply = () => ({ lines: [priced('Water', 0, { purchase: { ...purchase, item: 'Water', price: '0.00' }, status: 'exact' })], total: 0, excluded: 0 })
+    const wrapper = await mountAt('?l=Water|100|g')
+    expect(details(wrapper)[0]!.text()).toContain('100 g × $0.00 ÷ 2,267.96 g = $0.00')
+  })
+
+  it('leaves out lines that have no purchase and shows only what was bought for one that cannot convert', async () => {
+    reply = () => ({
+      lines: [uncosted('Saffron'), priced('Milk', null as any, { error: 'DIMENSION_MISMATCH', status: 'uncosted', normalizedQuantity: { base: 'mL', amount: 236 } }), priced('Flour', 0.21)],
+      total: 0.21, excluded: 2
+    })
+    const wrapper = await mountAt('?l=Saffron|1|g&l=Milk|1|cup&l=Flour|100|g')
+    const items = details(wrapper)
+
+    expect(items).toHaveLength(2)
+    expect(items[0]!.text()).toContain('Milk')
+    expect(items[0]!.text()).toContain('Bought Milk, 5 lb')
+    expect(items[0]!.text()).not.toContain('×')
+    expect(items[1]!.text()).toContain('= $0.21')
+    expect(wrapper.text()).not.toContain('Saffron, ')
+  })
+
+  it('is hidden for an empty recipe, with only uncosted lines, and when the request fails', async () => {
+    expect((await mountAt('')).find('[data-cost-details]').exists()).toBe(false)
+
+    reply = () => ({ lines: [uncosted('Saffron')], total: 0, excluded: 1 })
+    expect((await mountAt('?l=Saffron|1|g')).find('[data-cost-details]').exists()).toBe(false)
+
+    reply = () => { throw createError({ statusCode: 500, statusMessage: 'down' }) }
+    expect((await mountAt('?l=Flour|1|g')).find('[data-cost-details]').exists()).toBe(false)
+  })
+
+  it('works with a response that predates the purchase fields', async () => {
+    reply = () => ({ lines: [{ item: 'Flour', cost: 1, sale: false, error: null }], total: 1, excluded: 0 })
+    const wrapper = await mountAt('?l=Flour|1|g')
+    expect(wrapper.text()).toContain('$1.00')
+    expect(wrapper.find('[data-cost-details]').exists()).toBe(false)
+  })
+
+  it('follows edits: a changed quantity updates the formula and a removed line drops out', async () => {
+    reply = () => {
+      const lines = bodies.at(-1)!.lines
+      return {
+        lines: lines.map(line => priced(line.item, line.quantity / 100, { normalizedQuantity: { base: 'g', amount: line.quantity } })),
+        total: 1, excluded: 0
+      }
+    }
+    const wrapper = await mountAt('?l=Flour|100|g&l=Sugar|200|g')
+    expect(details(wrapper)).toHaveLength(2)
+
+    await wrapper.findAll('[data-recipe-line] input[type="number"]')[0]!.setValue(300)
+    await new Promise(resolve => setTimeout(resolve, 450))
+    await flushPromises()
+    expect(details(wrapper)[0]!.text()).toContain('300 g × $4.79 ÷ 2,267.96 g = $3.00')
+
+    await wrapper.get('button[aria-label="Remove line 1"]').trigger('click')
+    expect(details(wrapper)).toHaveLength(1)
+    expect(details(wrapper)[0]!.text()).toContain('Sugar')
+
+    await wrapper.get('button[aria-label="Remove line 1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-cost-details]').exists()).toBe(false)
+  })
+
+  it('shows a duplicate item once', async () => {
+    reply = () => ({ lines: [priced('Flour', 0.21)], total: 0.21, excluded: 0 })
+    const wrapper = await mountAt('?l=Flour|100|g&l=flour|50|g')
+    expect(details(wrapper)).toHaveLength(1)
+  })
+})
