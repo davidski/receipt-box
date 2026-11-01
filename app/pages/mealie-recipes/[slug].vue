@@ -144,43 +144,42 @@ const fixLink = (line: Ingredient) => ({ path: '/data/mealie', query: { food: li
                 <th scope="col" class="px-4 py-2 text-right">Cost</th>
               </tr>
             </thead>
-            <tbody>
-              <template v-for="(line, index) in recipe.ingredients" :key="index">
-                <tr data-mealie-cost-row :class="cardRow">
-                  <td data-label="Ingredient" :class="[tableCell, cardCell]">
-                    <span class="font-semibold">{{ name(line) }}</span>
-                    <span v-if="quantity(line)" class="text-sm text-(--muted) sm:ml-2">{{ quantity(line) }}</span>
-                    <span v-if="line.error" class="flex flex-wrap items-center gap-x-3 text-sm text-(--muted)">
-                      {{ failureText[line.error] }}
-                      <UButton v-if="fixLabel[line.error] && line.food" :to="fixLink(line)" :label="fixLabel[line.error]" :aria-label="`${fixLabel[line.error]} for ${name(line)}`" color="neutral" variant="ghost" size="sm" trailing-icon="i-lucide-arrow-right" class="font-semibold max-sm:-ml-2.5" />
-                    </span>
-                  </td>
-                  <td data-col="cost" data-label="Cost" :class="[tableCell, cardCell, 'text-right max-sm:text-left']">
-                    <template v-if="line.cost !== null">
-                      <MoneyAmount :value="line.cost" />
-                      <SaleMark v-if="line.purchase?.usedSalePrice" class="ml-1.5" />
-                      <UButton
-                        v-if="breakdownFor(line)"
-                        color="neutral"
-                        variant="ghost"
-                        :icon="openBreakdowns.has(index) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-                        :aria-expanded="openBreakdowns.has(index)"
-                        :aria-label="`How line ${index + 1} was priced`"
-                        class="ml-1"
-                        @click="toggleBreakdown(index)"
-                      />
-                    </template>
-                    <template v-else>—</template>
-                  </td>
-                </tr>
-                <tr v-if="breakdownFor(line) && openBreakdowns.has(index)" data-mealie-cost-breakdown>
-                  <td colspan="2" class="px-4 pb-4">
-                    <div class="rounded-card bg-surface-muted p-3">
-                      <RecipeCostBreakdown :line="breakdownFor(line)!" />
-                    </div>
-                  </td>
-                </tr>
-              </template>
+            <!-- One tbody per ingredient: on a phone it is the card, so an open breakdown sits inside it. -->
+            <tbody v-for="(line, index) in recipe.ingredients" :key="index" data-mealie-cost-group class="max-sm:gap-0! max-sm:rounded-card max-sm:border max-sm:border-line max-sm:bg-surface max-sm:shadow-(--shadow)">
+              <tr data-mealie-cost-row class="max-sm:grid max-sm:gap-2.5 max-sm:p-4">
+                <td data-label="Ingredient" :class="[tableCell, cardCell]">
+                  <span class="font-semibold">{{ name(line) }}</span>
+                  <span v-if="quantity(line)" class="text-sm text-(--muted) sm:ml-2">{{ quantity(line) }}</span>
+                  <span v-if="line.error" class="flex flex-wrap items-center gap-x-3 text-sm text-(--muted)">
+                    {{ failureText[line.error] }}
+                    <UButton v-if="fixLabel[line.error] && line.food" :to="fixLink(line)" :label="fixLabel[line.error]" :aria-label="`${fixLabel[line.error]} for ${name(line)}`" color="neutral" variant="ghost" size="sm" trailing-icon="i-lucide-arrow-right" class="font-semibold max-sm:-ml-2.5" />
+                  </span>
+                </td>
+                <td data-col="cost" data-label="Cost" :class="[tableCell, cardCell, 'text-right max-sm:text-left']">
+                  <template v-if="line.cost !== null">
+                    <MoneyAmount :value="line.cost" />
+                    <SaleMark v-if="line.purchase?.usedSalePrice" class="ml-1.5" />
+                    <UButton
+                      v-if="breakdownFor(line)"
+                      color="neutral"
+                      variant="ghost"
+                      :icon="openBreakdowns.has(index) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                      :aria-expanded="openBreakdowns.has(index)"
+                      :aria-label="`How line ${index + 1} was priced`"
+                      class="ml-1 max-sm:justify-self-start"
+                      @click="toggleBreakdown(index)"
+                    />
+                  </template>
+                  <template v-else>—</template>
+                </td>
+              </tr>
+              <tr v-if="breakdownFor(line) && openBreakdowns.has(index)" data-mealie-cost-breakdown>
+                <td colspan="2" class="px-4 pb-4 max-sm:block">
+                  <div class="rounded-card bg-surface-muted p-3">
+                    <RecipeCostBreakdown :line="breakdownFor(line)!" />
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

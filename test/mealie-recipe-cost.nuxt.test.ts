@@ -255,6 +255,8 @@ describe('ingredient table and line breakdowns', () => {
 
 describe('table layout', () => {
   const phoneClasses = (el: { classes: () => string[] }) => el.classes().filter(name => name.startsWith('max-sm:'))
+  // The card an ingredient's rows share on a phone: one tbody, so an open breakdown sits inside it.
+  const phoneCard = ['max-sm:gap-0!', 'max-sm:rounded-card', 'max-sm:border', 'max-sm:border-line', 'max-sm:bg-surface', 'max-sm:shadow-(--shadow)']
 
   it('names the ingredient table, labels every cell and turns rows into cards on a phone', async () => {
     costReply = () => recipe([costed('Chickpeas', 8.73), unmapped('Saffron')])
@@ -264,14 +266,42 @@ describe('table layout', () => {
     expect(table.get('caption').text()).toBe('Ingredients and what each costs')
     expect(table.classes()).toEqual(expect.arrayContaining(cardTable.split(' ')))
     expect(table.findAll('thead th').map(th => [th.text(), th.attributes('scope')])).toEqual([['Ingredient', 'col'], ['Cost', 'col']])
+    expect(table.findAll('[data-mealie-cost-group]')).toHaveLength(2)
+    for (const group of table.findAll('[data-mealie-cost-group]')) {
+      expect(group.element.tagName).toBe('TBODY')
+      expect(group.classes()).toEqual(expect.arrayContaining(phoneCard))
+      // Desktop rows carry no card chrome; the card is phone-only.
+      expect(group.classes()).not.toContain('rounded-card')
+    }
     for (const row of table.findAll('[data-mealie-cost-row]')) {
-      expect(row.classes()).toEqual(expect.arrayContaining(cardRow.split(' ')))
+      expect(row.classes()).toEqual(expect.arrayContaining(['max-sm:grid', 'max-sm:gap-2.5', 'max-sm:p-4']))
       const cells = row.findAll('td')
       expect(cells.map(cell => cell.attributes('data-label'))).toEqual(['Ingredient', 'Cost'])
       cells.forEach(cell => expect(cell.classes()).toEqual(expect.arrayContaining(cardCell.split(' '))))
     }
     expect(table.element.parentElement!.classList).toContain('rounded-card')
     expect(table.element.parentElement!.className).not.toContain('rounded-[')
+  })
+
+  it('keeps an open breakdown inside its ingredient card on a phone, filling the width', async () => {
+    costReply = () => recipe([costed('Chickpeas', 8.73), unmapped('Saffron'), costed('Flour', 0.5)])
+    const wrapper = await mountCost()
+    await wrapper.get('button[aria-label="How line 1 was priced"]').trigger('click')
+    const [chickpeas, saffron, flour] = wrapper.findAll('[data-mealie-cost-group]')
+    const breakdown = wrapper.get('[data-mealie-cost-breakdown]')
+    const cell = breakdown.get('td')
+
+    // Same tbody as its own row, directly after it: the card holds both.
+    expect(breakdown.element.parentElement).toBe(chickpeas!.element)
+    expect(breakdown.element.previousElementSibling).toBe(chickpeas!.get('[data-mealie-cost-row]').element)
+    expect(saffron!.find('[data-mealie-cost-breakdown]').exists()).toBe(false)
+    expect(flour!.find('[data-mealie-cost-breakdown]').exists()).toBe(false)
+    // Spans both columns and is a block on a phone, so it takes the card's width instead of shrinking to its content.
+    expect(cell.attributes('colspan')).toBe('2')
+    expect(cell.classes()).toEqual(expect.arrayContaining(['px-4', 'pb-4', 'max-sm:block']))
+    expect(cell.find('dl').exists()).toBe(true)
+    // The gap between the row and its breakdown is the card's own, so it is zero.
+    expect(chickpeas!.classes()).toContain('max-sm:gap-0!')
   })
 
   it('keeps the quantity beside the name on wide screens only', async () => {

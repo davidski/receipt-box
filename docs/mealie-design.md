@@ -867,7 +867,7 @@ Tests: cup flour vs lb flour without density → `DIMENSION_MISMATCH`; "bunch" p
 
 ### I — Recipe cost UI
 
-- summary with "≥" under partial coverage, ingredient table, calculation details, fix links
+- summary with "≥" under partial coverage, ingredient table, expandable line breakdowns, fix links
 
 ### J — Food-specific conversions
 
