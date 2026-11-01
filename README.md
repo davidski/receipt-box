@@ -181,11 +181,15 @@ and allow the app origin in that API's CORS policy.
 
 ## Export and backup
 
-**Manage → Import & export** exports the complete history as a single flat CSV or XLSX table with these columns:
+**Manage → Import & export** exports the complete purchase history as a single flat CSV or XLSX table with these columns:
 
 `purchase_date`, `item`, `category`, `store`, `package_size`, `package_unit`, `price`, `normalized_price`, `normalized_basis`, `on_sale`, `non_grocery`, and `notes`.
 
-Exports do not include Mealie food mappings. Back up the database to keep them; restoring only from an export means mapping items again.
+An export is not a full backup. It does not include saved recipes, Mealie food mappings, preferences, or stores and categories with no purchases, and restoring only from an export means recreating them. To keep everything, back up the database:
+
+```sh
+docker compose exec -T postgres pg_dump -U receiptbox -d receiptbox --clean --if-exists > receiptbox.sql
+```
 
 ## Upgrading the Compose database from PostgreSQL 17
 
