@@ -82,11 +82,17 @@ const results = computed(() => new Map((response.value?.lines ?? []).map(result 
 const { data: mealieStatus } = useFetch<{ configured: boolean }>(apiUrl('/mealie/status'))
 
 const resultFor = (line: Line, index: number) => isDuplicate(line, index) ? undefined : results.value.get(lineKey(line))
-// One calculation per priced line, in editor order; a removed line drops out at once, an edited one updates with the next response.
-const priced = computed(() => lines.value.flatMap((line, index) => {
+// Only a priced line has a breakdown; an error line shows its reason instead. Keyed by line.key, so a line keeps its state through reorders.
+const breakdownFor = (line: Line, index: number) => {
   const result = resultFor(line, index)
-  return result?.purchase ? [{ name: line.foodMode ? line.food?.name ?? '' : line.item, purchase: result.purchase, normalizedQuantity: result.normalizedQuantity ?? null, normalizedPackageQuantity: result.normalizedPackageQuantity ?? null, cost: result.cost, status: result.status ?? 'uncosted' }] : []
-}))
+  if (!result || result.error || result.cost === null || !result.purchase) return null
+  return { purchase: result.purchase, normalizedQuantity: result.normalizedQuantity ?? null, normalizedPackageQuantity: result.normalizedPackageQuantity ?? null, status: result.status ?? 'uncosted' as const }
+}
+const openBreakdowns = ref(new Set<number>())
+function toggleBreakdown(key: number) {
+  if (openBreakdowns.value.has(key)) openBreakdowns.value.delete(key)
+  else openBreakdowns.value.add(key)
+}
 
 const recipes = ref<RecipeSummary[]>([])
 const loaded = ref<Recipe | null>(null)
@@ -396,10 +402,22 @@ onBeforeUnmount(() => {
             <template v-else-if="resultFor(line, index)">
               <strong class="text-(--accent-strong)">{{ currency(resultFor(line, index)!.cost!) }}</strong>
               <SaleMark v-if="resultFor(line, index)!.sale" />
+              <UButton
+                v-if="breakdownFor(line, index)"
+                color="neutral"
+                variant="ghost"
+                :icon="openBreakdowns.has(line.key) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                :aria-expanded="openBreakdowns.has(line.key)"
+                :aria-label="`How line ${index + 1} was priced`"
+                @click="toggleBreakdown(line.key)"
+              />
             </template>
           </div>
           <div class="flex min-h-11 items-center justify-end max-[900.01px]:absolute max-[900.01px]:right-2 max-[900.01px]:top-2">
             <UButton icon="i-lucide-x" color="neutral" variant="ghost" :aria-label="`Remove line ${index + 1}`" @click="lines.splice(index, 1)" />
+          </div>
+          <div v-if="breakdownFor(line, index) && openBreakdowns.has(line.key)" data-recipe-breakdown class="col-span-full rounded-card bg-surface-muted p-3">
+            <RecipeCostBreakdown :line="breakdownFor(line, index)!" />
           </div>
         </li>
       </ul>
@@ -428,8 +446,6 @@ onBeforeUnmount(() => {
         <UButton v-if="canUpdateSavedPrice" label="Update saved price" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :disabled="saving" @click="saveRecipe(true)" />
       </div>
     </div>
-
-    <RecipeCostDetails :lines="priced" />
 
     <ConfirmModal
       v-model:open="deleteConfirmOpen"
