@@ -312,6 +312,9 @@ onBeforeUnmount(() => {
     <header class="page-heading my-[0.9375rem] mb-8">
       <h1 class="leading-[1.04] text-display">Recipe cost</h1>
       <p>Add ingredients to price them at what you last paid.</p>
+      <p v-if="mealieStatus?.configured" data-recipe-food-help class="mt-1 text-sm text-(--muted)">
+        Each line prices one grocery item. Select <UIcon name="i-lucide-carrot" class="align-[-0.125em]" aria-label="the carrot button" /> on a line to price a Mealie food instead, using the items mapped to it, and <UIcon name="i-lucide-shopping-basket" class="align-[-0.125em]" aria-label="the basket button" /> to switch back.
+      </p>
     </header>
 
     <div data-recipe-toolbar class="mb-4 flex flex-wrap items-center gap-2.5">
@@ -370,14 +373,15 @@ onBeforeUnmount(() => {
                 placeholder="Start typing an item…"
                 @update:search-term="searchItems(line, $event)"
               />
-              <UButton
-                v-if="mealieStatus?.configured"
-                :icon="line.foodMode ? 'i-lucide-shopping-basket' : 'i-lucide-carrot'"
-                color="neutral"
-                variant="ghost"
-                :aria-label="line.foodMode ? `Use a grocery item for line ${index + 1}` : `Use a Mealie food for line ${index + 1}`"
-                @click="toggleFoodMode(line)"
-              />
+              <UTooltip v-if="mealieStatus?.configured" :text="line.foodMode ? 'Use a grocery item: price this line from one item\'s purchases' : 'Use a Mealie food: price this line from the items mapped to the food'">
+                <UButton
+                  :icon="line.foodMode ? 'i-lucide-shopping-basket' : 'i-lucide-carrot'"
+                  color="neutral"
+                  variant="ghost"
+                  :aria-label="line.foodMode ? `Use a grocery item for line ${index + 1}` : `Use a Mealie food for line ${index + 1}`"
+                  @click="toggleFoodMode(line)"
+                />
+              </UTooltip>
             </div>
           </UFormField>
           <UFormField label="Quantity" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0">

@@ -2,6 +2,8 @@ import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { createError, getQuery, readBody } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { h } from 'vue'
+import { UApp } from '#components'
 import RecipePage from '../app/pages/recipe.vue'
 
 const FLOUR = '11111111-1111-4111-8111-111111111111'
@@ -66,7 +68,8 @@ afterEach(() => {
 })
 
 async function mountAt(query: string) {
-  const wrapper = await mountSuspended(RecipePage, { route: `/recipe${query}`, attachTo: document.body })
+  // UApp supplies the tooltip provider the food toggle needs.
+  const wrapper = await mountSuspended({ render: () => h(UApp, null, () => h(RecipePage)) }, { route: `/recipe${query}`, attachTo: document.body })
   mounted.push(wrapper)
   await new Promise(resolve => setTimeout(resolve, 450))
   await flushPromises()
@@ -643,7 +646,27 @@ describe('Recipe cost page food lines', () => {
   it('hides the food picker when Mealie is not configured', async () => {
     const wrapper = await mountAt('?l=Flour|1|g')
     expect(toggle(wrapper, 'Use a Mealie food for line 1').exists()).toBe(false)
+    expect(wrapper.find('[data-recipe-food-help]').exists()).toBe(false)
     expect(foodSearches).toEqual([])
+  })
+
+  it('explains the food toggle when Mealie is configured', async () => {
+    mealieConfigured = true
+    const wrapper = await mountAt('')
+    const help = wrapper.get('[data-recipe-food-help]')
+    expect(help.text()).toContain('price a Mealie food instead')
+    expect(help.find('[aria-label="the carrot button"]').exists()).toBe(true)
+    expect(help.find('[aria-label="the basket button"]').exists()).toBe(true)
+  })
+
+  it.each([
+    ['', 'Use a Mealie food for line 1', 'Use a Mealie food: price this line from the items mapped to the food'],
+    [`?l=food:${FLOUR}:Flour|2|cup`, 'Use a grocery item for line 1', 'Use a grocery item: price this line from one item\'s purchases']
+  ])('shows a tooltip on the toggle at "%s"', async (query, label, tip) => {
+    mealieConfigured = true
+    const wrapper = await mountAt(query)
+    await toggle(wrapper, label).trigger('focus')
+    await vi.waitFor(() => expect(document.body.textContent).toContain(tip))
   })
 
   it('lets a configured install switch a line to a food, pick one and price it', async () => {
