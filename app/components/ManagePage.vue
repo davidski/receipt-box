@@ -107,6 +107,10 @@ const resetConfirming = ref(false)
 const resetBusy = ref(false)
 const resetError = ref('')
 const resetComplete = ref(false)
+// Anything but a confirmed Mealie connection (including a failed status read) gets the not-configured wording.
+const resetDescription = computed(() => mealieStatus.value?.configured === true
+  ? 'Permanently delete your receipts, purchases, stores, categories, saved recipes, and Mealie food mappings. This can\'t be undone. Your preferences and the food list synced from Mealie are kept.'
+  : 'Permanently delete your receipts, purchases, stores, categories, and saved recipes. This can\'t be undone. Your preferences are kept.')
 const { enabled: backfillPromptsEnabled, loaded: backfillPromptsLoaded, error: backfillPromptsError, load: loadBackfillPrompts, save: saveBackfillPrompts } = useBackfillPromptPreference()
 const pendingConfirmation = ref<{ title: string, description: string, confirmLabel: string, confirmColor: 'primary' | 'error' | 'warning', action: () => Promise<void> } | null>(null)
 const confirmationBusy = ref(false)
@@ -1099,7 +1103,7 @@ async function exportXlsx() {
         <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-danger bg-danger-soft" aria-hidden="true"><UIcon name="i-lucide-database-zap" /></div>
         <div>
           <h2 class="text-heading">Reset database</h2>
-          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Delete every receipt, purchase entry, and store so you can start with a fresh database. This cannot be undone.</p>
+          <p class="max-w-[38.75rem] text-muted leading-[1.55]">{{ resetDescription }}</p>
 
           <UAlert v-if="resetComplete" color="success" variant="soft" icon="i-lucide-circle-check" description="The database was reset. Receipt Box is ready for fresh data." class="mt-4 rounded-card px-3 py-2.5 text-sm" />
           <UAlert v-if="resetError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="resetError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
