@@ -43,11 +43,15 @@ describe('POST /api/recipe-cost', () => {
       { item: 'Saffron', quantity: 1, unit: 'g' }
     ])
 
+    const flour = { item: 'Flour', price: '4.00', size: '500.000', unit: 'g', saleItem: true, usedSalePrice: true }
     expect(result).toEqual({
       lines: [
-        { item: 'Flour', quantity: 4, unit: 'oz', cost: 0.91, sale: true, error: null, purchaseUnit: 'g' },
-        { item: 'Salt', quantity: 1, unit: 'tsp', cost: null, sale: false, error: 'NO_PACKAGE_SIZE', purchaseUnit: null },
-        { item: 'Saffron', quantity: 1, unit: 'g', cost: null, sale: false, error: 'NO_PRICE', purchaseUnit: null }
+        {
+          item: 'Flour', quantity: 4, unit: 'oz', cost: 0.91, sale: true, error: null, purchaseUnit: 'g',
+          purchase: flour, normalizedQuantity: { base: 'g', amount: 4 * 28.349523125 }, normalizedPackageQuantity: { base: 'g', amount: 500 }, status: 'unit_converted'
+        },
+        { item: 'Salt', quantity: 1, unit: 'tsp', cost: null, sale: false, error: 'NO_PACKAGE_SIZE', purchaseUnit: null, purchase: null, normalizedQuantity: null, normalizedPackageQuantity: null, status: 'uncosted' },
+        { item: 'Saffron', quantity: 1, unit: 'g', cost: null, sale: false, error: 'NO_PRICE', purchaseUnit: null, purchase: null, normalizedQuantity: null, normalizedPackageQuantity: null, status: 'uncosted' }
       ],
       total: 0.91,
       excluded: 2

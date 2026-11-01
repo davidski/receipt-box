@@ -18,7 +18,7 @@ const links = [
 ]
 
 function isActive(to: string) {
-  return route.path === to || (to === '/' && (route.path.startsWith('/receipts/') || route.path.startsWith('/history/') || route.path.startsWith('/items/'))) || (to === '/recipes' && route.path === '/recipe') || (to === '/data/stores' && (route.path === '/data' || route.path.startsWith('/data/')))
+  return route.path === to || (to === '/' && (route.path.startsWith('/receipts/') || route.path.startsWith('/history/') || route.path.startsWith('/items/'))) || (to === '/recipes' && (route.path === '/recipe' || route.path.startsWith('/mealie-recipes'))) || (to === '/data/stores' && (route.path === '/data' || route.path.startsWith('/data/')))
 }
 
 async function logout() {

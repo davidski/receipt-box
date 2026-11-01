@@ -26,10 +26,10 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
   let handlers: Record<string, any>
   let resetDatabase: (sql: any) => Promise<void>
 
-  const call = (handler: string, { body, query = {} }: { body?: unknown, query?: Record<string, unknown> } = {}) => {
+  const call = (handler: string, { body, query = {}, params }: { body?: unknown, query?: Record<string, unknown>, params?: Record<string, string> } = {}) => {
     mock.body = body
     mock.query = query
-    return handlers[handler]!({ node: { res: {} } }) as Promise<any>
+    return handlers[handler]!({ node: { res: {} }, context: { params } }) as Promise<any>
   }
   const addEntry = async (item: string, { size = 1 as number | null, unit = 'lb' as string | null, nonGrocery = false } = {}) => {
     const [store] = await sql<{ id: string }[]>`INSERT INTO grocery_stores (name) VALUES ('Store') ON CONFLICT DO NOTHING RETURNING id::text`
@@ -75,6 +75,7 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       put: (await import('../server/api/items/food.put')).default,
       remove: (await import('../server/api/items/food.delete')).default,
       foods: (await import('../server/api/mealie/foods.get')).default,
+      food: (await import('../server/api/mealie/foods/[id].get')).default,
       list: (await import('../server/api/food-mappings/index.get')).default,
       unmapped: (await import('../server/api/food-mappings/unmapped.get')).default,
       problems: (await import('../server/api/food-mappings/problems.get')).default,
@@ -113,6 +114,18 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       expect(await names('%')).toEqual([])
       expect(await names(['Lentils'])).toEqual(['Chickpeas', 'Lentils'])
       expect((await call('foods', { query: { search: 'Lentils' } })).foods).toEqual([{ id: foodB, name: 'Lentils' }])
+    })
+
+    it('looks up one cached food by id, active or not', async () => {
+      expect(await call('food', { params: { id: foodA } })).toEqual({ id: foodA, name: 'Chickpeas', active: true })
+      expect(await call('food', { params: { id: foodInactive.toUpperCase() } })).toEqual({ id: foodInactive, name: 'Merged away', active: false })
+    })
+
+    it('refuses a bad food id and reports an uncached food or a missing Mealie as 404', async () => {
+      for (const id of ['nope', '', `${foodA}'; DROP TABLE mealie_foods`]) await expect(call('food', { params: { id } })).rejects.toMatchObject({ statusCode: 400 })
+      await expect(call('food', { params: { id: foodUncached } })).rejects.toMatchObject({ statusCode: 404 })
+      delete process.env.MEALIE_URL
+      await expect(call('food', { params: { id: foodA } })).rejects.toMatchObject({ statusCode: 404 })
     })
 
     it('caps food results at 50', async () => {
@@ -189,6 +202,15 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       await addEntry('No unit', { unit: null })
       await addEntry('One usable', { size: null, unit: null })
       await addEntry('One usable')
+      for (const item of ['No size', 'Zero size', 'No unit', 'One usable']) await addMapping(item, foodA)
+      // Without a usable size none of these price a recipe, but only a mapped item with an active food can act on it.
+      await addEntry('Unmapped no size', { size: null, unit: null })
+      await addEntry('Inactive no size', { size: null, unit: null })
+      await addMapping('Inactive no size', foodInactive)
+      await addEntry('Uncached no size', { size: null, unit: null })
+      await addMapping('Uncached no size', foodUncached)
+      await addEntry('Paper no size', { size: null, unit: null, nonGrocery: true })
+      await addMapping('Paper no size', foodB)
 
       const { items: unmapped } = await call('unmapped')
       expect(unmapped).toContainEqual({ item: 'Unmapped', entries: 2 })
@@ -196,11 +218,11 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       expect(unmapped.map((row: any) => row.item)).not.toContain('Mapped')
 
       const problems = await call('problems')
-      expect(problems.brokenMappings.map((row: any) => row.item)).toEqual(['Broken', 'Orphan broken', 'Uncached'])
+      expect(problems.brokenMappings.map((row: any) => row.item)).toEqual(['Broken', 'Inactive no size', 'Orphan broken', 'Uncached', 'Uncached no size'])
       expect(problems.orphanedMappings.map((row: any) => row.item)).toEqual(['Orphan', 'Orphan broken'])
       expect(problems.unmappedItems).toEqual(unmapped)
-      expect(problems.itemsWithoutPackageSize.map((row: any) => row.item)).toEqual(['No size', 'No unit', 'Zero size'])
-      expect(await mappings()).toHaveLength(5)
+      expect(problems.itemsWithoutPackageSize).toEqual([{ item: 'No size', entries: 1 }, { item: 'No unit', entries: 1 }, { item: 'Zero size', entries: 1 }])
+      expect(await mappings()).toHaveLength(12)
     })
 
     it('flags a mapping broken when its food goes inactive, without remapping it', async () => {

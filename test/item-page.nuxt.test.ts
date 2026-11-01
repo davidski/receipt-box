@@ -132,6 +132,40 @@ describe('Item price history page', () => {
     expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(1)
   })
 
+  it('offers Edit on purchases the comparison leaves out', async () => {
+    const bare = (id: string, purchasedOn: string, size: string | null, unit: string | null) => ({ ...purchase(id, purchasedOn, '2.00'), size, unit })
+    entries = [purchase('1', '2026-01-10', '3.50'), bare('2', '2026-02-10', null, null), bare('3', '2026-03-10', '0', 'lb'), bare('4', '2026-04-10', '2', null)]
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(1)
+    const section = wrapper.get('section[aria-labelledby="unpriced-heading"]')
+    expect(section.get('h2').text()).toBe('Missing a package size')
+    const rows = section.findAll('li')
+    // Newest first, each with the same edit link the table uses.
+    expect(rows.map(row => row.text())).toEqual([
+      expect.stringContaining('Apr 10, 2026'),
+      expect.stringContaining('Mar 10, 2026'),
+      expect.stringContaining('Feb 10, 2026')
+    ])
+    expect(rows[2]!.text()).toContain('No size')
+    expect(rows[1]!.text()).toContain('0 lb')
+    expect(rows[0]!.text()).toContain('2')
+    expect(rows.map(row => row.get('a').attributes('href'))).toEqual(['/history/entries?edit=4', '/history/entries?edit=3', '/history/entries?edit=2'])
+    expect(rows[2]!.get('a').attributes('aria-label')).toBe('Edit Feb 10, 2026 purchase at Test Mart')
+  })
+
+  it('sets the price of each purchase missing a size in tabular figures', async () => {
+    entries = [purchase('1', '2026-01-10', '3.50'), { ...purchase('2', '2026-02-10', '12.40'), size: null, unit: null }]
+    const prices = (await mountPage()).get('section[aria-labelledby="unpriced-heading"]').findAll('li span span.tabular-nums')
+
+    expect(prices.map(price => price.text())).toEqual(['$12.40'])
+  })
+
+  it('has no missing-size section when every purchase is priced', async () => {
+    const wrapper = await mountPage()
+    expect(wrapper.find('section[aria-labelledby="unpriced-heading"]').exists()).toBe(false)
+  })
+
   it('redirects a non-canonical item URL to its canonical path and reloads the history', async () => {
     const wrapper = await mountPage('/items/whole-milk')
 

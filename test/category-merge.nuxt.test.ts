@@ -427,7 +427,7 @@ it('resolves a food-only conflict with the chosen food', async () => {
   registerFoodConflict([])
   const { wrapper, dialog } = await mountedConflict()
   expect(dialog.attributes('data-dialog')).toBe('Choose a food')
-  expect(dialog.text()).toContain('Food missing from the catalog (inactive)')
+  expect(dialog.text()).toContain('Food no longer in Mealie (inactive)')
   expect(dialog.get('button:last-child').attributes('disabled')).toBeDefined()
   await dialog.get('select').setValue('food-a')
   await dialog.get('button:last-child').trigger('click')

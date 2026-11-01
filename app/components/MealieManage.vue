@@ -11,6 +11,8 @@ type Problems = { brokenMappings: Mapping[], orphanedMappings: Mapping[], unmapp
 type SyncResult = { status: 'skipped' } | { status: 'synced', foods: number, aliases: number, units: number, deactivatedFoods: number, deactivatedUnits: number }
 type Filter = 'all' | 'mapped' | 'unmapped' | 'broken'
 type Row = { item: string, entries?: number, mapping?: Mapping }
+type CachedFood = { id: string, name: string, active: boolean }
+type FoodOption = { label: string, value: string, description?: string }
 type Suggestion = { mealieFoodId: string, foodName: string, matchType: 'exact_name' | 'plural_name' | 'exact_alias' | 'normalized_name' | 'fuzzy', matchedText: string, similarity: number | null }
 
 const { apiUrl } = useApi()
@@ -19,15 +21,33 @@ const { data: mappings, status: mappingsStatus, error: mappingsError, refresh: r
 const { data: unmapped, status: unmappedStatus, error: unmappedError, refresh: refreshUnmapped } = await useFetch<{ items: ItemCount[] }>(apiUrl('/food-mappings/unmapped'))
 const { data: problems, status: problemsStatus, error: problemsError, refresh: refreshProblems } = await useFetch<Problems>(apiUrl('/food-mappings/problems'))
 
+// A link from a recipe cost page names the Mealie food to fix; the lookup also tells an inactive or unsynced food apart.
+const route = useRoute()
+const router = useRouter()
+const focusId = computed(() => typeof route.query.food === 'string' ? route.query.food : '')
+const backSlug = computed(() => typeof route.query.recipe === 'string' ? route.query.recipe : '')
+const { data: focusFood, status: focusStatus, error: focusError, execute: loadFocusFood } = useFetch<CachedFood>(() => apiUrl(`/mealie/foods/${encodeURIComponent(focusId.value)}`), { key: 'mealie-focus-food', immediate: false, watch: false, server: false })
+const backName = computed(() => typeof route.query.name === 'string' ? route.query.name : '')
+const listSearch = ref('')
+const focusSearch = ref('')
+const focusFoodResults = ref<{ id: string, name: string }[]>([])
+const focusSearchError = ref('')
+const focusSearching = ref(false)
+const focusPanel = ref<HTMLElement>()
+const focusPick = ref<FoodOption>()
+const focusMessage = ref<{ ok: boolean, text: string } | null>(null)
+
 const syncing = ref(false)
 const syncError = ref('')
 const syncNotice = ref('')
 const forceConfirmation = ref('')
 const filter = ref<Filter>('all')
 const visibleRows = ref(30)
+// By problem group title; a group shows its first 30 rows until asked for more.
+const problemRows = reactive(new Map<string, number>())
 const editingItem = ref<string | null>(null)
 const foodSearch = ref('')
-const pickedFood = ref<string>()
+const pickedFood = ref<FoodOption>()
 const foodResults = ref<{ id: string, name: string }[]>([])
 const foodsLoading = ref(false)
 const foodsError = ref('')
@@ -38,23 +58,32 @@ const clearBusy = ref(false)
 // By item name: null while loading, 'failed' after an error. A Map because item names are free text.
 const suggestions = reactive(new Map<string, Suggestion[] | null | 'failed'>())
 
+const fieldUi = { container: 'mt-1.5 grid gap-2', help: 'mt-0', error: 'mt-0', label: 'font-bold text-muted' }
+
 const counts = computed(() => status.value?.counts)
 const allMappings = computed(() => mappings.value?.mappings ?? [])
 const mappedRows = computed<Row[]>(() => allMappings.value.filter(mapping => !mapping.broken).map(mapping => ({ item: mapping.item, mapping })))
 const brokenRows = computed<Row[]>(() => allMappings.value.filter(mapping => mapping.broken).map(mapping => ({ item: mapping.item, mapping })))
 const unmappedRows = computed<Row[]>(() => (unmapped.value?.items ?? []).map(({ item, entries }) => ({ item, entries })))
 const allRows = computed(() => [...brokenRows.value, ...unmappedRows.value, ...mappedRows.value])
+// The search and an inactive food's focus narrow every tab alike, so the counts always match what the tab lists.
+const tabRows = computed(() => {
+  const term = listSearch.value.trim().toLowerCase()
+  const keep = (row: Row) => (!focusInactive.value || row.mapping?.mealieFoodId === focusFood.value?.id)
+    && (!term || row.item.toLowerCase().includes(term) || Boolean(row.mapping?.foodName?.toLowerCase().includes(term)))
+  return { all: allRows.value.filter(keep), mapped: mappedRows.value.filter(keep), unmapped: unmappedRows.value.filter(keep), broken: brokenRows.value.filter(keep) }
+})
 const filterTabs = computed(() => [
-  { label: `All (${allRows.value.length})`, value: 'all' },
-  { label: `Mapped (${mappedRows.value.length})`, value: 'mapped' },
-  { label: `Unmapped (${unmappedRows.value.length})`, value: 'unmapped' },
-  { label: `Broken (${brokenRows.value.length})`, value: 'broken' }
+  { label: `All (${tabRows.value.all.length})`, value: 'all' },
+  { label: `Mapped (${tabRows.value.mapped.length})`, value: 'mapped' },
+  { label: `Unmapped (${tabRows.value.unmapped.length})`, value: 'unmapped' },
+  { label: `Broken (${tabRows.value.broken.length})`, value: 'broken' }
 ])
-const filteredRows = computed(() => ({ all: allRows.value, mapped: mappedRows.value, unmapped: unmappedRows.value, broken: brokenRows.value })[filter.value])
+const filteredRows = computed(() => tabRows.value[filter.value])
 const visibleList = computed(() => filteredRows.value.slice(0, visibleRows.value))
 const unloadedSuggestions = computed(() => visibleList.value.filter(row => needsFood(row) && !suggestions.has(row.item)).map(row => row.item))
 // An empty search lists the suggestions, with their reasons, ahead of the catalog.
-const foodOptions = computed(() => {
+const foodOptions = computed<FoodOption[]>(() => {
   const loaded = foodSearch.value.trim() ? null : suggestions.get(editingItem.value ?? '')
   const suggested = Array.isArray(loaded) ? loaded : []
   return [
@@ -62,16 +91,55 @@ const foodOptions = computed(() => {
     ...foodResults.value.filter(food => !suggested.some(suggestion => suggestion.mealieFoodId === food.id)).map(food => ({ label: food.name, value: food.id }))
   ]
 })
+const focusMapped = computed(() => allMappings.value.filter(mapping => mapping.mealieFoodId === focusFood.value?.id))
+const focusInactive = computed(() => Boolean(focusId.value) && focusStatus.value === 'success' && focusFood.value?.active === false)
+const focusTitle = computed(() => {
+  if (focusError.value) return 'Food not available'
+  if (!focusFood.value || focusStatus.value === 'pending') return 'Loading the food…'
+  return focusFood.value.active ? `Map a grocery item to ${focusFood.value.name}` : `Fix the mappings to ${focusFood.value.name}`
+})
+const focusErrorText = computed(() => {
+  switch (focusError.value?.statusCode) {
+    case 400: return 'This link has an invalid food id.'
+    case 404: return 'This food hasn\'t reached Receipt Box yet. Use Sync now above to refresh it, then come back.'
+    default: return errorMessage(focusError.value, 'Could not load this food')
+  }
+})
+// Announced politely; results shown while a newer query loads could be chosen under the wrong text, so they wait for it.
+const focusSearchStatus = computed(() => {
+  const term = focusSearch.value.trim()
+  if (!term || focusSearchError.value) return ''
+  if (focusSearching.value) return 'Searching Mealie foods…'
+  return focusFoodResults.value.length ? '' : `No Mealie foods match “${term}”.`
+})
+const words = (text: string) => text.toLowerCase().match(/[a-z0-9]+/g)?.map(word => word.replace(/s$/, '')) ?? []
+// Items sharing the most words with the food come first, then alphabetically. ponytail: word overlap, not the server's trigram score; upgrade if it ranks badly.
+const focusItemOptions = computed<FoodOption[]>(() => {
+  const wanted = new Set(words(focusFood.value?.name ?? ''))
+  const overlap = (item: string) => words(item).filter(word => wanted.has(word)).length
+  return unmappedRows.value
+    .map(({ item, entries }) => ({ label: item, description: entryLabel(entries ?? 0), value: item, overlap: overlap(item) }))
+    .sort((a, b) => b.overlap - a.overlap || a.label.localeCompare(b.label))
+})
 const mappingsLoading = computed(() => [mappingsStatus.value, unmappedStatus.value].includes('pending') && !mappings.value)
 const problemGroups = computed(() => [
-  { title: 'Mapped to an inactive or missing food', rows: (problems.value?.brokenMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food missing from the catalog' })) },
-  { title: 'Mapped, but the item has no entries', rows: (problems.value?.orphanedMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food missing from the catalog' })) },
+  { title: 'Mapped to an inactive or missing food', rows: (problems.value?.brokenMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food no longer in Mealie' })) },
+  { title: 'Mapped, but the item has no entries', rows: (problems.value?.orphanedMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food no longer in Mealie' })) },
   { title: 'Unmapped items', rows: (problems.value?.unmappedItems ?? []).map(entryRow) },
-  { title: 'No usable package size', rows: (problems.value?.itemsWithoutPackageSize ?? []).map(entryRow) }
+  {
+    title: 'No usable package size',
+    note: 'These mapped items need a size and unit on at least one purchase before they can price a recipe. Open an item, choose Edit on a purchase, and add its package size and unit.',
+    link: true,
+    rows: (problems.value?.itemsWithoutPackageSize ?? []).map(entryRow)
+  }
 ])
 
 function entryRow({ item, entries }: ItemCount) {
   return { item, detail: entryLabel(entries) }
+}
+
+function goneLabel(count: number, noun: string) {
+  return count > 0 ? `${count.toLocaleString()} ${noun}${count === 1 ? ' is' : 's are'} no longer in Mealie.` : ''
 }
 
 function entryLabel(entries: number) {
@@ -133,7 +201,7 @@ async function sync(force = false) {
     const result = await $fetch<SyncResult>(apiUrl('/mealie/sync'), { method: 'POST', body: { force } })
     syncNotice.value = result.status === 'skipped'
       ? 'Another sync is already running, so this one was skipped.'
-      : `Synced ${result.foods.toLocaleString()} foods, ${result.aliases.toLocaleString()} aliases and ${result.units.toLocaleString()} units. Deactivated ${result.deactivatedFoods.toLocaleString()} foods and ${result.deactivatedUnits.toLocaleString()} units.`
+      : [`Synced ${result.foods.toLocaleString()} foods and ${result.units.toLocaleString()} units.`, goneLabel(result.deactivatedFoods, 'food'), goneLabel(result.deactivatedUnits, 'unit')].filter(Boolean).join(' ')
   } catch (error: any) {
     syncError.value = errorMessage(error, 'Could not sync Mealie')
     if (error?.data?.data?.forceable === true) forceConfirmation.value = syncError.value
@@ -142,6 +210,7 @@ async function sync(force = false) {
   }
   suggestionRun++
   suggestions.clear()
+  if (focusId.value) void loadFocusFood()
   await Promise.all([refreshStatus(), refreshLists()])
 }
 
@@ -175,7 +244,7 @@ watch(foodSearch, () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(searchFoods, 200)
 })
-watch(filter, () => { visibleRows.value = 30 })
+watch([filter, listSearch], () => { visibleRows.value = 30 })
 watch(unloadedSuggestions, items => items.forEach(item => loadSuggestions(item)))
 onMounted(() => unloadedSuggestions.value.forEach(item => loadSuggestions(item)))
 onBeforeUnmount(() => clearTimeout(searchTimer))
@@ -183,20 +252,88 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 async function saveFood(item: string, mealieFoodId: string) {
   mappingBusy.value = item
   mappingError.value = ''
+  let saved = false
   try {
     await $fetch(apiUrl('/items/food'), { method: 'PUT', body: { item, mealieFoodId } })
     if (editingItem.value === item) editingItem.value = null
+    saved = true
   } catch (error: any) {
     mappingError.value = errorMessage(error, `Could not map ${item}`)
     void loadSuggestions(item)
-    // The catalog may have changed, so offer fresh results and let the same food be picked again.
-    pickedFood.value = undefined
+    // The catalog may have changed, so offer fresh results. The choice stays in the box for a retry.
     void searchFoods()
   } finally {
     mappingBusy.value = null
   }
   await refreshLists()
+  return saved
 }
+
+// The panel reports its own result, so the failure is moved out of the alert below the tabs.
+async function mapFocusItem(item: string) {
+  focusMessage.value = null
+  const food = focusFood.value!
+  const saved = await saveFood(item, food.id)
+  focusMessage.value = saved ? { ok: true, text: `Mapped “${item}” to ${food.name}.` } : { ok: false, text: mappingError.value }
+  mappingError.value = ''
+  if (saved) focusPick.value = undefined
+}
+
+// A failed choice stays in the box. The kept copy is a different object from the list's, so choosing the same option again still counts as a change and retries.
+function pickFocusItem(option?: FoodOption | null) {
+  if (!option || mappingBusy.value !== null) return
+  focusPick.value = { ...option }
+  void mapFocusItem(option.value)
+}
+
+function pickFood(item: string, option?: FoodOption | null) {
+  if (!option || mappingBusy.value !== null) return
+  pickedFood.value = { ...option }
+  void saveFood(item, option.value)
+}
+
+// The linked food may be the wrong one, so any cached food can take its place.
+let latestFocusSearch = 0
+watch(focusSearch, async (term) => {
+  const search = ++latestFocusSearch
+  focusSearchError.value = ''
+  if (!term.trim()) { focusFoodResults.value = []; focusSearching.value = false; return }
+  focusSearching.value = true
+  try {
+    const { foods } = await $fetch<{ foods: { id: string, name: string }[] }>(apiUrl('/mealie/foods'), { query: { search: term.trim() } })
+    if (search === latestFocusSearch) focusFoodResults.value = foods
+  } catch (error: any) {
+    if (search === latestFocusSearch) {
+      focusFoodResults.value = []
+      focusSearchError.value = errorMessage(error, 'Could not search the Mealie foods')
+    }
+  } finally {
+    if (search === latestFocusSearch) focusSearching.value = false
+  }
+})
+
+function focusOtherFood(food: string) {
+  focusSearch.value = ''
+  void router.replace({ query: { ...route.query, food } })
+}
+
+function dismissFocus() {
+  focusMessage.value = null
+  void router.replace({ query: { ...route.query, food: undefined, recipe: undefined, name: undefined } })
+}
+
+watch(focusId, (id) => {
+  focusMessage.value = null
+  if (id) void loadFocusFood()
+}, { immediate: true })
+watch(focusError, (error) => {
+  if (error && backName.value) focusSearch.value = backName.value
+})
+// The data page keeps the router from scrolling to the top when a food is linked, so the panel can take the view.
+watch(focusPanel, (panel) => {
+  panel?.scrollIntoView?.({ block: 'start' })
+  panel?.focus({ preventScroll: true })
+})
 
 async function confirmClear() {
   if (!clearing.value) return
@@ -220,19 +357,16 @@ async function confirmClear() {
     <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
       <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-refresh-cw" /></div>
       <div class="min-w-0">
-        <h2 class="text-heading">Integration</h2>
-        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Receipt Box keeps a read-only copy of the Mealie foods and units. Syncing never changes anything in Mealie.</p>
+        <h2 class="text-heading">Sync</h2>
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Brings in foods and units from Mealie. Runs when Receipt Box starts, or whenever you choose Sync now.</p>
         <UAlert v-if="statusError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load the Mealie status." class="mt-4 rounded-card px-3 py-2.5 text-sm">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshStatus()" /></template>
         </UAlert>
         <dl v-if="status" data-testid="mealie-status" class="mt-4.5 grid grid-cols-3 gap-3 max-sm:grid-cols-2">
           <div class="col-span-full"><dt class="text-xs text-muted">Last synced</dt><dd class="font-bold">{{ status.lastSyncedAt ? new Date(status.lastSyncedAt).toLocaleString() : 'Never' }}</dd></div>
           <template v-if="counts">
-            <div><dt class="text-xs text-muted">Active foods</dt><dd class="font-bold">{{ counts.activeFoods.toLocaleString() }}</dd></div>
-            <div><dt class="text-xs text-muted">Inactive foods</dt><dd class="font-bold">{{ counts.inactiveFoods.toLocaleString() }}</dd></div>
-            <div><dt class="text-xs text-muted">Aliases</dt><dd class="font-bold">{{ counts.aliases.toLocaleString() }}</dd></div>
-            <div><dt class="text-xs text-muted">Active units</dt><dd class="font-bold">{{ counts.activeUnits.toLocaleString() }}</dd></div>
-            <div><dt class="text-xs text-muted">Inactive units</dt><dd class="font-bold">{{ counts.inactiveUnits.toLocaleString() }}</dd></div>
+            <div><dt class="text-xs text-muted">Foods</dt><dd class="font-bold">{{ counts.activeFoods.toLocaleString() }}</dd></div>
+            <div><dt class="text-xs text-muted">Units</dt><dd class="font-bold">{{ counts.activeUnits.toLocaleString() }}</dd></div>
           </template>
         </dl>
         <UAlert v-if="syncError || status?.lastError" data-testid="mealie-last-error" color="error" variant="soft" icon="i-lucide-circle-alert" title="Last sync error" :description="syncError || status?.lastError || ''" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
@@ -246,7 +380,66 @@ async function confirmClear() {
       <div class="min-w-0">
         <h2 class="text-heading">Food mappings</h2>
         <p class="max-w-[38.75rem] text-muted leading-[1.55]">Link each grocery item to the Mealie food it stands for. Several items can share one food.</p>
-        <UTabs v-model="filter" :items="filterTabs" :content="false" size="sm" aria-label="Filter food mappings" class="mt-4.5" :ui="{ list: 'max-sm:grid max-sm:grid-cols-2', indicator: 'max-sm:hidden', trigger: 'touch-target max-sm:data-[state=active]:rounded-md max-sm:data-[state=active]:bg-primary' }" />
+        <section v-if="focusId" ref="focusPanel" tabindex="-1" data-testid="food-focus" aria-label="Food from the recipe" class="mt-4.5 scroll-mt-24 grid gap-3 rounded-card border border-line bg-surface-muted p-4 outline-none">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <h3 class="font-bold">{{ focusTitle }}</h3>
+            <div class="flex flex-wrap gap-1">
+              <UButton v-if="backSlug" :to="`/mealie-recipes/${encodeURIComponent(backSlug)}`" label="Back to recipe" icon="i-lucide-arrow-left" color="neutral" variant="ghost" size="sm" />
+              <UButton type="button" label="Dismiss" aria-label="Dismiss food focus" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" @click="dismissFocus" />
+            </div>
+          </div>
+          <p v-if="focusStatus === 'pending'" role="status" class="text-sm text-muted">Looking up the food…</p>
+          <UAlert v-else-if="focusError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="focusErrorText" class="rounded-card px-3 py-2.5 text-sm">
+            <template v-if="![400, 404].includes(focusError.statusCode ?? 0)" #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="loadFocusFood()" /></template>
+          </UAlert>
+          <template v-else-if="focusFood">
+            <template v-if="focusFood.active">
+              <p class="text-sm text-muted">Choose the grocery item that is {{ focusFood.name }}. Its purchases will then price this ingredient.</p>
+              <UFormField label="Grocery item" :ui="fieldUi" class="w-72 max-sm:w-full">
+                <UInputMenu
+                  :model-value="focusPick"
+                  :items="focusItemOptions"
+                  virtualize
+                  by="value"
+                  label-key="label"
+                  description-key="description"
+                  open-on-focus
+                  open-on-click
+                  :loading="mappingBusy !== null"
+                  :disabled="mappingBusy !== null"
+                  placeholder="Search grocery items…"
+                  class="w-full"
+                  @update:model-value="pickFocusItem"
+                />
+              </UFormField>
+            </template>
+            <p v-else class="text-sm text-muted">
+              {{ focusMapped.length ? `${focusMapped.length === 1 ? 'This grocery item maps' : `These ${focusMapped.length} grocery items map`} to a food that is inactive in Mealie. Choose a replacement for ${focusMapped.length === 1 ? 'it' : 'each'} below.` : 'No grocery item maps to this food any more.' }}
+            </p>
+            <UAlert v-if="focusMessage" :color="focusMessage.ok ? 'success' : 'error'" variant="soft" :icon="focusMessage.ok ? 'i-lucide-circle-check' : 'i-lucide-circle-alert'" :description="focusMessage.text" class="rounded-card px-3 py-2.5 text-sm" />
+            <p v-if="focusFood.active" data-testid="food-focus-mapped" class="text-sm">
+              <span class="text-muted">Mapped to this food:</span> {{ focusMapped.length ? focusMapped.map(mapping => mapping.item).join(', ') : 'no grocery items yet' }}
+            </p>
+          </template>
+          <div class="grid gap-1.5">
+            <UFormField label="Find another Mealie food" :ui="fieldUi" class="w-72 max-sm:w-full">
+              <UInput v-model="focusSearch" type="search" placeholder="Wrong food? Search others…" icon="i-lucide-search" class="w-full" />
+            </UFormField>
+            <p v-if="focusSearchError" role="alert" class="text-xs text-danger">{{ focusSearchError }}</p>
+            <p role="status" class="text-sm text-muted empty:hidden">{{ focusSearchStatus }}</p>
+            <ul v-if="focusSearch.trim() && !focusSearching && focusFoodResults.length" data-testid="food-focus-results" class="m-0 flex list-none flex-wrap gap-1 p-0">
+              <li v-for="food in focusFoodResults" :key="food.id"><UButton class="touch-target" type="button" :label="food.name" color="neutral" variant="ghost" @click="focusOtherFood(food.id)" /></li>
+            </ul>
+          </div>
+        </section>
+        <UFormField label="Search items and foods" :ui="fieldUi" class="mt-4.5 w-full max-w-md">
+          <UInput v-model="listSearch" type="search" placeholder="Search items and foods…" icon="i-lucide-search" class="w-full" :ui="{ trailing: 'pe-1' }">
+            <template v-if="listSearch" #trailing>
+              <UButton type="button" aria-label="Clear search" icon="i-lucide-x" color="neutral" variant="link" size="sm" @click="listSearch = ''" />
+            </template>
+          </UInput>
+        </UFormField>
+        <UTabs v-model="filter" :items="filterTabs" :content="false" size="sm" aria-label="Filter food mappings" class="mt-3" :ui="{ list: 'max-sm:grid max-sm:grid-cols-2', indicator: 'max-sm:hidden', trigger: 'touch-target max-sm:data-[state=active]:rounded-md max-sm:data-[state=active]:bg-primary' }" />
         <UAlert v-if="mappingError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="mappingError" class="mt-4 rounded-card px-3 py-2.5 text-sm" />
         <UAlert v-if="mappingsError || unmappedError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load the food mappings." class="mt-4 rounded-card px-3 py-2.5 text-sm">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshLists()" /></template>
@@ -259,9 +452,9 @@ async function confirmClear() {
               <strong class="block">{{ row.item }}</strong>
               <span class="mt-[0.1875rem] flex flex-wrap items-center gap-1.5 text-muted text-xs">
                 <template v-if="row.mapping">
-                  <span>{{ row.mapping.foodName ?? 'Food missing from the catalog' }}</span>
+                  <span>{{ row.mapping.foodName ?? 'Food no longer in Mealie' }}</span>
                   <UBadge v-if="row.mapping.broken" label="Broken" color="error" variant="soft" size="sm" />
-                  <UBadge v-if="!row.mapping.hasEntries" label="No entries" color="warning" variant="soft" size="sm" />
+                  <UBadge v-if="!row.mapping.hasEntries" label="No entries" color="neutral" variant="soft" size="sm" />
                 </template>
                 <span v-else>Unmapped · {{ entryLabel(row.entries ?? 0) }}</span>
               </span>
@@ -277,35 +470,38 @@ async function confirmClear() {
                 </p>
               </template>
             </div>
-            <div v-if="editingItem === row.item" class="flex flex-wrap items-center gap-1 sm:justify-end">
-              <USelectMenu
-                v-model="pickedFood"
-                v-model:search-term="foodSearch"
-                :items="foodOptions"
-                value-key="value"
-                label-key="label"
-                ignore-filter
-                default-open
-                :loading="foodsLoading || mappingBusy === row.item"
-                :aria-label="`Mealie food for ${row.item}`"
-                placeholder="Search foods…"
-                :search-input="{ placeholder: 'Search foods…' }"
-                class="w-60 max-sm:w-full"
-                :ui="{ itemDescription: 'whitespace-normal' }"
-                @update:model-value="(food: string) => saveFood(row.item, food)"
-              />
+            <div v-if="editingItem === row.item" class="flex flex-wrap items-end gap-1 sm:justify-end">
+              <UFormField label="Mealie food" :ui="fieldUi" class="w-60 max-sm:w-full">
+                <UInputMenu
+                  :model-value="pickedFood"
+                  v-model:search-term="foodSearch"
+                  :items="foodOptions"
+                  by="value"
+                  label-key="label"
+                  ignore-filter
+                  default-open
+                  autofocus
+                  open-on-focus
+                  open-on-click
+                  :loading="foodsLoading || mappingBusy === row.item"
+                  placeholder="Search foods…"
+                  class="w-full"
+                  :ui="{ itemDescription: 'whitespace-normal' }"
+                  @update:model-value="(food?: FoodOption | null) => pickFood(row.item, food)"
+                />
+              </UFormField>
               <UButton class="touch-target" type="button" label="Cancel" color="neutral" variant="ghost" @click="editingItem = null" />
               <p v-if="foodsError" role="alert" class="w-full text-xs text-danger">{{ foodsError }}</p>
             </div>
             <div v-else class="flex flex-wrap gap-1">
-              <UButton v-if="topSuggestion(row)" class="touch-target" type="button" label="Accept" :aria-label="`Accept ${topSuggestion(row)!.foodName} for ${row.item}`" icon="i-lucide-check" :loading="mappingBusy === row.item" :disabled="Boolean(mappingBusy)" @click="saveFood(row.item, topSuggestion(row)!.mealieFoodId)" />
+              <UButton v-if="topSuggestion(row)" class="touch-target" type="button" label="Accept" :aria-label="`Accept ${topSuggestion(row)!.foodName} for ${row.item}`" icon="i-lucide-check" color="neutral" variant="ghost" :loading="mappingBusy === row.item" :disabled="Boolean(mappingBusy)" @click="saveFood(row.item, topSuggestion(row)!.mealieFoodId)" />
               <!-- A mapping can only be set on an item with entries, so one without can only be cleared. -->
               <UButton v-if="!row.mapping || row.mapping.hasEntries" class="touch-target" type="button" :label="chooseLabel(row)" :aria-label="`${chooseLabel(row)} for ${row.item}`" icon="i-lucide-search" color="neutral" variant="ghost" @click="chooseFood(row.item)" />
               <UButton v-if="row.mapping" class="touch-target" type="button" label="Clear" :aria-label="`Clear mapping for ${row.item}`" icon="i-lucide-unlink" color="error" variant="ghost" @click="clearing = row.mapping" />
             </div>
           </li>
         </ul>
-        <UButton v-if="filteredRows.length > visibleRows" class="mt-4 w-full justify-center" type="button" label="Show 30 more" icon="i-lucide-chevron-down" color="neutral" variant="outline" @click="visibleRows += 30" />
+        <UButton v-if="filteredRows.length > visibleRows" class="mt-4 w-full justify-center" type="button" label="Show 30 more" icon="i-lucide-chevron-down" color="neutral" variant="ghost" @click="visibleRows += 30" />
       </div>
     </UCard>
 
@@ -313,18 +509,24 @@ async function confirmClear() {
       <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-triangle-alert" /></div>
       <div class="min-w-0">
         <h2 class="text-heading">Problems</h2>
-        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Worked out from cached data only, without contacting Mealie.</p>
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Mappings and items that need attention before recipes can be fully costed.</p>
         <UAlert v-if="problemsError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load the problems." class="mt-4 rounded-card px-3 py-2.5 text-sm">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshProblems()" /></template>
         </UAlert>
         <p v-else-if="problemsStatus === 'pending' && !problems" class="mt-4 text-muted">Loading problems…</p>
         <div v-else data-testid="mealie-problems" class="mt-4.5 grid gap-4">
           <section v-for="group in problemGroups" :key="group.title" :aria-label="group.title">
-            <h3 class="flex items-center gap-2 font-bold">{{ group.title }} <UBadge :label="String(group.rows.length)" :color="group.rows.length ? 'warning' : 'neutral'" variant="soft" size="sm" /></h3>
+            <h3 class="flex items-center gap-2 font-bold">{{ group.title }} <UBadge :label="String(group.rows.length)" color="neutral" variant="soft" size="sm" /></h3>
+            <p v-if="group.note" class="mt-1 max-w-[38.75rem] text-sm text-muted">{{ group.note }}</p>
             <ul v-if="group.rows.length" tabindex="0" :aria-label="group.title" class="mt-1.5 max-h-64 list-none overflow-y-auto rounded-card p-0 border border-line">
-              <li v-for="row in group.rows" :key="row.item" class="flex flex-wrap justify-between gap-x-3 p-[0.5rem_0.75rem] border-t border-line first:border-t-0 text-sm"><span class="min-w-0 break-words">{{ row.item }}</span><span class="text-xs text-muted">{{ row.detail }}</span></li>
+              <li v-for="row in group.rows.slice(0, problemRows.get(group.title) ?? 30)" :key="row.item" class="flex flex-wrap justify-between gap-x-3 p-[0.5rem_0.75rem] border-t border-line first:border-t-0 text-sm">
+                <NuxtLink v-if="group.link" :to="itemPath(row.item)" class="item-history-link inline-flex min-w-0 items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`Open ${row.item} to add a package size`"><span class="break-words">{{ row.item }}</span><UIcon name="i-lucide-chart-line" aria-hidden="true" /></NuxtLink>
+                <span v-else class="min-w-0 break-words">{{ row.item }}</span>
+                <span class="text-xs text-muted">{{ row.detail }}</span>
+              </li>
             </ul>
-            <p v-else class="mt-1 text-sm text-muted">None.</p>
+            <UButton v-if="group.rows.length > (problemRows.get(group.title) ?? 30)" class="mt-2 w-full justify-center" type="button" label="Show 30 more" :aria-label="`Show 30 more: ${group.title}`" icon="i-lucide-chevron-down" color="neutral" variant="ghost" @click="problemRows.set(group.title, (problemRows.get(group.title) ?? 30) + 30)" />
+            <p v-else-if="!group.rows.length" class="mt-1 text-sm text-muted">None.</p>
           </section>
         </div>
       </div>

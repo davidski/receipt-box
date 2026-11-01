@@ -7,7 +7,8 @@ import {
   fetchMealieRecipes,
   fetchMealieUnits,
   getMealieConfig,
-  isMealieConfigured
+  isMealieConfigured,
+  mealieRecipeUrl
 } from '../server/utils/mealie/client.ts'
 
 const token = 'secret-test-token'
@@ -165,5 +166,32 @@ describe('Mealie requests', () => {
       process.env[key] = saved
     }
     assert.equal(fetchMock.mock.callCount(), 0)
+  })
+})
+
+describe('mealieRecipeUrl', () => {
+  beforeEach(() => {
+    process.env.MEALIE_URL = 'https://mealie.example/'
+    process.env.MEALIE_API_TOKEN = token
+  })
+  afterEach(() => {
+    mock.restoreAll()
+    delete process.env.MEALIE_URL
+    delete process.env.MEALIE_API_TOKEN
+  })
+
+  test('builds the group path and encodes both segments', async () => {
+    stubFetch(async () => json({ groupSlug: 'my home' }))
+    assert.equal(await mealieRecipeUrl('a/b'), 'https://mealie.example/g/my%20home/r/a%2Fb')
+  })
+
+  test('is null without a usable group or when the lookup fails', async () => {
+    for (const body of [{}, { groupSlug: '' }, { groupSlug: 7 }]) {
+      stubFetch(async () => json(body))
+      assert.equal(await mealieRecipeUrl('a'), null)
+      mock.restoreAll()
+    }
+    stubFetch(async () => json({}, 500))
+    assert.equal(await mealieRecipeUrl('a'), null)
   })
 })

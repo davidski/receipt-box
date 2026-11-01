@@ -4,7 +4,7 @@ import { test } from 'node:test'
 globalThis.createError = ({ statusCode, statusMessage, data }) => Object.assign(new Error(statusMessage), { statusCode, statusMessage, data })
 
 const {
-  carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, foodSuggestions, fuzzyCutoff, getFoodMapping, hasFoodConflict,
+  cachedFood, carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, foodSuggestions, fuzzyCutoff, getFoodMapping, hasFoodConflict,
   listFoodMappings, parseFoodResolution, requireFoodId, requireItemName, searchActiveFoods, setFoodMapping
 } = await import('../server/utils/food-mapping.ts')
 const { renameItemVariants } = await import('../server/utils/item-query.ts')
@@ -103,8 +103,15 @@ test('problems split broken and orphaned mappings, listing a mapping that is bot
   const broken = { item: 'b', broken: true, hasEntries: true }
   const orphan = { item: 'c', broken: false, hasEntries: false }
   const healthy = { item: 'd', broken: false, hasEntries: true }
-  const { tx } = fakeTransaction([[both, broken, orphan, healthy], [{ item: 'e', entries: 1 }], [{ item: 'f', entries: 2 }]])
-  assert.deepEqual(await foodMappingProblems(tx), {
+  const { tx, queries } = fakeTransaction([[both, broken, orphan, healthy], [{ item: 'e', entries: 1 }], [{ item: 'f', entries: 2 }]])
+  const problems = await foodMappingProblems(tx)
+  // Only mapped items with an active food, and the same eligibility as selectPurchase in recipe-cost.
+  const sizeQuery = queries[1].sql
+  assert.match(sizeQuery, /JOIN grocery_item_food_mapping mappings ON mappings\.item = entries\.item/)
+  assert.match(sizeQuery, /JOIN mealie_foods foods ON foods\.id = mappings\.mealie_food_id AND foods\.active/)
+  assert.match(sizeQuery, /WHERE NOT entries\.non_grocery/)
+  assert.match(sizeQuery, /FILTER \(WHERE entries\.size > 0 AND entries\.unit IS NOT NULL\) = 0/)
+  assert.deepEqual(problems, {
     brokenMappings: [both, broken],
     orphanedMappings: [both, orphan],
     unmappedItems: [{ item: 'f', entries: 2 }],
@@ -167,4 +174,13 @@ test('food search reads only active foods and caps its results', async () => {
   assert.match(queries[0].sql, /WHERE foods\.active AND/)
   assert.match(queries[0].sql, /LIMIT 50/)
   assert.deepEqual(queries[0].values, ['100%', '100%'])
+})
+
+test('looks up one cached food by id, active or not, and returns null for an uncached one', async () => {
+  const food = { id: foodA, name: 'Flour', active: false }
+  const found = fakeTransaction([[food]])
+  assert.deepEqual(await cachedFood(found.tx, foodA), food)
+  assert.match(found.queries[0].sql, /FROM mealie_foods WHERE id = \?/)
+  assert.deepEqual(found.queries[0].values, [foodA])
+  assert.equal(await cachedFood(fakeTransaction([[]]).tx, foodB), null)
 })

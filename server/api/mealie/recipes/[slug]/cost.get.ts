@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { db } from '../../../../utils/db'
-import { fetchMealieRecipe } from '../../../../utils/mealie/client'
+import { fetchMealieRecipe, mealieRecipeUrl } from '../../../../utils/mealie/client'
 import { costMealieRecipe, mealieRecipeError } from '../../../../utils/mealie/recipes'
 
 export default defineEventHandler(async (event) => {
@@ -8,8 +8,8 @@ export default defineEventHandler(async (event) => {
   // encodeURIComponent leaves dots alone, and a dot segment would reach a different Mealie path.
   if (!slug || /^\.+$/.test(slug)) throw createError({ statusCode: 400, statusMessage: 'Invalid recipe slug' })
   try {
-    const recipe = await fetchMealieRecipe(slug)
-    return await costMealieRecipe(db(), recipe)
+    const [recipe, url] = await Promise.all([fetchMealieRecipe(slug), mealieRecipeUrl(slug)])
+    return { ...await costMealieRecipe(db(), recipe), url }
   } catch (error) {
     throw createError(mealieRecipeError(error))
   }

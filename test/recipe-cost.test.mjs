@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { costLine, selectPurchase, summarizeRecipeCost } from '../shared/utils/recipe-cost.ts'
+import { costLine, costPerServingLowerBound, selectPurchase, summarizeRecipeCost } from '../shared/utils/recipe-cost.ts'
 import { toBaseUnit } from '../shared/utils/units.ts'
 
 const purchase = (overrides = {}) => ({ price: '4.00', size: '500.000', unit: 'g', saleItem: false, ...overrides })
@@ -146,5 +146,23 @@ describe('summarizeRecipeCost', () => {
 
   test('is zero for no lines', () => {
     assert.deepEqual(summarizeRecipeCost([]), { total: 0, excluded: 0 })
+  })
+})
+
+describe('costPerServingLowerBound', () => {
+  test('rounds down where the nearest-cent figure would round up', () => {
+    assert.equal(costPerServingLowerBound(8.73, 6), 1.45)
+    assert.equal(Math.round(8.73 / 6 * 100) / 100, 1.46)
+  })
+
+  test('keeps an exact quotient despite float error', () => {
+    assert.equal(costPerServingLowerBound(0.33, 1.1), 0.3)
+    assert.equal(costPerServingLowerBound(8.73, 3), 2.91)
+    assert.equal(costPerServingLowerBound(0.29, 1), 0.29)
+  })
+
+  test('never exceeds the unrounded quotient', () => {
+    assert.equal(costPerServingLowerBound(0.01, 3), 0)
+    assert.equal(costPerServingLowerBound(0, 4), 0)
   })
 })

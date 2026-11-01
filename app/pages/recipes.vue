@@ -3,6 +3,7 @@ type RecipeRow = { id: string, name: string, lineCount: number, savedTotal: numb
 type SortKey = 'name' | 'now' | 'change'
 
 const { apiUrl } = useApi()
+const { data: mealieStatus } = useFetch<{ configured: boolean }>(apiUrl('/mealie/status'), { server: false })
 const recipes = ref<RecipeRow[]>([])
 const loading = ref(true)
 const loadError = ref('')
@@ -70,11 +71,12 @@ onMounted(load)
 
 <template>
   <div class="mx-auto w-full max-w-300">
-    <header class="page-heading my-[0.9375rem] mb-8">
+    <header class="page-heading my-[0.9375rem] mb-8 flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 class="leading-[1.04] text-display">Recipes</h1>
         <p>Saved recipes, priced at what you last paid.</p>
       </div>
+      <UButton v-if="mealieStatus?.configured" to="/mealie-recipes" icon="i-brand-mealie" label="Mealie recipes" color="neutral" variant="ghost" size="md" />
     </header>
 
     <UAlert v-if="loadError" data-recipes-error role="alert" class="mb-4" color="error" variant="soft" icon="i-lucide-circle-alert" :description="loadError">

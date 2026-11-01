@@ -16,7 +16,7 @@ ENV NUXT_APP_BASE_URL=$NUXT_APP_BASE_URL
 ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE
 ENV APP_VERSION=$APP_VERSION
 COPY . .
-RUN pnpm build
+RUN pnpm build && chmod -R a+rX .output
 
 FROM node:26-alpine AS runtime
 ENV NODE_ENV=production

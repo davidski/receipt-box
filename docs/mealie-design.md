@@ -12,6 +12,16 @@ Do not modify Mealie. Receipt Box only reads from Mealie, using the server-side 
 
 ---
 
+## Terminology
+
+- **Grocery item:** what you bought, as named on your receipts in Receipt Box, such as "Org Russet Potato 5lb".
+- **Mealie food:** the shared concept, such as "russet potatoes".
+- **Recipe ingredient:** a recipe's use of that food, such as "2 russet potatoes".
+
+A mapping links a grocery item to a Mealie food. Every recipe ingredient using that food is then priced from the mapped items.
+
+---
+
 ## Core Ownership Rule
 
 **Mealie owns culinary semantics:**
@@ -649,7 +659,7 @@ Keep it simpler than Mealie's recipe interface.
 Chickpea Curry
 
 Estimated cost          ≥ $8.73
-6 servings              ≥ $1.46 / serving
+6 servings              ≥ $1.45 / serving
 Coverage                14 / 16
 
 Ingredient              Cost
