@@ -139,6 +139,8 @@ watch([search, location, changeFilter, category], () => {
 })
 
 function syncHistoryQuery() {
+  // While this page is leaving for another route, its watchers still run; they must not write history state onto that route.
+  if (!route.path.startsWith('/history')) return
   const query = { ...route.query } as Record<string, string | string[] | undefined>
   query.search = search.value || undefined
   query.store = location.value !== allLocationsValue ? location.value : undefined
@@ -318,9 +320,10 @@ async function openLinkedEdit(value: unknown) {
 
 async function closeEdit() {
   editing.value = null
-  if (route.query.edit) {
-    await router.replace({ query: { ...route.query, edit: undefined } })
-  }
+  if (!route.query.edit) return
+  // A purchase opened from the Mealie list goes back to that list, since the history list is not where it came from.
+  if (route.query.from === 'mealie') await router.replace({ path: '/data/mealie' })
+  else await router.replace({ query: { ...route.query, edit: undefined } })
 }
 
 onMounted(() => openLinkedEdit(route.query.edit))

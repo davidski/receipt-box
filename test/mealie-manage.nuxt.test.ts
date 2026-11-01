@@ -684,10 +684,11 @@ describe('problems', () => {
     const sizes = wrapper.get('section[aria-label="No usable package size"]')
     expect(sizes.text()).toContain('These mapped items need a size and unit on at least one purchase before they can price a recipe. Open an item, choose Edit on a purchase, and add its package size and unit.')
     const links = sizes.findAll('li a')
-    expect(links.map(link => link.attributes('href'))).toEqual(names.map(itemPath))
+    // Each link names the Mealie list as its origin, so the item page can send the person back here.
+    expect(links.map(link => link.attributes('href'))).toEqual(names.map(name => `${itemPath(name)}?from=mealie`))
     names.forEach((name, index) => expect(links[index]!.attributes('aria-label')).toBe(`Open ${name} to add a package size`))
     // The slug carries no character that needs encoding, so the path is one safe segment.
-    links.forEach(link => expect(link.attributes('href')).toMatch(/^\/items\/[a-z0-9-]+$/))
+    links.forEach(link => expect(link.attributes('href')).toMatch(/^\/items\/[a-z0-9-]+\?from=mealie$/))
     // The other groups stay plain text and carry no explanation.
     expect(wrapper.get('section[aria-label="Unmapped items"]').find('a').exists()).toBe(false)
     expect(wrapper.get('section[aria-label="Unmapped items"]').text()).not.toContain('before they can price a recipe')

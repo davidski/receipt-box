@@ -37,6 +37,7 @@ async function mountPage(route = itemPath('Whole Milk')) {
 
 const points = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.findAll('svg g[role="button"]')
 const panel = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.find('[aria-live="polite"]')
+const backLink = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.get('header a')
 
 describe('Item price history page', () => {
   it('describes the purchases table with a caption and column scopes', async () => {
@@ -172,5 +173,44 @@ describe('Item price history page', () => {
     await vi.waitFor(() => expect(wrapper.vm.$router.currentRoute.value.path).toBe(itemPath('Whole Milk')))
     await vi.waitFor(() => expect(historyFetches).toBe(2))
     await vi.waitFor(() => expect(points(wrapper)).toHaveLength(3))
+  })
+
+  it('offers Back to Mealie when opened from the Mealie list', async () => {
+    const wrapper = await mountPage(`${itemPath('Whole Milk')}?from=mealie`)
+
+    expect(backLink(wrapper).text()).toBe('Back to Mealie')
+    expect(backLink(wrapper).attributes('href')).toBe('/data/mealie')
+  })
+
+  it('keeps Back to history, with the same target, for any other arrival', async () => {
+    const wrapper = await mountPage()
+
+    expect(backLink(wrapper).text()).toBe('Back to history')
+    expect(backLink(wrapper).attributes('href')).toBe('/history/receipts/calendar')
+  })
+
+  it('keeps the Mealie origin through the canonical redirect', async () => {
+    const wrapper = await mountPage('/items/whole-milk?from=mealie')
+
+    await vi.waitFor(() => expect(wrapper.vm.$router.currentRoute.value.fullPath).toBe(`${itemPath('Whole Milk')}?from=mealie`))
+    await vi.waitFor(() => expect(points(wrapper)).toHaveLength(3))
+    expect(backLink(wrapper).text()).toBe('Back to Mealie')
+    expect(backLink(wrapper).attributes('href')).toBe('/data/mealie')
+  })
+
+  it.each(['from=elsewhere', 'from=MEALIE', 'from=https%3A%2F%2Fevil.example', 'from=mealie&from=mealie'])('ignores an unknown origin (%s) for the back link and the Edit links', async (query) => {
+    const wrapper = await mountPage(`${itemPath('Whole Milk')}?${query}`)
+
+    expect(backLink(wrapper).text()).toBe('Back to history')
+    expect(backLink(wrapper).attributes('href')).toBe('/history/receipts/calendar')
+    expect(wrapper.get('table tbody a').attributes('href')).toBe('/history/entries?edit=3')
+  })
+
+  it('carries the Mealie origin to the Edit links, so the edit can return there', async () => {
+    entries = [purchase('1', '2026-01-10', '3.50'), { ...purchase('2', '2026-02-10', '2.00'), size: null, unit: null }]
+    const wrapper = await mountPage(`${itemPath('Whole Milk')}?from=mealie`)
+
+    expect(wrapper.get('table tbody a').attributes('href')).toBe('/history/entries?edit=1&from=mealie')
+    expect(wrapper.get('section[aria-labelledby="unpriced-heading"] li a').attributes('href')).toBe('/history/entries?edit=2&from=mealie')
   })
 })

@@ -520,7 +520,7 @@ async function confirmClear() {
             <p v-if="group.note" class="mt-1 max-w-[38.75rem] text-sm text-muted">{{ group.note }}</p>
             <ul v-if="group.rows.length" tabindex="0" :aria-label="group.title" class="mt-1.5 max-h-64 list-none overflow-y-auto rounded-card p-0 border border-line">
               <li v-for="row in group.rows.slice(0, problemRows.get(group.title) ?? 30)" :key="row.item" class="flex flex-wrap justify-between gap-x-3 p-[0.5rem_0.75rem] border-t border-line first:border-t-0 text-sm">
-                <NuxtLink v-if="group.link" :to="itemPath(row.item)" class="item-history-link inline-flex min-w-0 items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`Open ${row.item} to add a package size`"><span class="break-words">{{ row.item }}</span><UIcon name="i-lucide-chart-line" aria-hidden="true" /></NuxtLink>
+                <NuxtLink v-if="group.link" :to="{ path: itemPath(row.item), query: { from: 'mealie' } }" class="item-history-link inline-flex min-w-0 items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`Open ${row.item} to add a package size`"><span class="break-words">{{ row.item }}</span><UIcon name="i-lucide-chart-line" aria-hidden="true" /></NuxtLink>
                 <span v-else class="min-w-0 break-words">{{ row.item }}</span>
                 <span class="text-xs text-muted">{{ row.detail }}</span>
               </li>

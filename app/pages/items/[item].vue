@@ -22,6 +22,8 @@ const route = useRoute()
 const router = useRouter()
 const { apiUrl } = useApi()
 const routeItem = computed(() => String(route.params.item ?? ''))
+// Only the fixed value from the Mealie list counts; any other query value is ignored, so it never picks a target.
+const fromMealie = computed(() => route.query.from === 'mealie')
 const { data, pending, error, refresh } = await useFetch<ItemHistory>(apiUrl('/items/history'), {
   query: computed(() => ({ item: routeItem.value, slug: routeItem.value }))
 })
@@ -52,7 +54,7 @@ useHead(() => ({ title: data.value?.item ? `${data.value.item} price history` : 
 
 watch(() => data.value?.item, (item) => {
   if (!item || route.path === itemPath(item)) return
-  router.replace(itemPath(item))
+  router.replace({ path: itemPath(item), query: route.query })
 }, { immediate: true })
 
 const pricePoints = computed<PricePoint[]>(() => (data.value?.entries || []).flatMap((entry) => {
@@ -213,7 +215,7 @@ function packageLabel(entry: HistoryEntry) {
         <h1 class="leading-[1.04] text-display">{{ data?.item || routeItem }}</h1>
         <p v-if="data">{{ data.entries.length.toLocaleString() }} recorded {{ data.entries.length === 1 ? 'purchase' : 'purchases' }}</p>
       </div>
-      <UButton to="/history/receipts/calendar" label="Back to history" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
+      <UButton :to="fromMealie ? '/data/mealie' : '/history/receipts/calendar'" :label="fromMealie ? 'Back to Mealie' : 'Back to history'" icon="i-lucide-arrow-left" color="neutral" variant="outline" />
     </header>
 
     <div v-if="pending" class="grid min-h-55 place-items-center gap-1.5 rounded-card border border-dashed border-line p-9 text-center text-muted">Loading item history…</div>
@@ -334,7 +336,7 @@ function packageLabel(entry: HistoryEntry) {
                 <td data-label="Normalized" :class="[tdData, 'text-right max-sm:text-left']"><strong>{{ formatCurrency(point.normalizedPrice) }}</strong> <span class="mt-0.5 block text-sm text-muted">{{ point.basisLabel }}</span></td>
                 <td :class="[tdBase, 'w-[1%] text-right whitespace-nowrap max-sm:col-span-full max-sm:block max-sm:w-full']">
                   <UButton
-                    :to="{ path: '/history/entries', query: { edit: point.id } }"
+                    :to="{ path: '/history/entries', query: { edit: point.id, from: fromMealie ? 'mealie' : undefined } }"
                     label="Edit"
                     icon="i-lucide-pencil"
                     color="neutral"
@@ -357,7 +359,7 @@ function packageLabel(entry: HistoryEntry) {
           <li v-for="entry in unpriced" :key="entry.id" class="flex flex-wrap items-center justify-between gap-x-3 border-t border-line py-2">
             <span>{{ dateLabel(entry.purchasedOn) }} · {{ entry.location }} · <span class="tabular-nums">{{ formatCurrency(entry.price) }}</span> · {{ packageLabel(entry) }}</span>
             <UButton
-              :to="{ path: '/history/entries', query: { edit: entry.id } }"
+              :to="{ path: '/history/entries', query: { edit: entry.id, from: fromMealie ? 'mealie' : undefined } }"
               label="Edit"
               icon="i-lucide-pencil"
               color="neutral"

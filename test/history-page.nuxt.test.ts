@@ -329,3 +329,43 @@ describe('Receipts home', () => {
     await vi.waitFor(() => expect(document.querySelector('.edit-dialog')).toBeNull())
   })
 })
+
+describe('closing a purchase opened from the Mealie list', () => {
+  let saves: number
+
+  beforeEach(() => {
+    saves = 0
+    registerEndpoint('/api/entries/23', { method: 'GET', handler: () => entry })
+    registerEndpoint('/api/entries/23', { method: 'PUT', handler: () => { saves += 1; return entry } })
+  })
+
+  const pressLast = (label: string) => [...document.querySelectorAll('button')].filter(button => button.textContent?.trim() === label).at(-1) as HTMLButtonElement
+
+  it('returns to the Mealie list when the edit is cancelled', async () => {
+    const wrapper = await mountBrowser('/history/entries?edit=23&from=mealie', document.body)
+    await vi.waitFor(() => expect(document.querySelector('.edit-dialog')).not.toBeNull())
+
+    pressLast('Cancel').click()
+    await vi.waitFor(() => expect(wrapper.vm.$router.currentRoute.value.fullPath).toBe('/data/mealie'))
+    expect(saves).toBe(0)
+  })
+
+  it('returns to the Mealie list after the edit is saved', async () => {
+    const wrapper = await mountBrowser('/history/entries?edit=23&from=mealie', document.body)
+    await vi.waitFor(() => expect(document.querySelector('.edit-dialog')).not.toBeNull())
+
+    document.getElementById('edit-purchase-form')!.dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(wrapper.vm.$router.currentRoute.value.fullPath).toBe('/data/mealie'))
+    expect(saves).toBe(1)
+  })
+
+  it('keeps the history list when the edit was not opened from Mealie', async () => {
+    const wrapper = await mountBrowser('/history/entries?edit=23', document.body)
+    await vi.waitFor(() => expect(document.querySelector('.edit-dialog')).not.toBeNull())
+
+    pressLast('Cancel').click()
+    await vi.waitFor(() => expect(document.querySelector('.edit-dialog')).toBeNull())
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/history/entries')
+    expect(wrapper.vm.$router.currentRoute.value.query).toEqual({})
+  })
+})
