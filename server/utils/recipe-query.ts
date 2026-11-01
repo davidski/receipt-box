@@ -1,6 +1,8 @@
 import type postgres from 'postgres'
-import { costLine, renameRecipeLineItems, selectPurchase, summarizeRecipeCost, type PurchaseCandidate, type RecipeLine } from '../../shared/utils/recipe-cost.ts'
+import { costLine, renameRecipeLineItems, selectPurchase, summarizeRecipeCost, type FoodLineError, type PurchaseCandidate, type RecipeLine } from '../../shared/utils/recipe-cost.ts'
 import { normalizePackageQuantity, normalizeUnit, toBaseUnit } from '../../shared/utils/units.ts'
+import { requireFoodId } from './food-mapping.ts'
+import { isMealieConfigured } from './mealie/client.ts'
 
 type Sql = postgres.Sql | postgres.TransactionSql
 
@@ -16,16 +18,23 @@ export function parseRecipeLines(value: unknown): RecipeLine[] {
 
   const seen = new Set<string>()
   return value.map((raw: Record<string, unknown> | null) => {
+    const isFood = raw?.foodId !== undefined
+    if (isFood && raw?.item !== undefined) throw badRequest('A line is either an item or a food, not both')
     const item = typeof raw?.item === 'string' ? raw.item.trim() : ''
-    if (!item) throw badRequest('Every line needs an item')
+    if (!isFood && !item) throw badRequest('Every line needs an item or a food')
+    // Only the id's format is checked: a saved food that left the cache or Mealie must still round-trip.
+    const target = isFood
+      ? { foodId: requireFoodId(raw.foodId), foodName: typeof raw.foodName === 'string' ? raw.foodName.trim() : '' }
+      : { item }
+    const label = 'foodId' in target ? target.foodName || target.foodId : item
     const quantity = raw?.quantity
     if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity <= 0) {
-      throw badRequest(`Quantity for "${item}" must be a number greater than 0`)
+      throw badRequest(`Quantity for "${label}" must be a number greater than 0`)
     }
-    const key = item.toLowerCase()
-    if (seen.has(key)) throw badRequest(`"${item}" appears more than once`)
+    const key = 'foodId' in target ? `food:${target.foodId}` : item.toLowerCase()
+    if (seen.has(key)) throw badRequest(`"${label}" appears more than once`)
     seen.add(key)
-    return { item, quantity, unit: typeof raw?.unit === 'string' ? raw.unit.trim() : '' }
+    return { ...target, quantity, unit: typeof raw?.unit === 'string' ? raw.unit.trim() : '' }
   })
 }
 
@@ -59,9 +68,27 @@ export async function latestPurchases(sql: Sql, items: string[]) {
 }
 
 export async function priceRecipe(sql: Sql, lines: RecipeLine[]) {
-  const purchases = await latestPurchases(sql, lines.map(line => line.item))
-  const costed = lines.map((line) => {
-    const candidates = purchases.filter(row => row.item === line.item)
+  const foodIds = lines.flatMap(line => 'foodId' in line ? [line.foodId] : [])
+  const foods = foodIds.length
+    ? await sql<{ id: string, name: string, active: boolean }[]>`SELECT id::text, name, active FROM mealie_foods WHERE id = ANY(${foodIds}::uuid[])`
+    : []
+  const mappings = foodIds.length
+    ? await sql<{ item: string, mealieFoodId: string }[]>`SELECT item, mealie_food_id::text FROM grocery_item_food_mapping WHERE mealie_food_id = ANY(${foodIds}::uuid[])`
+    : []
+  const purchases = await latestPurchases(sql, [...lines.flatMap(line => 'item' in line ? [line.item] : []), ...mappings.map(mapping => mapping.item)])
+  const configured = isMealieConfigured()
+  const costed = lines.map((raw) => {
+    let line = raw
+    let items = new Set('item' in raw ? [raw.item] : [])
+    if ('foodId' in raw) {
+      const { foodId } = raw
+      const food = foods.find(row => row.id === foodId)
+      items = new Set(mappings.filter(mapping => mapping.mealieFoodId === foodId).map(mapping => mapping.item))
+      const error: FoodLineError | null = !configured ? 'MEALIE_NOT_CONFIGURED' : !food ? 'UNKNOWN_FOOD' : !food.active ? 'INACTIVE_MEALIE_FOOD' : !items.size ? 'NO_PRODUCT_MAPPING' : null
+      line = { ...raw, foodName: food?.name ?? raw.foodName }
+      if (error) return { ...line, cost: null, sale: false, error, purchaseUnit: null, purchase: null, normalizedQuantity: null, normalizedPackageQuantity: null, status: 'uncosted' as const }
+    }
+    const candidates = purchases.filter(row => items.has(row.item))
     // With nothing eligible, the remaining row makes costLine report NO_PACKAGE_SIZE rather than NO_PRICE.
     const selected = selectPurchase(candidates)
     const purchase = selected ?? candidates[0] ?? null

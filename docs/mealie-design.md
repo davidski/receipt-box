@@ -568,6 +568,30 @@ Avoid arbitrary numeric confidence scores.
 
 ---
 
+## Native Recipe Food Lines
+
+A native recipe line is either a grocery item or a Mealie food, never both. Item lines are stored as before (`{ item, quantity, unit }`), so saved recipes need no migration and load and save unchanged. A food line is `{ foodId, foodName, quantity, unit }`; `foodName` is only a display snapshot, and the cost response reports the cached name when the food is cached. `lines` is JSONB with no constraint, so there is no schema change.
+
+The API checks only that `foodId` is a UUID (stored lowercase), that a line does not carry both `item` and `foodId`, and that a food appears once per recipe. It does not require the food to be cached or active: a line saved while Mealie was available must still round-trip after the food is deactivated or Mealie is removed.
+
+`POST /api/recipe-cost` and the recipe snapshots price a food line with the same purchase selection and `costLine` as an item line, using the purchases of every item mapped to the food (see Price Selection). There is no second cost path. A food line that cannot be priced is uncosted with a reason, never $0, and counts as excluded in the total:
+
+```text
+MEALIE_NOT_CONFIGURED   MEALIE_URL or MEALIE_API_TOKEN is unset (checked first)
+UNKNOWN_FOOD            the food is not in the cache
+INACTIVE_MEALIE_FOOD    the food is inactive
+NO_PRODUCT_MAPPING      no item is mapped to the food
+NO_PRICE, NO_PACKAGE_SIZE, NO_UNIT, UNSTANDARDIZED_UNIT, DIMENSION_MISMATCH   as for any line
+```
+
+A $0 purchase is eligible, so a food line whose latest mapped purchase is free costs $0 and counts as costed.
+
+Item rename and merge rewrite only item lines; food lines are untouched, and their pricing follows the mapping, which rename and merge already carry.
+
+The `/recipe` page shows the item/food toggle and food picker (the `/api/mealie/foods` search) only when `GET /api/mealie/status` reports `configured`. With Mealie unset, a saved food line shows its name and reason read-only, still counts in the save, and is never dropped.
+
+---
+
 ## Receipt Box API
 
 ```text
@@ -863,4 +887,4 @@ Tests: cup flour vs lb flour without density → `DIMENSION_MISMATCH`; "bunch" p
 - shopping-list cost
 - recipe price trends
 - cost-per-serving analytics
-- pricing native recipe lines across several grocery items, after #10; needs Mealie or a Receipt Box-owned grouping
+- pricing native recipe lines across several grocery items without Mealie; food lines cover it only when Mealie is configured
