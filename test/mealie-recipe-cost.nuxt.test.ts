@@ -173,77 +173,71 @@ describe('summary', () => {
   })
 })
 
-describe('ingredient table and calculation details', () => {
-  it('shows quantity, a sale mark and the purchase behind each priced line', async () => {
+describe('ingredient table and line breakdowns', () => {
+  const toggle = (wrapper: Awaited<ReturnType<typeof mountCost>>, line: number) => wrapper.get(`button[aria-label="How line ${line} was priced"]`)
+  const toggles = (wrapper: Awaited<ReturnType<typeof mountCost>>) => wrapper.findAll('button[aria-label^="How line "]')
+  const breakdowns = (wrapper: Awaited<ReturnType<typeof mountCost>>) => wrapper.findAll('[data-mealie-cost-breakdown]')
+
+  it('puts a collapsed chevron beside each priced cost and opens its breakdown beneath that row', async () => {
     costReply = () => recipe([
       costed('Flour', 0.5, { quantity: 2, unit: { id: 'u', name: 'cup' }, status: 'unit_converted', purchase: { ...purchase, usedSalePrice: true } }),
       unmapped('Saffron'),
       costed('Odd', 1, { purchase: { ...purchase, size: null, unit: null, purchasedOn: 'not-a-date' }, normalizedQuantity: null })
     ])
     const wrapper = await mountCost()
-    const details = wrapper.findAll('[data-cost-detail]')
+    const rows = wrapper.findAll('[data-mealie-cost-row]')
 
-    expect(wrapper.findAll('[data-mealie-cost-row]')[0]!.text()).toContain('2 cup')
-    expect(wrapper.findAll('[data-mealie-cost-row]')[0]!.get('[data-col="cost"]').text()).toContain('Sale')
-    expect(details).toHaveLength(2)
-    expect(details[0]!.text()).toContain('Bought AP Flour, 5 lb for $4.79 on Jan 2, 2026')
-    expect(details[0]!.text()).toContain('100 g × $4.79 ÷ 2,267.96 g = $0.50 (units converted)')
-    expect(details[1]!.text()).toContain('AP Flour,  for $4.79 on not-a-date')
-    expect(details[1]!.text()).not.toContain('×')
+    expect(rows[0]!.text()).toContain('2 cup')
+    expect(rows[0]!.get('[data-col="cost"]').text()).toContain('Sale')
+    expect(toggle(wrapper, 1).attributes('aria-expanded')).toBe('false')
+    expect(toggles(wrapper).map(button => button.attributes('aria-label'))).toEqual(['How line 1 was priced', 'How line 3 was priced'])
+    expect(breakdowns(wrapper)).toHaveLength(0)
+
+    await toggle(wrapper, 1).trigger('click')
+    expect(toggle(wrapper, 1).attributes('aria-expanded')).toBe('true')
+    expect(toggle(wrapper, 1).html()).toContain('chevron-up')
+    const [flour] = breakdowns(wrapper)
+    expect(flour!.element.previousElementSibling!.hasAttribute('data-mealie-cost-row')).toBe(true)
+    expect(flour!.text()).toContain('AP Flour')
+    expect(flour!.text()).toContain('5 lb on Jan 2, 2026')
+    expect(flour!.text()).toContain('$4.79')
+    expect(flour!.html()).toContain('bg-sale-mark')
+    expect(flour!.text()).toContain('4% of the package')
+    expect(flour!.text()).toContain('100 of 2,267.96 g, units converted')
+
+    await toggle(wrapper, 1).trigger('click')
+    expect(breakdowns(wrapper)).toHaveLength(0)
   })
 
-  it('sets purchase and formula prices in tabular figures', async () => {
-    const details = (await mountCost()).get('[data-cost-detail]')
-    const spans = details.findAll('span.block')
-
-    expect(spans).toHaveLength(2)
-    expect(spans[0]!.text()).toContain('$4.79')
-    expect(spans[1]!.text()).toContain('= $8.73')
-    spans.forEach(span => expect(span.classes()).toContain('tabular-nums'))
-  })
-
-  it('hides a zero quantity on an unparsed line and keeps its note and unit', async () => {
+  it('keeps several breakdowns open and shows a null size as the purchase date alone', async () => {
     costReply = () => recipe([
-      line(null, { note: 'to taste', quantity: 0, error: 'NO_FOOD' }),
-      line(null, { note: 'pinch of salt', quantity: 0, unit: { id: 'u', name: 'pinch' }, error: 'NO_FOOD' })
+      costed('Flour', 0.5),
+      unmapped('Saffron'),
+      costed('Odd', 1, { purchase: { ...purchase, size: null, unit: null, purchasedOn: 'not-a-date' }, normalizedQuantity: null })
     ])
-    const rows = (await mountCost()).findAll('[data-mealie-cost-row]')
-
-    expect(rows[0]!.text()).toContain('to taste')
-    expect(rows[0]!.text()).not.toContain('0')
-    expect(rows[1]!.text()).toContain('pinch of salt')
-    expect(rows[1]!.text()).toContain('pinch')
-    expect(rows[1]!.text()).not.toContain('0')
-  })
-
-  it('still shows a normal quantity with its unit on an unparsed line', async () => {
-    costReply = () => recipe([line(null, { note: 'chickpeas', quantity: 2, unit: { id: 'u', name: 'cup' }, error: 'NO_FOOD' })])
-    expect((await mountCost()).findAll('[data-mealie-cost-row]')[0]!.text()).toContain('2 cup')
-  })
-
-  it.each([
-    ['NO_PRODUCT_MAPPING', 'Map to a grocery item'],
-    ['INACTIVE_MEALIE_FOOD', 'Replace the inactive food'],
-    ['UNKNOWN_FOOD', 'Sync Mealie foods']
-  ])('opens Manage → Mealie on the food of a %s line with a named ghost button and arrow', async (code, label) => {
-    const food = { id: '11111111-1111-4111-8111-111111111111', name: 'Saffron & Co' }
-    costReply = () => recipe([unmapped('Saffron', code, food)])
     const wrapper = await mountCost()
-    const link = wrapper.get('[data-mealie-cost-row] a')
-    const button = buttonNamed(wrapper, label)
+    await toggle(wrapper, 1).trigger('click')
+    await toggle(wrapper, 3).trigger('click')
 
-    expect(button.props()).toMatchObject({ variant: 'ghost', color: 'neutral', size: 'sm', trailingIcon: 'i-lucide-arrow-right' })
-    expect(link.classes()).toContain('font-semibold')
-    expect(link.find('[class*="arrow-right"]').exists()).toBe(true)
-    expect(link.text()).toBe(label)
-    expect(link.attributes('aria-label')).toBe(`${label} for Saffron & Co`)
-    expect(link.attributes('href')).toBe(`/data/mealie?food=${food.id}&recipe=curry&name=Saffron+%26+Co`)
+    expect(breakdowns(wrapper)).toHaveLength(2)
+    expect(breakdowns(wrapper)[1]!.text()).toContain('Bought not-a-date')
+    expect(breakdowns(wrapper)[1]!.text()).not.toContain('Recipe uses')
+    expect(toggle(wrapper, 3).attributes('aria-expanded')).toBe('true')
   })
 
-  it('encodes the food id in the fix link', async () => {
-    costReply = () => recipe([unmapped('Saffron', 'NO_PRODUCT_MAPPING', { id: 'x&y z', name: 'Saffron' })])
-    const href = (await mountCost()).get('[data-mealie-cost-row] a').attributes('href')
-    expect(href).toBe('/data/mealie?food=x%26y+z&recipe=curry&name=Saffron')
+  it('sets the breakdown figures in tabular figures', async () => {
+    const wrapper = await mountCost()
+    await toggle(wrapper, 1).trigger('click')
+
+    expect(breakdowns(wrapper)[0]!.find('dl').classes()).toContain('tabular-nums')
+  })
+
+  it('gives no chevron when no line has a purchase, so there is nothing to open', async () => {
+    costReply = () => recipe([unmapped('Saffron')])
+    const wrapper = await mountCost()
+
+    expect(toggles(wrapper)).toHaveLength(0)
+    expect(breakdowns(wrapper)).toHaveLength(0)
   })
 
   it('links only mapping failures, and a line without a food has nothing to open', async () => {
@@ -254,13 +248,8 @@ describe('ingredient table and calculation details', () => {
     expect(rows[0]!.get('a').attributes('href')).toContain('/data/mealie?food=Saffron&recipe=curry&name=Saffron')
     expect(rows[1]!.find('a').exists()).toBe(false)
     expect(rows[2]!.find('a').exists()).toBe(false)
-    expect(wrapper.find('[data-cost-details]').exists()).toBe(true)
+    expect(toggles(wrapper).map(button => button.attributes('aria-label'))).toEqual(['How line 4 was priced'])
     expect(wrapper.find('a[href="/data/mealie"]').exists()).toBe(true)
-  })
-
-  it('omits the details section when nothing has a purchase', async () => {
-    costReply = () => recipe([unmapped('Saffron')])
-    expect((await mountCost()).find('[data-cost-details]').exists()).toBe(false)
   })
 })
 
