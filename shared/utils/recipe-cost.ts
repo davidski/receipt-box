@@ -2,7 +2,10 @@ import { normalizeUnit, toBaseUnit, type BaseQuantity } from './units.ts'
 
 export type RecipeCostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'NO_QUANTITY' | 'NO_UNIT' | 'UNSTANDARDIZED_UNIT' | 'DIMENSION_MISMATCH'
 
-export type RecipeLine = { item: string, quantity: number, unit: string }
+export type FoodLineError = 'UNKNOWN_FOOD' | 'INACTIVE_MEALIE_FOOD' | 'NO_PRODUCT_MAPPING' | 'MEALIE_NOT_CONFIGURED'
+
+/** A line is a grocery item or a Mealie food (priced through the items mapped to it), never both. */
+export type RecipeLine = { item: string, quantity: number, unit: string } | { foodId: string, foodName: string, quantity: number, unit: string }
 
 export type RecipePurchase = {
   price: string | number
@@ -58,7 +61,8 @@ export function costPerServingLowerBound(total: number, servings: number): numbe
 export function renameRecipeLineItems(lines: RecipeLine[], target: string, sources: string[]): RecipeLine[] {
   const matches = new Set([target, ...sources].map(name => name.trim().toLowerCase()))
   const seen = new Set<string>()
-  return lines.flatMap((line) => {
+  return lines.flatMap<RecipeLine>((line) => {
+    if (!('item' in line)) return [line]
     const key = line.item.trim().toLowerCase()
     const item = matches.has(key) ? target : line.item
     const itemKey = item.trim().toLowerCase()

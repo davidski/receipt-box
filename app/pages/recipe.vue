@@ -1,15 +1,16 @@
 <script setup lang="ts">
 type Suggestion = { value: string, location?: string, size?: string | null, unit?: string | null, price?: string | null }
-type Line = { key: number, item: string, quantity: number | string | undefined, unit: string, options: Suggestion[] }
-type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'NO_UNIT' | 'UNSTANDARDIZED_UNIT' | 'DIMENSION_MISMATCH'
+type Food = { id: string, name: string }
+type Line = { key: number, item: string, food: Food | null, foodMode: boolean, foodOptions: Food[], quantity: number | string | undefined, unit: string, options: Suggestion[] }
+type CostError = 'NO_PRICE' | 'NO_PACKAGE_SIZE' | 'NO_UNIT' | 'UNSTANDARDIZED_UNIT' | 'DIMENSION_MISMATCH' | 'UNKNOWN_FOOD' | 'INACTIVE_MEALIE_FOOD' | 'NO_PRODUCT_MAPPING' | 'MEALIE_NOT_CONFIGURED'
 type Base = { base: string, amount: number }
 type Purchase = { item: string, price: string | number, size: string | number | null, unit: string | null, purchasedOn: string, usedSalePrice: boolean }
-type CostResult = {
-  item: string, cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null
+type CostResult = ({ item: string } | { foodId: string }) & {
+  cost: number | null, sale: boolean, error: CostError | null, purchaseUnit?: string | null
   purchase?: Purchase | null, normalizedQuantity?: Base | null, normalizedPackageQuantity?: Base | null, status?: 'exact' | 'unit_converted' | 'uncosted'
 }
 type CostResponse = { lines: CostResult[], total: number, excluded: number }
-type RecipeLine = { item: string, quantity: number, unit: string }
+type RecipeLine = { item: string, quantity: number, unit: string } | { foodId: string, foodName: string, quantity: number, unit: string }
 type RecipeSummary = { id: string, name: string, lineCount: number }
 type Recipe = { id: string, name: string, lines: RecipeLine[], savedTotal: number | string | null, savedAt: string }
 
@@ -18,7 +19,16 @@ const errorText: Record<CostError, string> = {
   NO_PACKAGE_SIZE: 'Couldn\'t find a purchase with a usable package size.',
   NO_UNIT: 'Choose a unit for this line.',
   UNSTANDARDIZED_UNIT: 'This unit isn\'t a standard measure, so it can\'t be priced.',
-  DIMENSION_MISMATCH: 'This unit can\'t be converted to the unit it was bought in.'
+  DIMENSION_MISMATCH: 'This unit can\'t be converted to the unit it was bought in.',
+  UNKNOWN_FOOD: 'This food hasn\'t reached Receipt Box yet. Sync Mealie or choose another food.',
+  INACTIVE_MEALIE_FOOD: 'This food is no longer active in Mealie. Choose another food.',
+  NO_PRODUCT_MAPPING: 'No grocery item is mapped to this food yet. Map one under Manage, Mealie.',
+  MEALIE_NOT_CONFIGURED: 'Mealie isn\'t configured, so this food can\'t be priced.'
+}
+// A food line prices the items mapped to it, so these two reasons read differently from an item line.
+const foodErrorText: Partial<Record<CostError, string>> = {
+  NO_PRICE: 'No purchases recorded for the items mapped to this food.',
+  NO_PACKAGE_SIZE: 'Couldn\'t find a purchase of a mapped item with a usable package size.'
 }
 
 const route = useRoute()
@@ -27,8 +37,11 @@ const { apiUrl } = useApi()
 let nextKey = 0
 
 function blankLine(): Line {
-  return { key: nextKey++, item: '', quantity: undefined, unit: 'ea', options: [] }
+  return { key: nextKey++, item: '', food: null, foodMode: false, foodOptions: [], quantity: undefined, unit: 'ea', options: [] }
 }
+
+// A food line goes into the query as an item named "food:<id>:<name>".
+const foodParam = /^food:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(.*)$/i
 
 // Query format: l=item|quantity|unit, repeated. The item may itself contain "|".
 function parseLine(value: string): Line {
@@ -36,7 +49,9 @@ function parseLine(value: string): Line {
   const unit = parts.pop() || 'ea'
   const quantity = Number(parts.pop())
   const item = parts.join('|')
-  return { key: nextKey++, item, quantity: quantity > 0 ? quantity : undefined, unit, options: item ? [{ value: item }] : [] }
+  const [, id, foodName] = foodParam.exec(item) ?? []
+  if (id) return { ...blankLine(), food: { id, name: foodName || id }, foodMode: true, foodOptions: [{ id, name: foodName || id }], quantity: quantity > 0 ? quantity : undefined, unit }
+  return { ...blankLine(), item, quantity: quantity > 0 ? quantity : undefined, unit, options: item ? [{ value: item }] : [] }
 }
 
 // A valid ?recipe=<id> wins over ?l= lines.
@@ -53,17 +68,24 @@ let searchRequest = 0
 let costRequest = 0
 
 const itemKey = (item: string) => item.trim().toLowerCase()
-const isDuplicate = (line: Line, index: number) => !!line.item && lines.value.findIndex(other => itemKey(other.item) === itemKey(line.item)) < index
-const sendable = computed(() => lines.value
-  .filter((line, index) => line.item && !isDuplicate(line, index) && Number(line.quantity) > 0 && line.unit)
-  .map(line => ({ item: line.item, quantity: Number(line.quantity), unit: line.unit })))
-const results = computed(() => new Map((response.value?.lines ?? []).map(result => [itemKey(result.item), result])))
+const lineKey = (line: Line) => line.foodMode ? (line.food ? `food:${line.food.id}` : '') : itemKey(line.item)
+const isDuplicate = (line: Line, index: number) => !!lineKey(line) && lines.value.findIndex(other => lineKey(other) === lineKey(line)) < index
+const sendable = computed<RecipeLine[]>(() => lines.value
+  .filter((line, index) => lineKey(line) && !isDuplicate(line, index) && Number(line.quantity) > 0 && line.unit)
+  .map(line => ({
+    ...(line.foodMode ? { foodId: line.food!.id, foodName: line.food!.name } : { item: line.item }),
+    quantity: Number(line.quantity),
+    unit: line.unit
+  })))
+const results = computed(() => new Map((response.value?.lines ?? []).map(result => [('foodId' in result ? `food:${result.foodId}` : itemKey(result.item)), result])))
+// Hidden until Mealie is known to be configured; a saved food line still shows and saves without it.
+const { data: mealieStatus } = useFetch<{ configured: boolean }>(apiUrl('/mealie/status'))
 
-const resultFor = (line: Line, index: number) => isDuplicate(line, index) ? undefined : results.value.get(itemKey(line.item))
+const resultFor = (line: Line, index: number) => isDuplicate(line, index) ? undefined : results.value.get(lineKey(line))
 // One calculation per priced line, in editor order; a removed line drops out at once, an edited one updates with the next response.
 const priced = computed(() => lines.value.flatMap((line, index) => {
   const result = resultFor(line, index)
-  return result?.purchase ? [{ name: line.item, purchase: result.purchase, normalizedQuantity: result.normalizedQuantity ?? null, normalizedPackageQuantity: result.normalizedPackageQuantity ?? null, cost: result.cost, status: result.status ?? 'uncosted' }] : []
+  return result?.purchase ? [{ name: line.foodMode ? line.food?.name ?? '' : line.item, purchase: result.purchase, normalizedQuantity: result.normalizedQuantity ?? null, normalizedPackageQuantity: result.normalizedPackageQuantity ?? null, cost: result.cost, status: result.status ?? 'uncosted' }] : []
 }))
 
 const recipes = ref<RecipeSummary[]>([])
@@ -80,7 +102,7 @@ const recipeItems = computed(() => [
   { label: 'New recipe', value: NEW_RECIPE },
   ...recipes.value.map(recipe => ({ label: recipe.name, value: recipe.id, description: `${recipe.lineCount} ${recipe.lineCount === 1 ? 'line' : 'lines'}` }))
 ])
-const signature = (value: string, recipeLines: RecipeLine[]) => JSON.stringify([value.trim(), recipeLines.map(line => [line.item.trim(), Number(line.quantity), line.unit])])
+const signature = (value: string, recipeLines: RecipeLine[]) => JSON.stringify([value.trim(), recipeLines.map(line => ['foodId' in line ? `food:${line.foodId}` : line.item.trim(), Number(line.quantity), line.unit])])
 const dirty = computed(() => !!loaded.value && signature(name.value, sendable.value) !== signature(loaded.value.name, loaded.value.lines))
 const canSave = computed(() => !saving.value && !!name.value.trim() && sendable.value.length > 0 && (!loaded.value || dirty.value))
 
@@ -127,7 +149,11 @@ async function loadRecipe(id: string) {
   try {
     const recipe = await $fetch<Recipe>(apiUrl(`/recipes/${id}`))
     lines.value = recipe.lines.length
-      ? recipe.lines.map(line => ({ key: nextKey++, item: line.item, quantity: line.quantity, unit: line.unit, options: [{ value: line.item }] }))
+      ? recipe.lines.map((line) => {
+          const food = 'foodId' in line ? { id: line.foodId, name: line.foodName || line.foodId } : null
+          const item = 'item' in line ? line.item : ''
+          return { ...blankLine(), item, food, foodMode: !!food, foodOptions: food ? [food] : [], quantity: line.quantity, unit: line.unit, options: item ? [{ value: item }] : [] }
+        })
       : [blankLine()]
     adopt(recipe)
   } catch (error: any) {
@@ -183,6 +209,7 @@ async function deleteRecipe() {
 }
 
 function costErrorText(result: CostResult) {
+  if ('foodId' in result && result.error && foodErrorText[result.error]) return foodErrorText[result.error]
   if ((result.error === 'DIMENSION_MISMATCH' || result.error === 'UNSTANDARDIZED_UNIT') && result.purchaseUnit) {
     return `This unit can't be converted to ${result.purchaseUnit}, the unit of the latest usable purchase.`
   }
@@ -217,9 +244,30 @@ function searchItems(line: Line, term: string) {
   }, 160)
 }
 
+let foodRequest = 0
+async function searchFoods(line: Line, term: string) {
+  const request = ++foodRequest
+  try {
+    const { foods } = await $fetch<{ foods: Food[] }>(apiUrl('/mealie/foods'), { query: { search: term.trim() } })
+    if (request === foodRequest) line.foodOptions = foods
+  } catch {
+    if (request === foodRequest) line.foodOptions = []
+  }
+}
+
+function toggleFoodMode(line: Line) {
+  line.foodMode = !line.foodMode
+  if (line.foodMode && !line.foodOptions.length) searchFoods(line, '')
+}
+
+function pickFood(line: Line, id: string) {
+  const food = line.foodOptions.find(option => option.id === id)
+  if (food) line.food = food
+}
+
 watch([lines, loadedId], ([current, id]) => {
   if (id) return router.replace({ query: { recipe: String(id) } })
-  const l = current.filter(line => line.item).map(line => `${line.item}|${line.quantity ?? ''}|${line.unit}`)
+  const l = current.filter(line => lineKey(line)).map(line => `${line.foodMode ? `food:${line.food!.id}:${line.food!.name}` : line.item}|${line.quantity ?? ''}|${line.unit}`)
   router.replace({ query: l.length ? { l } : {} })
 }, { deep: true })
 
@@ -296,17 +344,41 @@ onBeforeUnmount(() => {
             <span :class="dragIndex === index ? 'hidden' : 'group-hover:hidden group-focus-visible:hidden'">{{ index + 1 }}</span>
             <UIcon name="i-lucide-grip-vertical" :class="dragIndex === index ? 'block' : 'hidden group-hover:block group-focus-visible:block'" class="size-4" aria-hidden="true" />
           </UButton>
-          <UFormField label="Item" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0 max-[900.01px]:col-span-3 max-[640.01px]:col-span-2" :error="isDuplicate(line, index) ? `${line.item} is already in this recipe` : undefined">
-            <UInputMenu
-              v-model="line.item"
-              :items="itemOptions(line)"
-              value-key="value"
-              ignore-filter
-              class="w-full"
-              :ui="{ base: 'px-2.5 py-2' }"
-              placeholder="Start typing an item…"
-              @update:search-term="searchItems(line, $event)"
-            />
+          <UFormField label="Item" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0 max-[900.01px]:col-span-3 max-[640.01px]:col-span-2" :error="isDuplicate(line, index) ? `${line.foodMode ? line.food?.name : line.item} is already in this recipe` : undefined">
+            <div class="flex items-center gap-1.5">
+              <UInputMenu
+                v-if="line.foodMode && mealieStatus?.configured"
+                :model-value="line.food?.id"
+                :items="line.foodOptions.map(food => ({ label: food.name, value: food.id }))"
+                value-key="value"
+                ignore-filter
+                class="w-full"
+                :ui="{ base: 'px-2.5 py-2' }"
+                placeholder="Search Mealie foods…"
+                @update:model-value="pickFood(line, $event)"
+                @update:search-term="searchFoods(line, $event)"
+              />
+              <p v-else-if="line.foodMode" data-recipe-food-name class="m-0 w-full py-2 text-sm">{{ line.food?.name }}</p>
+              <UInputMenu
+                v-else
+                v-model="line.item"
+                :items="itemOptions(line)"
+                value-key="value"
+                ignore-filter
+                class="w-full"
+                :ui="{ base: 'px-2.5 py-2' }"
+                placeholder="Start typing an item…"
+                @update:search-term="searchItems(line, $event)"
+              />
+              <UButton
+                v-if="mealieStatus?.configured"
+                :icon="line.foodMode ? 'i-lucide-shopping-basket' : 'i-lucide-carrot'"
+                color="neutral"
+                variant="ghost"
+                :aria-label="line.foodMode ? `Use a grocery item for line ${index + 1}` : `Use a Mealie food for line ${index + 1}`"
+                @click="toggleFoodMode(line)"
+              />
+            </div>
           </UFormField>
           <UFormField label="Quantity" :ui="{ label: 'sr-only max-[900.01px]:not-sr-only', container: 'mt-0 max-[900.01px]:mt-1' }" class="min-w-0">
             <UInput v-model.number="line.quantity" type="number" min="0" step="any" inputmode="decimal" placeholder="0" class="w-full" :ui="{ base: 'px-2.5 py-2' }" />

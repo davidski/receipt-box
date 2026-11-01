@@ -60,6 +60,39 @@ describe('parseRecipeLines', () => {
   }
 })
 
+describe('parseRecipeLines food lines', () => {
+  const flour = '11111111-1111-4111-8111-111111111111'
+  const food = (overrides = {}) => ({ foodId: flour, foodName: ' Flour ', quantity: 2, unit: ' cup ', ...overrides })
+
+  test('keeps a food line and its lowercased id beside item lines', () => {
+    assert.deepEqual(parseRecipeLines([food({ foodId: flour.toUpperCase() }), { item: 'Egg', quantity: 1 }]), [
+      { foodId: flour, foodName: 'Flour', quantity: 2, unit: 'cup' },
+      line('Egg', 1, '')
+    ])
+  })
+
+  test('accepts a food line without a name', () => {
+    assert.equal(parseRecipeLines([food({ foodName: undefined })])[0].foodName, '')
+  })
+
+  for (const [label, value] of [
+    ['a malformed food id', [food({ foodId: 'flour' })]],
+    ['a non-string food id', [food({ foodId: 7 })]],
+    ['a null food id', [food({ foodId: null })]],
+    ['an item and a food on one line', [food({ item: 'Flour' })]],
+    ['the same food twice', [food(), food({ foodId: flour.toUpperCase() })]],
+    ['a food line quantity of 0', [food({ quantity: 0 })]]
+  ]) {
+    test(`rejects ${label}`, () => {
+      assert.throws(() => parseRecipeLines(value), { statusCode: 400 })
+    })
+  }
+
+  test('allows an item and a food with the same name', () => {
+    assert.equal(parseRecipeLines([food({ foodName: 'Flour' }), line('Flour')]).length, 2)
+  })
+})
+
 describe('parseRecipeName and parseRecipeId', () => {
   test('trims the name and enforces 1 to 120 characters', () => {
     assert.equal(parseRecipeName('  Pancakes '), 'Pancakes')
@@ -190,6 +223,83 @@ describe('priceRecipe', () => {
   })
 })
 
+describe('priceRecipe food lines', () => {
+  const flour = '11111111-1111-4111-8111-111111111111'
+  const food = (foodId = flour, quantity = 250, unit = 'g') => ({ foodId, foodName: 'Saved name', quantity, unit })
+  const purchase = (item, id, purchasedOn, overrides = {}) => (
+    { id, item, purchasedOn, price: '4.00', size: '500', unit: 'g', saleItem: false, ...overrides }
+  )
+  const cached = [{ id: flour, name: 'Flour', active: true }]
+  const mapped = [{ item: 'AP Flour', mealieFoodId: flour }, { item: 'Bread Flour', mealieFoodId: flour }]
+  const price = (lines, responses) => priceRecipe(fakeSql(responses).sql, lines)
+  const withMealie = async (url, run) => {
+    const before = [process.env.MEALIE_URL, process.env.MEALIE_API_TOKEN]
+    process.env.MEALIE_URL = url
+    process.env.MEALIE_API_TOKEN = url && 'token'
+    try { return await run() } finally { [process.env.MEALIE_URL, process.env.MEALIE_API_TOKEN] = before.map(value => value ?? '') }
+  }
+  const configured = run => withMealie('http://mealie.test', run)
+
+  test('prices the latest purchase across every item mapped to the food', async () => {
+    const { lines, total, excluded } = await configured(() => price([food(), line('Egg', 1, 'ea')], [cached, mapped, [
+      purchase('AP Flour', '1', '2026-01-01'),
+      purchase('Bread Flour', '2', '2026-02-01', { price: '6.00', saleItem: true }),
+      purchase('Egg', '3', '2026-01-01', { size: '12', unit: 'ea' })
+    ]]))
+
+    assert.deepEqual(lines.map(({ cost, sale, error }) => ({ cost, sale, error })), [
+      { cost: 3, sale: true, error: null },
+      { cost: 0.33, sale: false, error: null }
+    ])
+    assert.deepEqual([total, excluded], [3.33, 0])
+  })
+
+  test('shows the cached food name instead of the saved one', async () => {
+    const { lines } = await configured(() => price([food()], [cached, mapped, [purchase('AP Flour', '1', '2026-01-01')]]))
+    assert.equal(lines[0].foodName, 'Flour')
+  })
+
+  test('counts a $0 purchase of a mapped item as costed', async () => {
+    const { lines, excluded } = await configured(() => price([food()], [cached, mapped, [purchase('AP Flour', '1', '2026-01-01', { price: '0.00' })]]))
+    assert.deepEqual([lines[0].cost, lines[0].error, excluded], [0, null, 0])
+  })
+
+  test('reports NO_PRICE and NO_PACKAGE_SIZE for mapped items without a usable purchase', async () => {
+    assert.equal((await configured(() => price([food()], [cached, mapped, []]))).lines[0].error, 'NO_PRICE')
+    const sizeless = [purchase('AP Flour', '1', '2026-01-01', { size: null })]
+    assert.equal((await configured(() => price([food()], [cached, mapped, sizeless]))).lines[0].error, 'NO_PACKAGE_SIZE')
+  })
+
+  for (const [label, responses, error] of [
+    ['has no mapping', [cached, [], []], 'NO_PRODUCT_MAPPING'],
+    ['is inactive', [[{ id: flour, name: 'Flour', active: false }], mapped, []], 'INACTIVE_MEALIE_FOOD'],
+    ['is missing from the cache', [[], mapped, [purchase('AP Flour', '1', '2026-01-01')]], 'UNKNOWN_FOOD']
+  ]) {
+    test(`a food that ${label} is ${error}, never $0`, async () => {
+      const { lines, total, excluded } = await configured(() => price([food()], responses))
+      assert.deepEqual([lines[0].cost, lines[0].error, total, excluded], [null, error, 0, 1])
+      assert.equal(lines[0].foodName, error === 'UNKNOWN_FOOD' ? 'Saved name' : lines[0].foodName)
+    })
+  }
+
+  test('is MEALIE_NOT_CONFIGURED when Mealie is unset, even with a cached mapped food', async () => {
+    const { lines, excluded } = await withMealie('', () => price([food()], [cached, mapped, [purchase('AP Flour', '1', '2026-01-01')]]))
+    assert.deepEqual([lines[0].cost, lines[0].error, excluded], [null, 'MEALIE_NOT_CONFIGURED', 1])
+  })
+
+  test('one query looks up the foods and mappings, and purchases cover items and mapped items', async () => {
+    const { sql, queries } = fakeSql([cached, mapped, []])
+    await configured(() => priceRecipe(sql, [food(), line('Egg')]))
+    assert.equal(queries.length, 3)
+    assert.deepEqual(queries[0].values, [[flour]])
+    assert.deepEqual(queries[2].values, [['Egg', 'AP Flour', 'Bread Flour']])
+  })
+
+  test('snapshotTotal is null when only food lines exist and none can be priced', async () => {
+    assert.equal(await configured(() => snapshotTotal(fakeSql([cached, [], []]).sql, [food()])), null)
+  })
+})
+
 describe('snapshotTotal', () => {
   test('returns the total when at least one line is priced', async () => {
     const { sql } = fakeSql([[{ item: 'Flour', price: '4.00', size: '500.000', unit: 'g', saleItem: false }]])
@@ -238,6 +348,13 @@ describe('renameRecipeLineItems', () => {
   test('leaves unrelated lines alone', () => {
     const lines = [line('Butter'), line('Milk')]
     assert.deepEqual(renameRecipeLineItems(lines, 'Apple', ['Apples']), lines)
+  })
+})
+
+describe('renameRecipeLineItems food lines', () => {
+  test('passes food lines through untouched and never counts them as duplicates of an item', () => {
+    const food = { foodId: '11111111-1111-4111-8111-111111111111', foodName: 'Apples', quantity: 1, unit: 'ea' }
+    assert.deepEqual(renameRecipeLineItems([food, line('apple', 1)], 'Apples', ['apple']), [food, line('Apples', 1)])
   })
 })
 
