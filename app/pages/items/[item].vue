@@ -2,6 +2,7 @@
 import { normalizedHistoricalPrice } from '../../../shared/utils/normalized-price'
 import { prettyScale } from '../../../shared/utils/chart-scale'
 import { formatCurrency } from '../../../shared/utils/money'
+import { regularPriceTrend, rollingRegularMedian } from '../../../shared/utils/price-trend'
 
 type HistoryEntry = {
   id: string
@@ -77,7 +78,10 @@ watch(series, (available) => {
   selectedBasis.value = available.find(option => option.value === mostRecent)?.value || available[0]?.value || ''
 }, { immediate: true })
 
-watch(selectedBasis, () => { selectedPoint.value = null })
+watch(selectedBasis, () => {
+  selectedPoint.value = null
+  showAllRows.value = false
+})
 
 // Entries with no size, unit or stored cost have no normalized price, so the table skips them; they still need a way to edit.
 const unpriced = computed(() => {
@@ -87,6 +91,9 @@ const unpriced = computed(() => {
 
 const visiblePoints = computed(() => pricePoints.value.filter(point => point.basis === selectedBasis.value))
 const newestFirst = computed(() => [...visiblePoints.value].reverse())
+const TABLE_LIMIT = 20
+const showAllRows = ref(false)
+const tableRows = computed(() => showAllRows.value ? newestFirst.value : newestFirst.value.slice(0, TABLE_LIMIT))
 
 const chartPoints = computed(() => {
   const points = visiblePoints.value
@@ -153,6 +160,9 @@ function dateTicks(firstTime: number, lastTime: number, width: number, plotLeft:
   })
 }
 
+// Above this many purchases, individual marks and a connecting line stop being readable (docs/design-system.md, Dense charts).
+const DENSE_CHART_POINTS = 40
+
 const chart = computed(() => {
   const points = chartPoints.value
   if (!points.length) return null
@@ -173,6 +183,7 @@ const chart = computed(() => {
     x: firstTime === lastTime ? plot.left + xRange / 2 : plot.left + ((timestamps[index]! - firstTime) / (lastTime - firstTime)) * xRange,
     y: plot.top + ((max - point.normalizedPrice) / (max - min)) * yRange
   }))
+  const trend = rollingRegularMedian(positioned)
   const ticks = breaks.map(value => ({ value, y: plot.top + ((max - value) / (max - min)) * yRange }))
   const xTicks = dateTicks(firstTime, lastTime, width, plot.left, plot.right)
   return {
@@ -183,10 +194,19 @@ const chart = computed(() => {
     ticks,
     xTicks,
     line: positioned.map(point => `${point.x},${point.y}`).join(' '),
+    trendLine: trend.map(({ point, value }) => `${point.x},${plot.top + ((max - value) / (max - min)) * yRange}`).join(' '),
+    dense: points.length > DENSE_CHART_POINTS && trend.length > 1,
     firstDate: points[0]?.purchasedOn || '',
     lastDate: points.at(-1)?.purchasedOn || ''
   }
 })
+
+const selectedMark = computed(() => chart.value?.positioned.find(point => point.id === selectedPoint.value?.id))
+
+function selectNearestPoint(event: PointerEvent) {
+  const x = event.clientX - (event.currentTarget as SVGElement).getBoundingClientRect().left
+  selectedPoint.value = chart.value!.positioned.reduce((best, point) => Math.abs(point.x - x) < Math.abs(best.x - x) ? point : best)
+}
 
 const summary = computed(() => {
   if (!chartPoints.value.length) return null
@@ -197,6 +217,15 @@ const summary = computed(() => {
     high: Math.max(...values)
   }
 })
+
+const trend = computed(() => {
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  return regularPriceTrend(chartPoints.value, today)
+})
+
+// Lowercase the first letter only, so "mL" keeps its capital.
+const trendBasis = computed(() => (summary.value?.latest.basisLabel ?? '').replace(/^P/, 'p'))
 
 function dateLabel(value: string) {
   const date = parseCalendarDate(value)
@@ -248,7 +277,19 @@ function packageLabel(entry: HistoryEntry) {
           <span>{{ dateLabel(summary.latest.purchasedOn) }} at {{ summary.latest.location }}</span>
           <SaleMark v-if="summary.latest.saleItem" />
         </p>
-        <p data-price-range class="m-0 text-title">
+        <div v-if="trend && summary" data-price-trend class="grid gap-1">
+          <p class="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-title">
+            <template v-if="trend.direction === 'steady'">
+              <span>Regular price has held steady over the past year, at about <strong class="tabular-nums">{{ formatCurrency(trend.to) }}</strong> {{ trendBasis }}.</span>
+            </template>
+            <template v-else>
+              <span>Regular price is {{ trend.direction }} over the past year, from <strong class="tabular-nums">{{ formatCurrency(trend.from) }}</strong> to <strong class="tabular-nums">{{ formatCurrency(trend.to) }}</strong> {{ trendBasis }}.</span>
+            </template>
+            <PriceChange :value="trend.change" unit="percent" :flat="trend.direction === 'steady'" />
+          </p>
+          <p class="m-0 text-sm text-muted">{{ trend.recentSales }} of {{ trend.recentPurchases }} purchases in the last 6 months {{ trend.recentSales === 1 ? 'was' : 'were' }} on sale.</p>
+        </div>
+        <p v-else data-price-range class="m-0 text-title">
           Ranged from <strong><MoneyAmount :value="summary.low" /></strong> to <strong><MoneyAmount :value="summary.high" /></strong> over {{ chartPoints.length }} charted {{ chartPoints.length === 1 ? 'purchase' : 'purchases' }}.
         </p>
       </section>
@@ -265,7 +306,7 @@ function packageLabel(entry: HistoryEntry) {
       <section v-if="chart" class="mt-[1.125rem] border-t border-line pt-6">
         <div class="mb-4.5 flex items-end justify-between gap-4.5">
           <div><h2 class="text-heading">{{ visiblePoints[0]?.basisLabel }}</h2></div>
-          <div class="flex gap-3.5 text-xs text-muted"><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2.5 rounded-full bg-chart-series" />Regular</span><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2 rotate-45 bg-sale-mark" />Sale</span></div>
+          <div class="flex gap-3.5 text-xs text-muted"><span v-if="chart.dense" data-trend-legend class="inline-flex items-center gap-[0.375rem]"><i class="h-0.75 w-4 rounded-full bg-chart-series" />Trend</span><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2.5 rounded-full bg-chart-series" />Regular</span><span class="inline-flex items-center gap-[0.375rem]"><i class="size-2 rotate-45 bg-sale-mark" />Sale</span></div>
         </div>
         <div v-if="chartPoints.length < 2" class="grid min-h-[8.125rem] place-items-center text-center text-muted">Add another comparable purchase to draw a trend line.</div>
         <div v-else class="price-chart-scroll min-w-0 overflow-hidden">
@@ -282,9 +323,18 @@ function packageLabel(entry: HistoryEntry) {
                 <text class="fill-muted font-sans text-xs" :x="tick.x" :y="chart.height - 11" :text-anchor="tick.anchor">{{ tick.label }}</text>
               </g>
             </g>
-            <polyline class="fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
+            <template v-if="chart.dense">
+              <g v-for="point in chart.positioned" :key="point.id" data-dense-mark class="opacity-40">
+                <path v-if="point.saleItem" class="fill-sale-mark" :d="`M ${point.x} ${point.y - 4} L ${point.x + 4} ${point.y} L ${point.x} ${point.y + 4} L ${point.x - 4} ${point.y} Z`" />
+                <circle v-else class="fill-chart-series" :cx="point.x" :cy="point.y" r="2.5" />
+              </g>
+              <polyline data-trend-line class="fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.trendLine" />
+              <circle v-if="selectedMark" data-selected-mark class="fill-none stroke-(--focus-ring) stroke-2" :cx="selectedMark.x" :cy="selectedMark.y" r="7" />
+              <rect data-chart-hit class="fill-transparent" :width="chart.width" :height="chart.height" @pointermove="selectNearestPoint" @pointerdown="selectNearestPoint" />
+            </template>
+            <polyline v-else class="fill-none stroke-(--chart-series) stroke-2 [stroke-linecap:round] [stroke-linejoin:round]" :points="chart.line" />
             <g
-              v-for="point in chart.positioned"
+              v-for="point in chart.dense ? [] : chart.positioned"
               :key="point.id"
               class="group/point focus:outline-none!"
               role="button"
@@ -303,6 +353,7 @@ function packageLabel(entry: HistoryEntry) {
             </g>
           </svg>
         </div>
+        <p v-if="chart.dense" data-trend-caption class="mt-1 mb-0 text-xs text-muted">The line is the median regular price within 60 days of each purchase. Every purchase is in the table below.</p>
         <div v-if="selectedPoint" class="mt-2 flex min-h-12 flex-wrap items-center gap-[0.4375rem_0.875rem] rounded-card border border-line bg-surface-muted p-[0.625rem_0.8125rem] text-sm" aria-live="polite">
           <strong>{{ formatCurrency(selectedPoint.normalizedPrice) }}</strong>
           <span class="text-muted">{{ dateLabel(selectedPoint.purchasedOn) }}</span>
@@ -328,7 +379,7 @@ function packageLabel(entry: HistoryEntry) {
               </tr>
             </thead>
             <tbody class="max-sm:grid max-sm:gap-2.5">
-              <tr v-for="point in newestFirst" :key="point.id" class="max-sm:grid max-sm:grid-cols-2 max-sm:gap-2.5 max-sm:rounded-card max-sm:border max-sm:border-line max-sm:bg-surface max-sm:p-3.5">
+              <tr v-for="point in tableRows" :key="point.id" class="max-sm:grid max-sm:grid-cols-2 max-sm:gap-2.5 max-sm:rounded-card max-sm:border max-sm:border-line max-sm:bg-surface max-sm:p-3.5">
                 <td data-label="Date" :class="tdData">{{ dateLabel(point.purchasedOn) }} <SaleMark v-if="point.saleItem" /></td>
                 <td data-label="Store" :class="tdData">{{ point.location }}</td>
                 <td data-label="Package" :class="tdData">{{ packageLabel(point) }}</td>
@@ -349,6 +400,7 @@ function packageLabel(entry: HistoryEntry) {
               </tr>
             </tbody>
           </table>
+          <UButton v-if="newestFirst.length > tableRows.length" :label="`Show all ${newestFirst.length.toLocaleString()} purchases`" icon="i-lucide-chevron-down" color="neutral" variant="ghost" class="mt-2" @click="showAllRows = true" />
         </div>
       </section>
 

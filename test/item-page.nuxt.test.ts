@@ -40,6 +40,134 @@ const panel = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.find('
 const backLink = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.get('header a')
 
 describe('Item price history page', () => {
+  describe('price trend', () => {
+    const history = (earlier: string, recent: string) => [
+      ...['05', '06', '07'].map((month, index) => purchase(`e${index}`, `2025-${month}-10`, earlier)),
+      purchase('s1', '2026-05-02', '1.00', true),
+      ...['06', '07', '08'].map((month, index) => purchase(`r${index}`, `2026-${month}-10`, recent))
+    ]
+    beforeEach(() => { vi.useFakeTimers({ now: new Date(2026, 10, 1), toFake: ['Date'] }) })
+    afterEach(() => { vi.useRealTimers() })
+
+    it('states a rise with its figures and a chip, and replaces the range', async () => {
+      entries = history('4.00', '5.00')
+      const wrapper = await mountPage()
+      const trend = wrapper.get('[data-price-trend]')
+      expect(trend.text()).toContain('Regular price is up over the past year, from $0.11 to $0.13 per 100 mL.')
+      expect(trend.text()).toContain('+25%')
+      expect(trend.text()).toContain('1 of 4 purchases in the last 6 months was on sale.')
+      expect(wrapper.find('[data-price-range]').exists()).toBe(false)
+      expect(wrapper.get('[data-latest-price]').text()).toContain('0.')
+    })
+
+    it('states a fall', async () => {
+      entries = history('5.00', '4.00')
+      const text = (await mountPage()).get('[data-price-trend]').text()
+      expect(text).toContain('Regular price is down over the past year')
+      expect(text).toContain('−20%')
+    })
+
+    it('says steady for a small move', async () => {
+      entries = history('5.00', '5.05')
+      const text = (await mountPage()).get('[data-price-trend]').text()
+      expect(text).toContain('Regular price has held steady over the past year, at about')
+      expect(text).not.toContain('Regular price is')
+    })
+
+    it('uses the plural for several sales', async () => {
+      entries = [...history('4.00', '5.00'), purchase('s2', '2026-05-03', '1.00', true)]
+      expect((await mountPage()).get('[data-price-trend]').text()).toContain('2 of 5 purchases in the last 6 months were on sale.')
+    })
+
+    it('falls back to the range when a period is too thin', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('[data-price-trend]').exists()).toBe(false)
+      expect(wrapper.find('[data-price-range]').exists()).toBe(true)
+    })
+  })
+
+  describe('dense chart', () => {
+    const many = (count: number) => Array.from({ length: count }, (_, index) => purchase(String(index), new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10), index % 5 ? '3.50' : '2.00', !(index % 5)))
+
+    it('keeps individual interactive points at the threshold', async () => {
+      entries = many(40)
+      const wrapper = await mountPage()
+      expect(points(wrapper)).toHaveLength(40)
+      expect(wrapper.find('[data-trend-line]').exists()).toBe(false)
+      expect(wrapper.find('[data-trend-legend]').exists()).toBe(false)
+      expect(wrapper.find('[data-trend-caption]').exists()).toBe(false)
+    })
+
+    it('draws a trend line over backgrounded marks above it, with no per-point tab stops', async () => {
+      entries = many(41)
+      const wrapper = await mountPage()
+      expect(points(wrapper)).toHaveLength(0)
+      expect(wrapper.findAll('[data-dense-mark]')).toHaveLength(41)
+      expect(wrapper.findAll('[data-dense-mark] path')).toHaveLength(9)
+      expect(wrapper.get('[data-trend-line]').attributes('points')!.split(' ')).toHaveLength(32)
+      expect(wrapper.find('[data-trend-legend]').exists()).toBe(true)
+      expect(wrapper.get('[data-trend-caption]').text()).toContain('median regular price')
+      expect(wrapper.find('svg [tabindex]').exists()).toBe(false)
+    })
+
+    it.each(['pointermove', 'pointerdown'])('selects the nearest purchase on %s and dismisses on Escape', async (type) => {
+      entries = many(41)
+      const wrapper = await mountPage()
+      await wrapper.get('[data-chart-hit]').trigger(type, { clientX: 0 })
+      expect(panel(wrapper).text()).toContain('Jan 1, 2026')
+      expect(wrapper.find('[data-selected-mark]').exists()).toBe(true)
+      await wrapper.get('[data-chart-hit]').trigger(type, { clientX: 100000 })
+      expect(panel(wrapper).text()).toContain('Feb 10, 2026')
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(wrapper.find('[data-selected-mark]').exists()).toBe(false)
+    })
+
+    it('keeps the ordinary chart when almost everything is on sale', async () => {
+      entries = many(41).map((entry, index) => ({ ...entry, saleItem: index > 0 }))
+      const wrapper = await mountPage()
+      expect(wrapper.find('[data-trend-line]').exists()).toBe(false)
+      expect(points(wrapper)).toHaveLength(41)
+    })
+  })
+
+  describe('purchases table limit', () => {
+    const many = (count: number) => Array.from({ length: count }, (_, index) => purchase(String(index), `2026-01-${String(index + 1).padStart(2, '0')}`, '3.50'))
+    const showAll = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.findAll('button').find(button => button.text().startsWith('Show all'))
+
+    it('shows every row with no button at the limit', async () => {
+      entries = many(20)
+      const wrapper = await mountPage()
+      expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(20)
+      expect(showAll(wrapper)).toBeUndefined()
+    })
+
+    it('shows the newest 20 until asked for all, and keeps every point on the chart', async () => {
+      entries = many(21)
+      const wrapper = await mountPage()
+      expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(20)
+      expect(wrapper.get('table tbody tr').text()).toContain('Jan 21, 2026')
+      expect(points(wrapper)).toHaveLength(21)
+      expect(showAll(wrapper)!.text()).toBe('Show all 21 purchases')
+      await showAll(wrapper)!.trigger('click')
+      expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(21)
+      expect(showAll(wrapper)).toBeUndefined()
+    })
+
+    it('collapses again when the comparison basis changes', async () => {
+      entries = [...many(21), { ...purchase('oz', '2026-02-01', '2.00'), size: '8', unit: 'oz' }, { ...purchase('oz2', '2026-02-02', '2.00'), size: '8', unit: 'ea' }]
+      const wrapper = await mountPage()
+      const gal = wrapper.findAll('.series-picker button').find(button => button.text().includes('(21)'))
+      if (gal) await gal.trigger('click')
+      await showAll(wrapper)?.trigger('click')
+      expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(21)
+      const other = wrapper.findAll('.series-picker button').find(button => !button.text().includes('(21)'))!
+      await other.trigger('click')
+      await gal!.trigger('click')
+      expect(wrapper.get('table').findAll('tbody tr')).toHaveLength(20)
+    })
+  })
+
   it('describes the purchases table with a caption and column scopes', async () => {
     const wrapper = await mountPage()
     const table = wrapper.get('table')
