@@ -278,19 +278,19 @@ it('sends an unknown Manage section to Stores and keeps the query', async () => 
   wrapper.unmount()
 })
 
-const Checkbox = defineComponent({
+const Switch = defineComponent({
   props: { modelValue: Boolean, label: String },
   emits: ['update:modelValue'],
-  setup: (props, { emit }) => () => h('button', { role: 'checkbox', 'aria-checked': String(props.modelValue), onClick: () => emit('update:modelValue', !props.modelValue) }, props.label)
+  setup: (props, { emit }) => () => h('button', { role: 'switch', 'aria-checked': String(props.modelValue), onClick: () => emit('update:modelValue', !props.modelValue) }, props.label)
 })
 const Alert = defineComponent({ props: { description: String }, setup: props => () => h('p', props.description) })
-const preferenceStubs = { UCard: Slot, UButton: Button, UAlert: Alert, UIcon: true, UCheckbox: Checkbox }
+const preferenceStubs = { UCard: Slot, UButton: Button, UAlert: Alert, UIcon: true, USwitch: Switch }
 const backfillPreferenceStates = ['backfill-prompts-enabled', 'backfill-prompts-loaded', 'backfill-prompts-error']
 function signIn() {
   clearNuxtState(backfillPreferenceStates)
   useState('oidc-enabled').value = true
 }
-const preferenceToggle = (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => wrapper.get('[role="checkbox"]')
+const preferenceToggle = (wrapper: Awaited<ReturnType<typeof mountSuspended>>) => wrapper.get('[role="switch"]')
 
 afterEach(() => {
   clearNuxtState(['oidc-enabled', ...backfillPreferenceStates])

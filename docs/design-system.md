@@ -192,6 +192,12 @@ Some components still use older arbitrary radii. Those are migration debt, clean
 - Set it on the form field's `ui` prop: `{ container: 'mt-1.5 grid gap-2', help: 'mt-0', error: 'mt-0' }`. The container's gap owns the spacing, so help and error lose their own top margin; otherwise the two add up to 16px. Do not put a gap on the field's root.
 - Separate fields in a form are 1rem (16px) apart.
 
+### Switches and checkboxes
+
+- Use a switch (`USwitch`) for a setting that takes effect as soon as it changes, with no Save button. The data preferences toggle is the example.
+- Use a checkbox (`UCheckbox`) for everything else: a field saved with the rest of its form or line, picking items from a list, and confirming before an action. Non-grocery and Sale item are checkboxes wherever they appear.
+- The same field uses the same control everywhere it appears.
+
 ## Buttons and borders
 
 Borders mark things you can type into. Actions use fill, or nothing at all.
