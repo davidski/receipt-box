@@ -280,6 +280,15 @@ Charts follow the tidyverse and ggplot2 approach: map data to visual properties 
 - Every interactive mark has a hit target of at least 32px, larger than the mark itself. That is above WCAG 2.5.8's 24px minimum.
 - Data marks use `chart-series`, never `accent` directly. Marks meet 3:1 contrast against the chart surface in both themes (WCAG 1.4.11).
 
+### Dense charts
+
+Above 40 points, a price chart stops drawing a mark and a connecting line per purchase, because they turn into noise. These rules replace the point sizes above and the Tab stop rule below:
+
+- A 2px trend line in `chart-series` carries the reading and meets the 3:1 target: the rolling median of regular prices within 60 days of each purchase. It may move in steps. It is a median, not an average or a curve, so sales cannot pull it down.
+- Individual purchases stay behind it as small marks at reduced opacity, keeping the circle and diamond encoding. They are context, so they sit under the 3:1 target; the line and the table carry the information.
+- The legend adds the trend line, and a caption says what it is.
+- Hover or tap selects the nearest purchase by horizontal position. Purchases are not Tab stops; every purchase is in the table on the page, which is the keyboard and screen reader route.
+
 ### Encoding
 
 - Never encode a category with color alone. Pair color with shape, as ggplot2 does by mapping `shape` and `colour` to the same variable. Sale prices are `sale-mark` diamonds; regular prices are `chart-series` circles.
