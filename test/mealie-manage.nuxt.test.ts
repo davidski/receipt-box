@@ -233,7 +233,7 @@ describe('integration', () => {
     const wrapper = await mountMealie()
     const text = wrapper.text()
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Sync', 'Food mappings'])
-    expect(text).toContain('Brings in foods and units from Mealie. Runs when Receipt Box starts, or whenever you choose Sync now.')
+    expect(text).toContain('Bring in foods and units from Mealie with Sync now below. Also syncs automatically on every server start.')
     expect(text).not.toContain('kept up to date')
     expect(text).not.toContain('read-only')
   })
