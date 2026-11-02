@@ -1,4 +1,5 @@
-FROM node:26-alpine AS base
+# Build natively: .output is architecture-independent, and bundling under QEMU crashes.
+FROM --platform=$BUILDPLATFORM node:26-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN npm install --global pnpm@12.6.0
