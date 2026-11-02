@@ -128,7 +128,6 @@ export async function cachedFood(sql: Database, id: string) {
 }
 
 export async function foodMappingProblems(sql: Database) {
-  const mappings = await listFoodMappings(sql)
   // Only items mapped to an active food: an unmapped item cannot price a recipe whatever its size, and an inactive food fails costing first (see the broken group). The size test mirrors selectPurchase.
   const itemsWithoutPackageSize = await sql<{ item: string, entries: number }[]>`
     SELECT entries.item, count(*)::int AS entries
@@ -140,12 +139,7 @@ export async function foodMappingProblems(sql: Database) {
     HAVING count(*) FILTER (WHERE entries.size > 0 AND entries.unit IS NOT NULL) = 0
     ORDER BY lower(entries.item), entries.item
   `
-  return {
-    brokenMappings: mappings.filter(mapping => mapping.broken),
-    orphanedMappings: mappings.filter(mapping => !mapping.hasEntries),
-    unmappedItems: await unmappedItems(sql),
-    itemsWithoutPackageSize
-  }
+  return { itemsWithoutPackageSize }
 }
 
 export async function lockMappedFoods(tx: Transaction, names: string[]) {

@@ -7,9 +7,9 @@ type MealieStatus = {
 }
 type Mapping = { item: string, mealieFoodId: string, foodName: string | null, broken: boolean, hasEntries: boolean }
 type ItemCount = { item: string, entries: number }
-type Problems = { brokenMappings: Mapping[], orphanedMappings: Mapping[], unmappedItems: ItemCount[], itemsWithoutPackageSize: ItemCount[] }
+type Problems = { itemsWithoutPackageSize: ItemCount[] }
 type SyncResult = { status: 'skipped' } | { status: 'synced', foods: number, aliases: number, units: number, deactivatedFoods: number, deactivatedUnits: number }
-type Filter = 'all' | 'mapped' | 'unmapped' | 'broken'
+type Filter = 'all' | 'mapped' | 'unmapped' | 'attention'
 type Row = { item: string, entries?: number, mapping?: Mapping }
 type CachedFood = { id: string, name: string, active: boolean }
 type FoodOption = { label: string, value: string, description?: string }
@@ -19,7 +19,7 @@ const { apiUrl } = useApi()
 const { data: status, error: statusError, refresh: refreshStatus } = await useFetch<MealieStatus>(apiUrl('/mealie/status'))
 const { data: mappings, status: mappingsStatus, error: mappingsError, refresh: refreshMappings } = await useFetch<{ mappings: Mapping[] }>(apiUrl('/food-mappings'))
 const { data: unmapped, status: unmappedStatus, error: unmappedError, refresh: refreshUnmapped } = await useFetch<{ items: ItemCount[] }>(apiUrl('/food-mappings/unmapped'))
-const { data: problems, status: problemsStatus, error: problemsError, refresh: refreshProblems } = await useFetch<Problems>(apiUrl('/food-mappings/problems'))
+const { data: problems, error: problemsError, refresh: refreshProblems } = await useFetch<Problems>(apiUrl('/food-mappings/problems'))
 
 // A link from a recipe cost page names the Mealie food to fix; the lookup also tells an inactive or unsynced food apart.
 const route = useRoute()
@@ -43,8 +43,6 @@ const syncNotice = ref('')
 const forceConfirmation = ref('')
 const filter = ref<Filter>('all')
 const visibleRows = ref(30)
-// By problem group title; a group shows its first 30 rows until asked for more.
-const problemRows = reactive(new Map<string, number>())
 const editingItem = ref<string | null>(null)
 const foodSearch = ref('')
 const pickedFood = ref<FoodOption>()
@@ -64,6 +62,9 @@ const counts = computed(() => status.value?.counts)
 const allMappings = computed(() => mappings.value?.mappings ?? [])
 const mappedRows = computed<Row[]>(() => allMappings.value.filter(mapping => !mapping.broken).map(mapping => ({ item: mapping.item, mapping })))
 const brokenRows = computed<Row[]>(() => allMappings.value.filter(mapping => mapping.broken).map(mapping => ({ item: mapping.item, mapping })))
+const noPackageSize = computed(() => new Set((problems.value?.itemsWithoutPackageSize ?? []).map(({ item }) => item)))
+// A mapping that needs fixing. An item missing a package size is still validly mapped, so it also stays under Mapped.
+const attentionRows = computed<Row[]>(() => [...allMappings.value].filter(mapping => mapping.broken || !mapping.hasEntries || noPackageSize.value.has(mapping.item)).sort((a, b) => Number(b.broken) - Number(a.broken)).map(mapping => ({ item: mapping.item, mapping })))
 const unmappedRows = computed<Row[]>(() => (unmapped.value?.items ?? []).map(({ item, entries }) => ({ item, entries })))
 const allRows = computed(() => [...brokenRows.value, ...unmappedRows.value, ...mappedRows.value])
 // The search and an inactive food's focus narrow every tab alike, so the counts always match what the tab lists.
@@ -71,13 +72,13 @@ const tabRows = computed(() => {
   const term = listSearch.value.trim().toLowerCase()
   const keep = (row: Row) => (!focusInactive.value || row.mapping?.mealieFoodId === focusFood.value?.id)
     && (!term || row.item.toLowerCase().includes(term) || Boolean(row.mapping?.foodName?.toLowerCase().includes(term)))
-  return { all: allRows.value.filter(keep), mapped: mappedRows.value.filter(keep), unmapped: unmappedRows.value.filter(keep), broken: brokenRows.value.filter(keep) }
+  return { all: allRows.value.filter(keep), mapped: mappedRows.value.filter(keep), unmapped: unmappedRows.value.filter(keep), attention: attentionRows.value.filter(keep) }
 })
 const filterTabs = computed(() => [
   { label: `All (${tabRows.value.all.length})`, value: 'all' },
   { label: `Mapped (${tabRows.value.mapped.length})`, value: 'mapped' },
   { label: `Unmapped (${tabRows.value.unmapped.length})`, value: 'unmapped' },
-  { label: `Broken (${tabRows.value.broken.length})`, value: 'broken' }
+  { label: `Needs attention (${tabRows.value.attention.length})`, value: 'attention' }
 ])
 const filteredRows = computed(() => tabRows.value[filter.value])
 const visibleList = computed(() => filteredRows.value.slice(0, visibleRows.value))
@@ -122,22 +123,6 @@ const focusItemOptions = computed<FoodOption[]>(() => {
     .sort((a, b) => b.overlap - a.overlap || a.label.localeCompare(b.label))
 })
 const mappingsLoading = computed(() => [mappingsStatus.value, unmappedStatus.value].includes('pending') && !mappings.value)
-const problemGroups = computed(() => [
-  { title: 'Mapped to an inactive or missing food', rows: (problems.value?.brokenMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food no longer in Mealie' })) },
-  { title: 'Mapped, but the item has no entries', rows: (problems.value?.orphanedMappings ?? []).map(({ item, foodName }) => ({ item, detail: foodName ?? 'Food no longer in Mealie' })) },
-  { title: 'Unmapped items', rows: (problems.value?.unmappedItems ?? []).map(entryRow) },
-  {
-    title: 'No usable package size',
-    note: 'These mapped items need a size and unit on at least one purchase before they can price a recipe. Open an item, choose Edit on a purchase, and add its package size and unit.',
-    link: true,
-    rows: (problems.value?.itemsWithoutPackageSize ?? []).map(entryRow)
-  }
-])
-
-function entryRow({ item, entries }: ItemCount) {
-  return { item, detail: entryLabel(entries) }
-}
-
 function goneLabel(count: number, noun: string) {
   return count > 0 ? `${count.toLocaleString()} ${noun}${count === 1 ? ' is' : 's are'} no longer in Mealie.` : ''
 }
@@ -444,6 +429,10 @@ async function confirmClear() {
         <UAlert v-if="mappingsError || unmappedError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load the food mappings." class="mt-4 rounded-card px-3 py-2.5 text-sm">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshLists()" /></template>
         </UAlert>
+        <UAlert v-if="problemsError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not check for missing package sizes." class="mt-4 rounded-card px-3 py-2.5 text-sm">
+          <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshProblems()" /></template>
+        </UAlert>
+        <p v-if="filter === 'attention'" class="mt-3 max-w-[38.75rem] text-sm text-muted">Mappings to fix before recipes can be fully costed. An item with no package size needs a size and unit on at least one purchase.</p>
         <p v-if="mappingsLoading" class="mt-4 text-muted">Loading food mappings…</p>
         <p v-else-if="!mappingsError && !unmappedError && !filteredRows.length" class="mt-4 text-sm text-muted">Nothing here.</p>
         <ul v-else-if="!mappingsError && !unmappedError" data-testid="food-mapping-list" class="m-[1.125rem_0_0] list-none rounded-card p-0 border border-line">
@@ -455,9 +444,11 @@ async function confirmClear() {
                   <span>{{ row.mapping.foodName ?? 'Food no longer in Mealie' }}</span>
                   <UBadge v-if="row.mapping.broken" label="Broken" color="error" variant="soft" size="sm" />
                   <UBadge v-if="!row.mapping.hasEntries" label="No entries" color="neutral" variant="soft" size="sm" />
+                  <UBadge v-if="noPackageSize.has(row.item)" label="No package size" color="neutral" variant="soft" size="sm" />
                 </template>
                 <span v-else>Unmapped · {{ entryLabel(row.entries ?? 0) }}</span>
               </span>
+              <UButton v-if="row.mapping && noPackageSize.has(row.item)" :to="`${itemPath(row.item)}?from=mealie`" label="Add package size" :aria-label="`Add a package size for ${row.item}`" trailing-icon="i-lucide-arrow-right" color="neutral" variant="ghost" size="sm" class="mt-1 -ml-2.5" />
               <template v-if="needsFood(row)">
                 <p v-if="suggestions.get(row.item) === null" class="mt-1.5 text-xs text-muted">Looking for a suggestion…</p>
                 <p v-else-if="suggestions.get(row.item) === 'failed'" role="alert" class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-danger">
@@ -505,32 +496,6 @@ async function confirmClear() {
       </div>
     </UCard>
 
-    <UCard class="mt-4.5 grid grid-cols-[3.375rem_1fr] gap-5 p-[clamp(1.375rem,4vw,2.125rem)] border border-line rounded-card bg-surface shadow-(--shadow) max-sm:grid-cols-1" :ui="{ body: 'contents' }">
-      <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-triangle-alert" /></div>
-      <div class="min-w-0">
-        <h2 class="text-heading">Problems</h2>
-        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Mappings and items that need attention before recipes can be fully costed.</p>
-        <UAlert v-if="problemsError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load the problems." class="mt-4 rounded-card px-3 py-2.5 text-sm">
-          <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshProblems()" /></template>
-        </UAlert>
-        <p v-else-if="problemsStatus === 'pending' && !problems" class="mt-4 text-muted">Loading problems…</p>
-        <div v-else data-testid="mealie-problems" class="mt-4.5 grid gap-4">
-          <section v-for="group in problemGroups" :key="group.title" :aria-label="group.title">
-            <h3 class="flex items-center gap-2 font-bold">{{ group.title }} <UBadge :label="String(group.rows.length)" color="neutral" variant="soft" size="sm" /></h3>
-            <p v-if="group.note" class="mt-1 max-w-[38.75rem] text-sm text-muted">{{ group.note }}</p>
-            <ul v-if="group.rows.length" tabindex="0" :aria-label="group.title" class="mt-1.5 max-h-64 list-none overflow-y-auto rounded-card p-0 border border-line">
-              <li v-for="row in group.rows.slice(0, problemRows.get(group.title) ?? 30)" :key="row.item" class="flex flex-wrap justify-between gap-x-3 p-[0.5rem_0.75rem] border-t border-line first:border-t-0 text-sm">
-                <NuxtLink v-if="group.link" :to="{ path: itemPath(row.item), query: { from: 'mealie' } }" class="item-history-link inline-flex min-w-0 items-center gap-[0.4375rem] text-inherit no-underline" :aria-label="`Open ${row.item} to add a package size`"><span class="break-words">{{ row.item }}</span><UIcon name="i-lucide-chart-line" aria-hidden="true" /></NuxtLink>
-                <span v-else class="min-w-0 break-words">{{ row.item }}</span>
-                <span class="text-xs text-muted">{{ row.detail }}</span>
-              </li>
-            </ul>
-            <UButton v-if="group.rows.length > (problemRows.get(group.title) ?? 30)" class="mt-2 w-full justify-center" type="button" label="Show 30 more" :aria-label="`Show 30 more: ${group.title}`" icon="i-lucide-chevron-down" color="neutral" variant="ghost" @click="problemRows.set(group.title, (problemRows.get(group.title) ?? 30) + 30)" />
-            <p v-else-if="!group.rows.length" class="mt-1 text-sm text-muted">None.</p>
-          </section>
-        </div>
-      </div>
-    </UCard>
 
     <ConfirmModal
       :open="Boolean(forceConfirmation)"

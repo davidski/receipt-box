@@ -146,10 +146,7 @@ beforeEach(() => {
   })
   registerEndpoint('/api/food-mappings/unmapped', () => ({ items: unmapped }))
   registerEndpoint('/api/food-mappings/problems', () => ({
-    brokenMappings: mappings.filter(mapping => mapping.broken),
-    orphanedMappings: mappings.filter(mapping => !mapping.hasEntries),
-    unmappedItems: unmapped,
-    itemsWithoutPackageSize: [{ item: 'Sugar', entries: 3 }]
+    itemsWithoutPackageSize: [{ item: 'Beans & Rice', entries: 3 }]
   }))
   registerEndpoint('/api/items/food', { method: 'PUT', handler: async (event) => {
     await putGate
@@ -235,7 +232,7 @@ describe('integration', () => {
   it('introduces the section in plain words', async () => {
     const wrapper = await mountMealie()
     const text = wrapper.text()
-    expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Sync', 'Food mappings', 'Problems'])
+    expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Sync', 'Food mappings'])
     expect(text).toContain('Brings in foods and units from Mealie. Runs when Receipt Box starts, or whenever you choose Sync now.')
     expect(text).not.toContain('kept up to date')
     expect(text).not.toContain('read-only')
@@ -322,7 +319,7 @@ describe('integration', () => {
 })
 
 describe('food mappings', () => {
-  it('filters All, Mapped, Unmapped and Broken with counts', async () => {
+  it('filters All, Mapped, Unmapped and Needs attention with counts', async () => {
     const wrapper = await mountMealie()
     expect(wrapper.get('[data-tab="all"]').text()).toBe('All (5)')
     expect(rows(wrapper)).toEqual(['Old Sauce', 'Gone Item', 'Flour', 'Sugar', 'Beans & Rice'])
@@ -330,15 +327,15 @@ describe('food mappings', () => {
     expect(rows(wrapper)).toEqual(['Beans & Rice'])
     await wrapper.get('[data-tab="unmapped"]').trigger('click')
     expect(rows(wrapper)).toEqual(['Flour', 'Sugar'])
-    await wrapper.get('[data-tab="broken"]').trigger('click')
-    expect(rows(wrapper)).toEqual(['Old Sauce', 'Gone Item'])
+    await wrapper.get('[data-tab="attention"]').trigger('click')
+    expect(rows(wrapper)).toEqual(['Old Sauce', 'Gone Item', 'Beans & Rice'])
     expect(wrapper.get('[data-testid="food-mapping-list"]').text()).toContain('Food no longer in Mealie')
   })
 
   it('shows an empty filter', async () => {
     mappings = []
     const wrapper = await mountMealie()
-    await wrapper.get('[data-tab="broken"]').trigger('click')
+    await wrapper.get('[data-tab="attention"]').trigger('click')
     expect(wrapper.find('[data-testid="food-mapping-list"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Nothing here.')
   })
@@ -350,7 +347,7 @@ describe('food mappings', () => {
     expect(rows(wrapper)).toHaveLength(30)
     await buttonText(wrapper, 'Show 30 more').trigger('click')
     expect(rows(wrapper)).toHaveLength(35)
-    await wrapper.get('[data-tab="broken"]').trigger('click')
+    await wrapper.get('[data-tab="attention"]').trigger('click')
     await wrapper.get('[data-tab="unmapped"]').trigger('click')
     expect(rows(wrapper)).toHaveLength(30)
   })
@@ -533,7 +530,7 @@ describe('suggestions', () => {
     await vi.waitFor(() => expect(suggestionQueries).toHaveLength(30))
     await buttonText(wrapper, 'Show 30 more').trigger('click')
     await vi.waitFor(() => expect(suggestionQueries).toHaveLength(31))
-    await wrapper.get('[data-tab="broken"]').trigger('click')
+    await wrapper.get('[data-tab="attention"]').trigger('click')
     await wrapper.get('[data-tab="all"]').trigger('click')
     await flushPromises()
     expect(suggestionQueries).toHaveLength(31)
@@ -664,75 +661,83 @@ describe('suggestions', () => {
   })
 })
 
-describe('problems', () => {
-  const group = (wrapper: Wrapper, title: string) => wrapper.get(`section[aria-label="${title}"]`).text()
-
-  it('lists all four cached problem groups', async () => {
+describe('needs attention', () => {
+  const openTab = async () => {
     const wrapper = await mountMealie()
-    expect(group(wrapper, 'Mapped to an inactive or missing food')).toContain('Old Sauce')
-    expect(group(wrapper, 'Mapped to an inactive or missing food')).toContain('Merged away')
-    expect(group(wrapper, 'Mapped, but the item has no entries')).toContain('Gone Item')
-    expect(group(wrapper, 'Unmapped items')).toContain('Flour')
-    expect(group(wrapper, 'Unmapped items')).toContain('1 entry')
-    expect(group(wrapper, 'No usable package size')).toContain('3 entries')
+    await wrapper.get('[data-tab="attention"]').trigger('click')
+    return wrapper
+  }
+
+  it('labels each mapping with every issue it has', async () => {
+    const list = (await openTab()).get('[data-testid="food-mapping-list"]')
+    const row = (name: string) => list.findAll('li').find(candidate => candidate.text().includes(name))!.text()
+    expect(row('Old Sauce')).toContain('Broken')
+    expect(row('Gone Item')).toContain('Broken')
+    expect(row('Gone Item')).toContain('No entries')
+    expect(row('Beans & Rice')).toContain('No package size')
+    expect(row('Beans & Rice')).not.toContain('Broken')
   })
 
-  it('explains the package size group and links each row to its item page, whatever the name holds', async () => {
+  it('shows one row for a mapping with several issues, and leaves out healthy and unmapped items', async () => {
+    registerEndpoint('/api/food-mappings/problems', () => ({ itemsWithoutPackageSize: [{ item: 'Old Sauce', entries: 1 }, { item: 'Sugar', entries: 3 }] }))
+    expect(rows(await openTab())).toEqual(['Old Sauce', 'Gone Item'])
+  })
+
+  it('keeps a no-package-size mapping under Mapped too', async () => {
+    const wrapper = await mountMealie()
+    await wrapper.get('[data-tab="mapped"]').trigger('click')
+    expect(rows(wrapper)).toEqual(['Beans & Rice'])
+    expect(wrapper.get('[data-testid="food-mapping-list"]').text()).toContain('No package size')
+  })
+
+  it('links a no-package-size row to its item page, whatever the name holds', async () => {
     const names = ['Half/Half', 'Ben & Jerry\'s "Chunky"', 'Why? Not#1 100%', 'Crème Fraîche']
-    registerEndpoint('/api/food-mappings/problems', () => ({ brokenMappings: [], orphanedMappings: [], unmappedItems: [], itemsWithoutPackageSize: names.map(item => ({ item, entries: 1 })) }))
-    const wrapper = await mountMealie()
-    const sizes = wrapper.get('section[aria-label="No usable package size"]')
-    expect(sizes.text()).toContain('These mapped items need a size and unit on at least one purchase before they can price a recipe. Open an item, choose Edit on a purchase, and add its package size and unit.')
-    const links = sizes.findAll('li a')
-    // Each link names the Mealie list as its origin, so the item page can send the person back here.
-    expect(links.map(link => link.attributes('href'))).toEqual(names.map(name => `${itemPath(name)}?from=mealie`))
-    names.forEach((name, index) => expect(links[index]!.attributes('aria-label')).toBe(`Open ${name} to add a package size`))
-    // The slug carries no character that needs encoding, so the path is one safe segment.
-    links.forEach(link => expect(link.attributes('href')).toMatch(/^\/items\/[a-z0-9-]+\?from=mealie$/))
-    // The other groups stay plain text and carry no explanation.
-    expect(wrapper.get('section[aria-label="Unmapped items"]').find('a').exists()).toBe(false)
-    expect(wrapper.get('section[aria-label="Unmapped items"]').text()).not.toContain('before they can price a recipe')
+    mappings = names.map(item => ({ ...beans, item }))
+    registerEndpoint('/api/food-mappings/problems', () => ({ itemsWithoutPackageSize: names.map(item => ({ item, entries: 1 })) }))
+    const wrapper = await openTab()
+    names.forEach((name) => {
+      const link = wrapper.findAll('button').find(candidate => candidate.attributes('aria-label') === `Add a package size for ${name}`)!
+      // The link names the Mealie list as its origin, so the item page can send the person back here.
+      expect(link.attributes('data-to')).toBe(`${itemPath(name)}?from=mealie`)
+    })
   })
 
-  it('keeps the explanation above None. when no item lacks a package size', async () => {
-    registerEndpoint('/api/food-mappings/problems', () => ({ brokenMappings: [], orphanedMappings: [], unmappedItems: [], itemsWithoutPackageSize: [] }))
-    const wrapper = await mountMealie()
-    const sizes = wrapper.get('section[aria-label="No usable package size"]')
-    expect(sizes.text()).toContain('before they can price a recipe')
-    expect(sizes.text()).toContain('None.')
-    expect(sizes.find('a').exists()).toBe(false)
+  it('gives broken rows no package size link', async () => {
+    expect((await openTab()).find('[aria-label="Add a package size for Old Sauce"]').exists()).toBe(false)
   })
 
-  it('shows None for an empty group and refreshes after a change', async () => {
+  it('explains the tab only while it is open', async () => {
+    const wrapper = await mountMealie()
+    expect(wrapper.text()).not.toContain('Mappings to fix before recipes')
+    await wrapper.get('[data-tab="attention"]').trigger('click')
+    expect(wrapper.text()).toContain('Mappings to fix before recipes')
+  })
+
+  it('shows nothing when no mapping needs fixing', async () => {
+    mappings = [beans]
+    registerEndpoint('/api/food-mappings/problems', () => ({ itemsWithoutPackageSize: [] }))
+    const wrapper = await openTab()
+    expect(wrapper.get('[data-tab="attention"]').text()).toBe('Needs attention (0)')
+    expect(wrapper.text()).toContain('Nothing here.')
+  })
+
+  it('drops a mapping once it is cleared', async () => {
     mappings = [broken]
-    const wrapper = await mountMealie()
-    expect(group(wrapper, 'Mapped, but the item has no entries')).toContain('None.')
+    const wrapper = await openTab()
     await button(wrapper, 'Clear mapping for Old Sauce').trigger('click')
     await buttonText(wrapper, 'Clear mapping').trigger('click')
-    await vi.waitFor(() => expect(group(wrapper, 'Mapped to an inactive or missing food')).toContain('None.'))
+    await vi.waitFor(() => expect(wrapper.get('[data-tab="attention"]').text()).toBe('Needs attention (0)'))
   })
 
-  it('shows each group 30 rows at a time, keeping the full count', async () => {
-    const items = Array.from({ length: 61 }, (_, index) => ({ item: `Item ${index}`, entries: 1 }))
-    registerEndpoint('/api/food-mappings/problems', () => ({ brokenMappings: [], orphanedMappings: [], unmappedItems: items, itemsWithoutPackageSize: items.slice(0, 30) }))
-    const wrapper = await mountMealie()
-    const section = (title: string) => wrapper.get(`section[aria-label="${title}"]`)
-    const more = 'Show 30 more: Unmapped items'
-    expect(section('Unmapped items').findAll('li')).toHaveLength(30)
-    expect(section('Unmapped items').text()).toContain('61')
-    // Exactly 30 rows needs no button, and one group's button leaves the other alone.
-    expect(section('No usable package size').findAll('li')).toHaveLength(30)
-    expect(section('No usable package size').find('button').exists()).toBe(false)
-    await button(wrapper, more).trigger('click')
-    expect(section('Unmapped items').findAll('li')).toHaveLength(60)
-    await button(wrapper, more).trigger('click')
-    expect(section('Unmapped items').findAll('li')).toHaveLength(61)
-    expect(wrapper.find(`button[aria-label="${more}"]`).exists()).toBe(false)
-  })
-
-  it('shows a load failure', async () => {
+  it('reports a failed package size check, still lists the other issues, and retries', async () => {
     registerEndpoint('/api/food-mappings/problems', () => { throw createError({ statusCode: 500 }) })
-    expect((await mountMealie()).text()).toContain('Could not load the problems.')
+    const wrapper = await openTab()
+    expect(wrapper.text()).toContain('Could not check for missing package sizes.')
+    expect(rows(wrapper)).toEqual(['Old Sauce', 'Gone Item'])
+    registerEndpoint('/api/food-mappings/problems', () => ({ itemsWithoutPackageSize: [{ item: 'Beans & Rice', entries: 1 }] }))
+    await buttonText(wrapper, 'Try again').trigger('click')
+    await vi.waitFor(() => expect(rows(wrapper)).toContain('Beans & Rice'))
+    expect(wrapper.text()).not.toContain('Could not check for missing package sizes.')
   })
 })
 
@@ -919,7 +924,7 @@ describe('searching the mappings', () => {
     const wrapper = await mountMealie()
     await search(wrapper).setValue('FLO')
     expect(rows(wrapper)).toEqual(['Flour'])
-    await wrapper.get('[data-tab="broken"]').trigger('click')
+    await wrapper.get('[data-tab="attention"]').trigger('click')
     expect(wrapper.text()).toContain('Nothing here.')
   })
 
@@ -933,9 +938,9 @@ describe('searching the mappings', () => {
 
   it('keeps the tab counts equal to what each tab lists under the search', async () => {
     const wrapper = await mountMealie()
-    expect(tabs(wrapper)).toEqual(['All (5)', 'Mapped (1)', 'Unmapped (2)', 'Broken (2)'])
+    expect(tabs(wrapper)).toEqual(['All (5)', 'Mapped (1)', 'Unmapped (2)', 'Needs attention (3)'])
     await search(wrapper).setValue('s')
-    expect(tabs(wrapper)).toEqual(['All (3)', 'Mapped (1)', 'Unmapped (1)', 'Broken (1)'])
+    expect(tabs(wrapper)).toEqual(['All (3)', 'Mapped (1)', 'Unmapped (1)', 'Needs attention (2)'])
   })
 
   it('says Nothing here. for no match and restores the list when cleared', async () => {
@@ -1205,17 +1210,13 @@ describe('button hierarchy and badges', () => {
     }
   })
 
-  it('makes both Show 30 more buttons ghost neutral at the default size, with no border-style outline', async () => {
-    const items = Array.from({ length: 40 }, (_, index) => ({ item: `Item ${index}`, entries: 1 }))
-    unmapped = items
-    registerEndpoint('/api/food-mappings/problems', () => ({ brokenMappings: [], orphanedMappings: [], unmappedItems: items, itemsWithoutPackageSize: [] }))
+  it('makes Show 30 more a ghost neutral button at the default size, with no border-style outline', async () => {
+    unmapped = Array.from({ length: 40 }, (_, index) => ({ item: `Item ${index}`, entries: 1 }))
     const wrapper = await mountMealie()
     const more = wrapper.findAll('button').filter(candidate => candidate.text() === 'Show 30 more')
-    expect(more).toHaveLength(2)
-    for (const candidate of more) {
-      expect(quiet(candidate)).toEqual(['ghost', 'neutral'])
-      expect(candidate.attributes('size')).toBeUndefined()
-    }
+    expect(more).toHaveLength(1)
+    expect(quiet(more[0]!)).toEqual(['ghost', 'neutral'])
+    expect(more[0]!.attributes('size')).toBeUndefined()
     expect(wrapper.findAll('[variant="outline"]').filter(candidate => candidate.text() === 'Back to recipe')).toHaveLength(0)
   })
 
@@ -1225,27 +1226,15 @@ describe('button hierarchy and badges', () => {
     expect(quiet(wrapper.get('[data-to="/mealie-recipes/curry"]'))).toEqual(['ghost', 'neutral'])
   })
 
-  it('keeps amber for sales: No entries and Problems counts are neutral soft badges', async () => {
+  it('keeps amber for sales: No entries and No package size are neutral soft badges', async () => {
     const wrapper = await mountMealie()
-    const noEntries = wrapper.findAll('span').filter(candidate => candidate.text() === 'No entries')
-    expect(noEntries).toHaveLength(1)
-    expect(noEntries[0]!.attributes()).toMatchObject({ color: 'neutral', variant: 'soft' })
+    for (const label of ['No entries', 'No package size']) {
+      const badges = wrapper.findAll('span').filter(candidate => candidate.text() === label)
+      expect(badges).toHaveLength(1)
+      expect(badges[0]!.attributes()).toMatchObject({ color: 'neutral', variant: 'soft' })
+    }
     const broken = wrapper.findAll('span').filter(candidate => candidate.text() === 'Broken')
     expect(broken[0]!.attributes('color')).toBe('error')
-
-    const counts = wrapper.findAll('[data-testid="mealie-problems"] h3 span')
-    expect(counts.map(count => count.text())).toEqual(['2', '1', '2', '1'])
-    counts.forEach(count => expect(count.attributes()).toMatchObject({ color: 'neutral', variant: 'soft' }))
-    expect(wrapper.findAll('[color="warning"]')).toHaveLength(0)
-  })
-
-  it('shows a zero Problems count as a neutral soft badge too', async () => {
-    mappings = []
-    unmapped = []
-    const wrapper = await mountMealie()
-    const counts = wrapper.findAll('[data-testid="mealie-problems"] h3 span')
-    expect(counts.map(count => count.text())).toEqual(['0', '0', '0', '1'])
-    counts.forEach(count => expect(count.attributes()).toMatchObject({ color: 'neutral', variant: 'soft' }))
     expect(wrapper.findAll('[color="warning"]')).toHaveLength(0)
   })
 })

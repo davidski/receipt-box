@@ -4,7 +4,7 @@ import { test } from 'node:test'
 globalThis.createError = ({ statusCode, statusMessage, data }) => Object.assign(new Error(statusMessage), { statusCode, statusMessage, data })
 
 const {
-  cachedFood, carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, foodSuggestions, fuzzyCutoff, getFoodMapping, hasFoodConflict,
+  unmappedItems, cachedFood, carryFoodMapping, deleteFoodMapping, distinctFoods, foodMappingProblems, foodSuggestions, fuzzyCutoff, getFoodMapping, hasFoodConflict,
   listFoodMappings, parseFoodResolution, requireFoodId, requireItemName, searchActiveFoods, setFoodMapping
 } = await import('../server/utils/food-mapping.ts')
 const { renameItemVariants } = await import('../server/utils/item-query.ts')
@@ -98,25 +98,24 @@ test('reads a missing mapping as null and reports whether a delete removed one',
   assert.equal(await deleteFoodMapping(fakeTransaction([[], []]).tx, 'Flour'), false)
 })
 
-test('problems split broken and orphaned mappings, listing a mapping that is both in each', async () => {
-  const both = { item: 'a', broken: true, hasEntries: false }
-  const broken = { item: 'b', broken: true, hasEntries: true }
-  const orphan = { item: 'c', broken: false, hasEntries: false }
-  const healthy = { item: 'd', broken: false, hasEntries: true }
-  const { tx, queries } = fakeTransaction([[both, broken, orphan, healthy], [{ item: 'e', entries: 1 }], [{ item: 'f', entries: 2 }]])
+test('problems report mapped items with no usable package size', async () => {
+  const { tx, queries } = fakeTransaction([[{ item: 'e', entries: 1 }]])
   const problems = await foodMappingProblems(tx)
   // Only mapped items with an active food, and the same eligibility as selectPurchase in recipe-cost.
-  const sizeQuery = queries[1].sql
+  const sizeQuery = queries[0].sql
   assert.match(sizeQuery, /JOIN grocery_item_food_mapping mappings ON mappings\.item = entries\.item/)
   assert.match(sizeQuery, /JOIN mealie_foods foods ON foods\.id = mappings\.mealie_food_id AND foods\.active/)
   assert.match(sizeQuery, /WHERE NOT entries\.non_grocery/)
   assert.match(sizeQuery, /FILTER \(WHERE entries\.size > 0 AND entries\.unit IS NOT NULL\) = 0/)
-  assert.deepEqual(problems, {
-    brokenMappings: [both, broken],
-    orphanedMappings: [both, orphan],
-    unmappedItems: [{ item: 'f', entries: 2 }],
-    itemsWithoutPackageSize: [{ item: 'e', entries: 1 }]
-  })
+  assert.deepEqual(problems, { itemsWithoutPackageSize: [{ item: 'e', entries: 1 }] })
+})
+
+test('unmapped items leave out non-grocery entries and anything already mapped', async () => {
+  const rows = [{ item: 'f', entries: 2 }]
+  const { tx, queries } = fakeTransaction([rows])
+  assert.deepEqual(await unmappedItems(tx), rows)
+  assert.match(queries[0].sql, /WHERE NOT entries\.non_grocery/)
+  assert.match(queries[0].sql, /NOT EXISTS \(SELECT 1 FROM grocery_item_food_mapping/)
 })
 
 test('both conflicts arrive in one 409 before anything is written', async () => {
