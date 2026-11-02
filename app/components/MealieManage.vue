@@ -343,7 +343,7 @@ async function confirmClear() {
       <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true"><UIcon name="i-lucide-refresh-cw" /></div>
       <div class="min-w-0">
         <h2 class="text-heading">Sync</h2>
-        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Brings in foods and units from Mealie. Runs when Receipt Box starts, or whenever you choose Sync now.</p>
+        <p class="max-w-[38.75rem] text-muted leading-[1.55]">Bring in foods and units from Mealie with Sync now below. Also syncs automatically on every server start.</p>
         <UAlert v-if="statusError" color="error" variant="soft" icon="i-lucide-circle-alert" description="Could not load the Mealie status." class="mt-4 rounded-card px-3 py-2.5 text-sm">
           <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" size="sm" @click="refreshStatus()" /></template>
         </UAlert>

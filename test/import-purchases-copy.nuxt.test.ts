@@ -8,7 +8,7 @@ import { clearNuxtData } from '#imports'
 const Slot = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) })
 
 const importHeading = 'Import purchases'
-const importCopy = 'Add purchases from a CSV or XLSX file that uses the template or a Receipt Box export. Purchases are added to what\'s already here and aren\'t checked for duplicates, so importing a file twice adds them twice. Categories in the file replace an item\'s current category, and a blank category clears it.'
+const importCopy = 'Add purchases from a CSV or XLSX file that uses the template below, or from a previous purchase export. Purchases are added to what\'s already here and aren\'t checked for duplicates, so importing a file twice adds them twice. Categories in the file replace an item\'s current category, and a blank category clears it.'
 
 beforeEach(() => {
   clearNuxtData()

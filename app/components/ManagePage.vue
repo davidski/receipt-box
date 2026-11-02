@@ -1051,7 +1051,7 @@ async function exportXlsx() {
         <div class="grid size-[3.125rem] place-items-center rounded-card text-heading text-accent-strong bg-accent-soft" aria-hidden="true">↑</div>
         <div>
           <h2 class="text-heading">Import purchases</h2>
-          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add purchases from a CSV or XLSX file that uses the template or a Receipt Box export. Purchases are added to what's already here and aren't checked for duplicates, so importing a file twice adds them twice. Categories in the file replace an item's current category, and a blank category clears it.</p>
+          <p class="max-w-[38.75rem] text-muted leading-[1.55]">Add purchases from a CSV or XLSX file that uses the template below, or from a previous purchase export. Purchases are added to what's already here and aren't checked for duplicates, so importing a file twice adds them twice. Categories in the file replace an item's current category, and a blank category clears it.</p>
           <div class="flex flex-wrap gap-3 mt-[1.125rem]">
             <label class="grid min-h-12 min-w-55 flex-1 cursor-pointer items-center rounded-input p-[0_1rem] border border-dashed border-line-control focus-within:border-accent focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-(--focus-ring)">
               <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="selectFile" class="absolute w-[0.0625rem] h-[0.0625rem] [opacity:0]">
