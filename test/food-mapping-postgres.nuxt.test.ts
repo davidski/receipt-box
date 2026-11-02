@@ -180,7 +180,7 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
 
       await expect(call('get', { query: { item: 'Flour' } })).resolves.toEqual({ item: 'Flour', mapping: null })
       await expect(call('unmapped')).resolves.toEqual({ items: [] })
-      await expect(call('problems')).resolves.toEqual({ brokenMappings: [], orphanedMappings: [], unmappedItems: [], itemsWithoutPackageSize: [] })
+      await expect(call('problems')).resolves.toEqual({ itemsWithoutPackageSize: [] })
       await expect(call('put', { body: { item: 'Sugar', mealieFoodId: foodA } })).rejects.toMatchObject({ statusCode: 409 })
       expect(await mappings()).toHaveLength(2)
     })
@@ -218,9 +218,10 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       expect(unmapped.map((row: any) => row.item)).not.toContain('Mapped')
 
       const problems = await call('problems')
-      expect(problems.brokenMappings.map((row: any) => row.item)).toEqual(['Broken', 'Inactive no size', 'Orphan broken', 'Uncached', 'Uncached no size'])
-      expect(problems.orphanedMappings.map((row: any) => row.item)).toEqual(['Orphan', 'Orphan broken'])
-      expect(problems.unmappedItems).toEqual(unmapped)
+      const { mappings: listed } = await call('list')
+      expect(listed.filter((row: any) => row.broken).map((row: any) => row.item)).toEqual(['Broken', 'Inactive no size', 'Orphan broken', 'Uncached', 'Uncached no size'])
+      expect(listed.filter((row: any) => !row.hasEntries).map((row: any) => row.item)).toEqual(['Orphan', 'Orphan broken'])
+      expect(Object.keys(problems)).toEqual(['itemsWithoutPackageSize'])
       expect(problems.itemsWithoutPackageSize).toEqual([{ item: 'No size', entries: 1 }, { item: 'No unit', entries: 1 }, { item: 'Zero size', entries: 1 }])
       expect(await mappings()).toHaveLength(12)
     })
@@ -236,7 +237,7 @@ describe.skipIf(!adminUrl)('food mappings on real Postgres', () => {
       await addEntry('Flour')
       await addMapping('Flour', foodA)
       await sql`DELETE FROM grocery_entries WHERE item = 'Flour'`
-      expect((await call('problems')).orphanedMappings.map((row: any) => row.item)).toEqual(['Flour'])
+      expect((await call('list')).mappings.filter((row: any) => !row.hasEntries).map((row: any) => row.item)).toEqual(['Flour'])
     })
 
     it('database reset clears mappings', async () => {

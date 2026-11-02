@@ -5,4 +5,4 @@ import { isMealieConfigured } from '../../utils/mealie/client'
 
 export default defineEventHandler(async () => isMealieConfigured()
   ? foodMappingProblems(db())
-  : { brokenMappings: [], orphanedMappings: [], unmappedItems: [], itemsWithoutPackageSize: [] })
+  : { itemsWithoutPackageSize: [] })

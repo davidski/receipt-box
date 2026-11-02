@@ -637,8 +637,7 @@ Manage
 ├── Mealie
 │   ├── Integration
 │   ├── Food mappings
-│   ├── Conversions
-│   └── Problems
+│   └── Conversions
 └── Import/export
 ```
 
@@ -647,7 +646,7 @@ Follow the repository's interface rules: Nuxt UI components and Tailwind utiliti
 Food mapping screen should support:
 
 ```text
-All | Mapped | Unmapped | Broken
+All | Mapped | Unmapped | Needs attention
 ```
 
 Example workflow:
@@ -664,12 +663,13 @@ Matched Mealie alias "Garbanzo beans"
 [Accept] [Choose another]
 ```
 
-Problems view covers only what is computable from cached data:
+The Needs attention tab covers only what is computable from cached data, one row per mapping with a label for each issue:
 
-- mappings to inactive/deleted Mealie foods
-- mappings whose item no longer has any entries
-- unmapped items
-- items without a usable package size
+- mapped to an inactive or deleted Mealie food (Broken)
+- the item no longer has any entries (No entries)
+- the item has no usable package size (No package size), linking to the item page
+
+Unmapped items are a normal state, not a problem, and are listed on the Unmapped tab.
 
 Unsupported conversions are shown inside a single recipe's cost view, where the recipe is already fetched. A cross-recipe problem report is later work.
 
@@ -837,7 +837,7 @@ Tests: new food; renamed food; alias added/removed; disappeared food; food reapp
 - rename/merge carry the mapping; 409 conflict resolution reusing the category flow
 - broken-mapping (inactive food) handling
 - add the new tables to the truncate list in `server/utils/database-reset.ts` so a reset leaves no dangling mappings
-- a mapping whose item no longer has any entries is left in place and listed in Problems
+- a mapping whose item no longer has any entries is left in place and listed under Needs attention
 
 ### E — Suggestions
 
@@ -848,7 +848,7 @@ Tests: exact food name → suggestion; exact alias → suggestion; fuzzy match �
 
 ### F — Manage → Mealie UI
 
-- Integration, Food mappings (All/Mapped/Unmapped/Broken), Problems
+- Integration, Food mappings (All/Mapped/Unmapped/Needs attention)
 - hidden when Mealie is not configured
 
 Browser-verify every flow end to end before closing.
