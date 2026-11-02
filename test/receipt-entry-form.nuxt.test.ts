@@ -102,21 +102,7 @@ const UCheckbox = defineComponent({
     }, props.label)
   }
 })
-const USwitch = defineComponent({
-  inheritAttrs: false,
-  props: { modelValue: Boolean, label: String },
-  emits: ['update:modelValue'],
-  setup(props, { attrs, emit }) {
-    return () => h('button', {
-      ...attrs,
-      type: 'button',
-      role: 'switch',
-      onClick: () => emit('update:modelValue', !props.modelValue)
-    }, props.label)
-  }
-})
-
-const stubs = { UInput, UInputMenu, UButton, UFormField, UPopover, UTooltip, UIcon, UAlert, UModal, UCheckbox, USwitch }
+const stubs = { UInput, UInputMenu, UButton, UFormField, UPopover, UTooltip, UIcon, UAlert, UModal, UCheckbox }
 const RouteView = defineComponent({ setup: () => () => h(RouterView) })
 const localStorageStub = {
   values: new Map<string, string>(),

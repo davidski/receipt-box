@@ -1086,7 +1086,7 @@ async function exportXlsx() {
           <UAlert v-if="backfillPromptsError" color="error" variant="soft" icon="i-lucide-circle-alert" :description="backfillPromptsError" class="mt-4 rounded-card px-3 py-2.5 text-sm">
             <template #actions><UButton type="button" label="Try again" color="neutral" variant="outline" @click="loadBackfillPrompts" /></template>
           </UAlert>
-          <UCheckbox
+          <USwitch
             :model-value="backfillPromptsEnabled"
             :disabled="!backfillPromptsLoaded"
             label="Prompt before updating previous entries"

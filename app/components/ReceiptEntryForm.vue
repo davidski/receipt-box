@@ -1471,7 +1471,7 @@ async function deleteReceipt() {
               </template>
             </UInput>
           </UFormField>
-          <USwitch :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" class="mt-[1.6875rem] max-sm:mt-0" @keydown.tab.exact.prevent="finishLine(line)" />
+          <UCheckbox :data-line-non-grocery="line.key" v-model="line.nonGrocery" label="Non-grocery" class="mt-[1.6875rem] max-sm:mt-0" @keydown.tab.exact.prevent="finishLine(line)" />
         </div>
         <div v-if="line.confirmingRemove" class="col-span-full flex items-center justify-end gap-2.5 rounded-card border border-danger/35 bg-danger-soft px-3 py-2.5 max-sm:grid max-sm:grid-cols-[1fr_1fr]" role="alert">
           <span class="mr-auto text-sm text-ink max-sm:col-span-full max-sm:mr-0"><strong>Remove {{ line.item }}?</strong> This saved entry will be permanently deleted.</span>
