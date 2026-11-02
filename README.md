@@ -126,6 +126,24 @@ When OIDC mode is enabled, all Receipt Box data API routes require auth. The
 OIDC callback, session-management endpoint, authentication-status endpoint,
 and `/api/health` remain unauthenticated.
 
+### Optional Mealie recipe costing
+
+While not enabled by default, a [Mealie](https://mealie.io/) instance can be
+connected to price its recipes from your Receipt Box purchase history. Set both
+variables on the application container:
+
+```dotenv
+MEALIE_URL=https://mealie.example.com
+MEALIE_API_TOKEN=replace-with-a-mealie-api-token
+```
+
+Use Mealie's base URL, without `/api`. The token stays on the server and
+Receipt Box only reads from Mealie. If either variable is unset, Mealie features
+stay hidden.
+
+Foods and units sync when the app starts. To sync again, use **Sync now** at
+`/data/mealie`, where you also map grocery items to Mealie foods.
+
 ## Configuration
 
 The application uses these settings:
@@ -190,22 +208,6 @@ An export is not a full backup. It does not include saved recipes, Mealie food m
 ```sh
 docker compose exec -T postgres pg_dump -U receiptbox -d receiptbox --clean --if-exists > receiptbox.sql
 ```
-
-## Upgrading the Compose database from PostgreSQL 17
-
-PostgreSQL 18 uses a new volume, `receipt-box-postgres-18`, and does not read the old data. Without these steps the app starts with an empty database. Dump before pulling the new `compose.yaml`:
-
-```sh
-docker compose stop receiptbox
-docker compose exec -T postgres pg_dump -U receiptbox -d receiptbox --clean --if-exists > receiptbox.sql
-docker compose stop postgres
-# update compose.yaml, then:
-docker compose up -d postgres
-docker compose exec -T postgres psql -U receiptbox -d receiptbox -v ON_ERROR_STOP=1 < receiptbox.sql
-docker compose up -d
-```
-
-The old `receipt-box-postgres` volume stays untouched. Remove it yourself once the upgrade checks out.
 
 ## Development commands
 
